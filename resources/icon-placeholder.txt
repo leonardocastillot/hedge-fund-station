@@ -1,0 +1,28 @@
+App Icon Placeholder
+====================
+
+For production, replace this with:
+
+1. Create a 1024x1024 PNG icon with:
+   - Hedge fund/trading theme
+   - Dark background (#0B0F19 or similar)
+   - Professional look
+   - High resolution
+
+2. Convert to Windows ICO format:
+   - Use online converter or tools like ImageMagick
+   - Multiple sizes: 16x16, 32x32, 48x48, 256x256
+   - Save as: resources/icon.ico
+
+3. For macOS (if needed):
+   - Convert to ICNS format
+   - Save as: resources/icon.icns
+
+Suggested design elements:
+- Rocket emoji 🚀
+- Chart/graph icon 📊
+- Terminal/code icon 💻
+- Modern, minimal design
+- Good contrast with dark backgrounds
+
+For now, using default Electron icon.

@@ -1,0 +1,2639 @@
+{
+  "artifact_id": "backtest_report:polymarket_btc_updown_5m_oracle_lag:20260318T212104Z",
+  "generated_at": "2026-03-18T21:21:04Z",
+  "artifact_type": "backtest_report",
+  "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+  "research": {
+    "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+    "docs_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\docs\\strategies\\polymarket-btc-updown-5m-oracle-lag.md",
+    "spec_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\polymarket_btc_updown_5m_oracle_lag\\spec.md",
+    "strategy_dir": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\polymarket_btc_updown_5m_oracle_lag",
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true
+  },
+  "dataset": {
+    "path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\data\\hyperliquid.db",
+    "type": "polymarket_btc_5m_snapshot_db",
+    "rows": 450,
+    "events": 37,
+    "start": "2026-03-15T15:36:13Z",
+    "end": "2026-03-18T20:27:19Z"
+  },
+  "config": {
+    "initial_equity": 100000.0,
+    "fee_rate": 0.00055,
+    "risk_fraction": 0.1
+  },
+  "validation_policy": {
+    "min_trades": 3,
+    "min_return_pct": 0.1,
+    "min_profit_factor": 1.05,
+    "min_win_rate_pct": 45.0,
+    "max_drawdown_pct": 6.0
+  },
+  "summary": {
+    "initial_equity": 250.0,
+    "final_equity": 248.09,
+    "net_profit": -1.91,
+    "return_pct": -0.76,
+    "total_trades": 3,
+    "wins": 0,
+    "losses": 3,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown_pct": 0.76,
+    "fees_paid": 1.09
+  },
+  "latest_signal": {
+    "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+    "slug": "btc-updown-5m-1773865500",
+    "signal": "ENTER",
+    "side": "BUY_YES",
+    "confidence": 99,
+    "net_edge_pct": 14.655,
+    "seconds_to_expiry": 160,
+    "rank_score": 93,
+    "watchlist_label": "watch-now",
+    "status": "ready"
+  },
+  "trades": [
+    {
+      "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+      "slug": "btc-updown-5m-1773594000",
+      "side": "BUY_YES",
+      "entry_timestamp": "2026-03-15T17:04:00Z",
+      "exit_timestamp": "2026-03-15T17:04:00Z",
+      "entry_price": 0.62,
+      "exit_price": 0.59,
+      "size_usd": 12.0,
+      "gross_pnl": -0.5806,
+      "net_pnl": -0.9227,
+      "return_pct": -7.6893,
+      "fees": 0.342069,
+      "exit_reason": "event_resolution",
+      "entry_context": {
+        "snapshot": {
+          "created_at_ms": 1773594240607,
+          "captured_at": "2026-03-15T17:04:00Z",
+          "slug": "btc-updown-5m-1773594000",
+          "event_id": "0xa10266b9b5b2b242780156b0910d13e11818edd0bab4f0a460bf6a0e7e2b9899",
+          "yes_price": 0.59,
+          "best_bid": 0.61,
+          "best_ask": 0.62,
+          "spread_pct": 1.0,
+          "basis_bps": 12.0,
+          "seconds_to_expiry": 59,
+          "fees_enabled": true,
+          "accepting_orders": true,
+          "price_to_beat": null,
+          "yes_fee_pct": 1.3877,
+          "no_fee_pct": 1.4149,
+          "fee_pct": 2.8298,
+          "slippage_pct": 0.12,
+          "payload": {
+            "id": "1589350",
+            "question": "Bitcoin Up or Down - March 15, 1:00PM-1:05PM ET",
+            "conditionId": "0xcfb4d8cbd3026a014e1c08f5334507bdff84d54ad044e51d6cdc8e1476cb29a0",
+            "slug": "btc-updown-5m-1773594000",
+            "resolutionSource": "https://data.chain.link/streams/btc-usd",
+            "endDate": "2026-03-15T17:05:00Z",
+            "liquidity": "9279.0752",
+            "startDate": "2026-03-14T17:08:07.708665Z",
+            "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+            "outcomes": "[\"Up\", \"Down\"]",
+            "outcomePrices": "[\"0.615\", \"0.385\"]",
+            "volume": "28046.02207200004",
+            "active": true,
+            "closed": false,
+            "marketMakerAddress": "",
+            "createdAt": "2026-03-14T17:06:57.456355Z",
+            "updatedAt": "2026-03-15T17:02:49.99906Z",
+            "new": false,
+            "featured": false,
+            "archived": false,
+            "restricted": true,
+            "groupItemThreshold": "0",
+            "questionID": "0xa10266b9b5b2b242780156b0910d13e11818edd0bab4f0a460bf6a0e7e2b9899",
+            "enableOrderBook": true,
+            "orderPriceMinTickSize": 0.01,
+            "orderMinSize": 5,
+            "volumeNum": 28046.02207200004,
+            "liquidityNum": 9279.0752,
+            "endDateIso": "2026-03-15",
+            "startDateIso": "2026-03-14",
+            "hasReviewedDates": true,
+            "volume24hr": 30164.373315,
+            "volume1wk": 30164.373315,
+            "volume1mo": 30164.373315,
+            "volume1yr": 30164.373315,
+            "clobTokenIds": "[\"106233864541176787076719468401368618443780190737972569208495206506823978983331\", \"82965247213786712816254349762704046358311217646073951614841199913191444613261\"]",
+            "volume24hrClob": 30164.373315,
+            "volume1wkClob": 30164.373315,
+            "volume1moClob": 30164.373315,
+            "volume1yrClob": 30164.373315,
+            "volumeClob": 28046.02207200004,
+            "liquidityClob": 9279.0752,
+            "makerBaseFee": 1000,
+            "takerBaseFee": 1000,
+            "acceptingOrders": true,
+            "negRisk": false,
+            "events": [
+              {
+                "id": "269952",
+                "ticker": "btc-updown-5m-1773594000",
+                "slug": "btc-updown-5m-1773594000",
+                "title": "Bitcoin Up or Down - March 15, 1:00PM-1:05PM ET",
+                "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+                "resolutionSource": "https://data.chain.link/streams/btc-usd",
+                "startDate": "2026-03-14T17:09:26.436037Z",
+                "creationDate": "2026-03-14T17:09:26.43603Z",
+                "endDate": "2026-03-15T17:05:00Z",
+                "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "active": true,
+                "closed": false,
+                "archived": false,
+                "new": false,
+                "featured": false,
+                "restricted": true,
+                "liquidity": 33918.897,
+                "volume": 516.532543,
+                "openInterest": 0,
+                "createdAt": "2026-03-14T17:06:57.356888Z",
+                "updatedAt": "2026-03-15T16:59:51.032878Z",
+                "competitive": 0.9999750006249843,
+                "volume24hr": 566.532543,
+                "volume1wk": 566.532543,
+                "volume1mo": 566.532543,
+                "volume1yr": 566.532543,
+                "enableOrderBook": true,
+                "liquidityClob": 33918.897,
+                "negRisk": false,
+                "commentCount": 0,
+                "series": [
+                  {
+                    "id": "10684",
+                    "ticker": "btc-up-or-down-5m",
+                    "slug": "btc-up-or-down-5m",
+                    "title": "BTC Up or Down 5m",
+                    "seriesType": "single",
+                    "recurrence": "5m",
+                    "image": "",
+                    "icon": "",
+                    "active": true,
+                    "closed": false,
+                    "archived": false,
+                    "featured": false,
+                    "restricted": true,
+                    "createdAt": "2025-11-21T21:46:22.201627Z",
+                    "updatedAt": "2026-03-15T16:59:59.592067Z",
+                    "volume24hr": 32152143.628716987,
+                    "volume": 58666.17647299996,
+                    "liquidity": 3865502.1737,
+                    "commentCount": 32284,
+                    "requiresTranslation": false
+                  }
+                ],
+                "cyom": false,
+                "showAllOutcomes": true,
+                "showMarketImages": true,
+                "enableNegRisk": false,
+                "automaticallyActive": true,
+                "startTime": "2026-03-15T17:00:00Z",
+                "seriesSlug": "btc-up-or-down-5m",
+                "negRiskAugmented": false,
+                "pendingDeployment": false,
+                "deploying": false,
+                "requiresTranslation": false
+              }
+            ],
+            "ready": false,
+            "funded": false,
+            "acceptingOrdersTimestamp": "2026-03-14T17:07:01Z",
+            "cyom": false,
+            "competitive": 0.9869476177551876,
+            "pagerDutyNotificationEnabled": false,
+            "approved": true,
+            "rewardsMinSize": 50,
+            "rewardsMaxSpread": 4.5,
+            "spread": 0.01,
+            "lastTradePrice": 0.59,
+            "bestBid": 0.61,
+            "bestAsk": 0.62,
+            "automaticallyActive": true,
+            "clearBookOnStart": false,
+            "showGmpSeries": false,
+            "showGmpOutcome": false,
+            "manualActivation": false,
+            "negRiskOther": false,
+            "umaResolutionStatuses": "[]",
+            "pendingDeployment": false,
+            "deploying": false,
+            "rfqEnabled": false,
+            "eventStartTime": "2026-03-15T17:00:00Z",
+            "holdingRewardsEnabled": false,
+            "feesEnabled": true,
+            "requiresTranslation": false,
+            "makerRebatesFeeShareBps": 10000,
+            "feeType": "crypto_fees"
+          }
+        },
+        "signal_eval": {
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "modeled_prob_up": 0.68,
+          "gross_edge_pct": 6.0,
+          "net_edge_pct": 3.0046,
+          "reasons": [
+            "Basis +12.00 bps favors BUY_YES",
+            "Gross edge 6.000%",
+            "Net edge 3.005% after modeled costs"
+          ],
+          "filters_passed": {
+            "time_window": "59s",
+            "gross_edge": "6.000%",
+            "net_edge": "3.005% after 2.995% costs",
+            "spread": "1.000%"
+          },
+          "filters_failed": {},
+          "entry_price": 0.62,
+          "roundtrip_fee_pct": 2.7754,
+          "entry_price_bucket": "rich",
+          "cost_structure": {
+            "roundtrip_fee_pct": 2.7754,
+            "slippage_pct": 0.12,
+            "safety_margin_pct": 0.1
+          }
+        },
+        "rank": {
+          "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+          "rank_score": 92,
+          "watchlist_label": "watch-now",
+          "edge_score": 100,
+          "spread_score": 60,
+          "timing_score": 63,
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "net_edge_pct": 3.0046
+        }
+      }
+    },
+    {
+      "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+      "slug": "btc-updown-5m-1773847800",
+      "side": "BUY_YES",
+      "entry_timestamp": "2026-03-18T15:32:25Z",
+      "exit_timestamp": "2026-03-18T15:32:25Z",
+      "entry_price": 0.51,
+      "exit_price": 0.5,
+      "size_usd": 12.0,
+      "gross_pnl": -0.2353,
+      "net_pnl": -0.6101,
+      "return_pct": -5.0845,
+      "fees": 0.37485,
+      "exit_reason": "event_resolution",
+      "entry_context": {
+        "snapshot": {
+          "created_at_ms": 1773847945017,
+          "captured_at": "2026-03-18T15:32:25Z",
+          "slug": "btc-updown-5m-1773847800",
+          "event_id": "0x811a79878b66d3fbc0c68c79d3fbef0c71cd3a80a372cbbda4355e8a59f4cdab",
+          "yes_price": 0.5,
+          "best_bid": 0.5,
+          "best_ask": 0.51,
+          "spread_pct": 1.0,
+          "basis_bps": 1.6145,
+          "seconds_to_expiry": 155,
+          "fees_enabled": true,
+          "accepting_orders": true,
+          "price_to_beat": null,
+          "yes_fee_pct": 1.5613,
+          "no_fee_pct": 1.5625,
+          "fee_pct": 3.125,
+          "slippage_pct": 0.12,
+          "payload": {
+            "id": "1628416",
+            "question": "Bitcoin Up or Down - March 18, 11:30AM-11:35AM ET",
+            "conditionId": "0xf19b2f50587b3263863ed99c3ecc4a18e897d5a41fc33d117040d8575f097c14",
+            "slug": "btc-updown-5m-1773847800",
+            "resolutionSource": "https://data.chain.link/streams/btc-usd",
+            "endDate": "2026-03-18T15:35:00Z",
+            "liquidity": "39203.7133",
+            "startDate": "2026-03-17T15:38:58.91172Z",
+            "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+            "outcomes": "[\"Up\", \"Down\"]",
+            "outcomePrices": "[\"0.505\", \"0.495\"]",
+            "volume": "1823.800774",
+            "active": true,
+            "closed": false,
+            "marketMakerAddress": "",
+            "createdAt": "2026-03-17T15:37:48.493365Z",
+            "updatedAt": "2026-03-18T15:29:23.999942Z",
+            "new": false,
+            "featured": false,
+            "archived": false,
+            "restricted": true,
+            "groupItemThreshold": "0",
+            "questionID": "0x811a79878b66d3fbc0c68c79d3fbef0c71cd3a80a372cbbda4355e8a59f4cdab",
+            "enableOrderBook": true,
+            "orderPriceMinTickSize": 0.01,
+            "orderMinSize": 5,
+            "volumeNum": 1823.800774,
+            "liquidityNum": 39203.7133,
+            "endDateIso": "2026-03-18",
+            "startDateIso": "2026-03-17",
+            "hasReviewedDates": true,
+            "volume24hr": 1901.0707740000005,
+            "volume1wk": 1901.0707740000005,
+            "volume1mo": 1901.0707740000005,
+            "volume1yr": 1901.0707740000005,
+            "clobTokenIds": "[\"76429036825165394244718149963218872584129829438419632329522270363193252165332\", \"89820616862223821644834330809184401111203842075444437464759060981845135948365\"]",
+            "volume24hrClob": 1901.0707740000005,
+            "volume1wkClob": 1901.0707740000005,
+            "volume1moClob": 1901.0707740000005,
+            "volume1yrClob": 1901.0707740000005,
+            "volumeClob": 1823.800774,
+            "liquidityClob": 39203.7133,
+            "makerBaseFee": 1000,
+            "takerBaseFee": 1000,
+            "acceptingOrders": true,
+            "negRisk": false,
+            "events": [
+              {
+                "id": "279951",
+                "ticker": "btc-updown-5m-1773847800",
+                "slug": "btc-updown-5m-1773847800",
+                "title": "Bitcoin Up or Down - March 18, 11:30AM-11:35AM ET",
+                "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+                "resolutionSource": "https://data.chain.link/streams/btc-usd",
+                "startDate": "2026-03-17T15:39:49.667503Z",
+                "creationDate": "2026-03-17T15:39:49.667498Z",
+                "endDate": "2026-03-18T15:35:00Z",
+                "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "active": true,
+                "closed": false,
+                "archived": false,
+                "new": false,
+                "featured": false,
+                "restricted": true,
+                "liquidity": 39203.7133,
+                "volume": 1823.800774,
+                "openInterest": 0,
+                "createdAt": "2026-03-17T15:37:48.390835Z",
+                "updatedAt": "2026-03-18T15:30:29.338047Z",
+                "competitive": 0.9999750006249843,
+                "volume24hr": 1901.0707740000005,
+                "volume1wk": 1901.0707740000005,
+                "volume1mo": 1901.0707740000005,
+                "volume1yr": 1901.0707740000005,
+                "enableOrderBook": true,
+                "liquidityClob": 39203.7133,
+                "negRisk": false,
+                "commentCount": 0,
+                "series": [
+                  {
+                    "id": "10684",
+                    "ticker": "btc-up-or-down-5m",
+                    "slug": "btc-up-or-down-5m",
+                    "title": "BTC Up or Down 5m",
+                    "seriesType": "single",
+                    "recurrence": "5m",
+                    "image": "",
+                    "icon": "",
+                    "active": true,
+                    "closed": false,
+                    "archived": false,
+                    "featured": false,
+                    "restricted": true,
+                    "createdAt": "2025-11-21T21:46:22.201627Z",
+                    "updatedAt": "2026-03-18T15:26:48.171673Z",
+                    "volume24hr": 38551024.01031897,
+                    "volume": 162173.51504399974,
+                    "liquidity": 5636458.0855,
+                    "commentCount": 36103,
+                    "requiresTranslation": false
+                  }
+                ],
+                "cyom": false,
+                "showAllOutcomes": true,
+                "showMarketImages": true,
+                "enableNegRisk": false,
+                "automaticallyActive": true,
+                "startTime": "2026-03-18T15:30:00Z",
+                "seriesSlug": "btc-up-or-down-5m",
+                "negRiskAugmented": false,
+                "pendingDeployment": false,
+                "deploying": false,
+                "requiresTranslation": false
+              }
+            ],
+            "ready": false,
+            "funded": false,
+            "acceptingOrdersTimestamp": "2026-03-17T15:37:53Z",
+            "cyom": false,
+            "competitive": 0.9999750006249843,
+            "pagerDutyNotificationEnabled": false,
+            "approved": true,
+            "rewardsMinSize": 50,
+            "rewardsMaxSpread": 4.5,
+            "spread": 0.01,
+            "lastTradePrice": 0.5,
+            "bestBid": 0.5,
+            "bestAsk": 0.51,
+            "automaticallyActive": true,
+            "clearBookOnStart": false,
+            "showGmpSeries": false,
+            "showGmpOutcome": false,
+            "manualActivation": false,
+            "negRiskOther": false,
+            "umaResolutionStatuses": "[]",
+            "pendingDeployment": false,
+            "deploying": false,
+            "rfqEnabled": false,
+            "eventStartTime": "2026-03-18T15:30:00Z",
+            "holdingRewardsEnabled": false,
+            "feesEnabled": true,
+            "requiresTranslation": false,
+            "makerRebatesFeeShareBps": 10000,
+            "feeType": "crypto_fees"
+          }
+        },
+        "signal_eval": {
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "modeled_prob_up": 0.68,
+          "gross_edge_pct": 17.0,
+          "net_edge_pct": 13.6575,
+          "reasons": [
+            "Basis +1.61 bps favors BUY_YES",
+            "Gross edge 17.000%",
+            "Net edge 13.657% after modeled costs"
+          ],
+          "filters_passed": {
+            "time_window": "155s",
+            "gross_edge": "17.000%",
+            "net_edge": "13.657% after 3.343% costs",
+            "spread": "1.000%"
+          },
+          "filters_failed": {},
+          "entry_price": 0.51,
+          "roundtrip_fee_pct": 3.1225,
+          "entry_price_bucket": "mid",
+          "cost_structure": {
+            "roundtrip_fee_pct": 3.1225,
+            "slippage_pct": 0.12,
+            "safety_margin_pct": 0.1
+          }
+        },
+        "rank": {
+          "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+          "rank_score": 94,
+          "watchlist_label": "watch-now",
+          "edge_score": 100,
+          "spread_score": 60,
+          "timing_score": 79,
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "net_edge_pct": 13.6575
+        }
+      }
+    },
+    {
+      "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+      "slug": "btc-updown-5m-1773849600",
+      "side": "BUY_YES",
+      "entry_timestamp": "2026-03-18T16:00:57Z",
+      "exit_timestamp": "2026-03-18T16:04:41Z",
+      "entry_price": 0.51,
+      "exit_price": 0.51,
+      "size_usd": 12.0,
+      "gross_pnl": 0.0,
+      "net_pnl": -0.3747,
+      "return_pct": -3.1225,
+      "fees": 0.3747,
+      "exit_reason": "event_resolution",
+      "entry_context": {
+        "snapshot": {
+          "created_at_ms": 1773849657174,
+          "captured_at": "2026-03-18T16:00:57Z",
+          "slug": "btc-updown-5m-1773849600",
+          "event_id": "0x02f252c81e3dccd579152e0bc82bc44af8b0ab75724b803054edd728f28b9945",
+          "yes_price": 0.51,
+          "best_bid": 0.5,
+          "best_ask": 0.51,
+          "spread_pct": 1.0,
+          "basis_bps": 2.4918,
+          "seconds_to_expiry": 242,
+          "fees_enabled": true,
+          "accepting_orders": true,
+          "price_to_beat": null,
+          "yes_fee_pct": 1.5613,
+          "no_fee_pct": 1.5625,
+          "fee_pct": 3.125,
+          "slippage_pct": 0.12,
+          "payload": {
+            "id": "1629023",
+            "question": "Bitcoin Up or Down - March 18, 12:00PM-12:05PM ET",
+            "conditionId": "0x69372674537447c80fb5249573ad211d5e9b1c8b858ee97fd248e78a807362ee",
+            "slug": "btc-updown-5m-1773849600",
+            "resolutionSource": "https://data.chain.link/streams/btc-usd",
+            "endDate": "2026-03-18T16:05:00Z",
+            "liquidity": "40544.2443",
+            "startDate": "2026-03-17T16:09:54.986962Z",
+            "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+            "outcomes": "[\"Up\", \"Down\"]",
+            "outcomePrices": "[\"0.505\", \"0.495\"]",
+            "volume": "1256.287798",
+            "active": true,
+            "closed": false,
+            "marketMakerAddress": "",
+            "createdAt": "2026-03-17T16:07:10.898454Z",
+            "updatedAt": "2026-03-18T15:58:06.353815Z",
+            "new": false,
+            "featured": false,
+            "archived": false,
+            "restricted": true,
+            "groupItemThreshold": "0",
+            "questionID": "0x02f252c81e3dccd579152e0bc82bc44af8b0ab75724b803054edd728f28b9945",
+            "enableOrderBook": true,
+            "orderPriceMinTickSize": 0.01,
+            "orderMinSize": 5,
+            "volumeNum": 1256.287798,
+            "liquidityNum": 40544.2443,
+            "endDateIso": "2026-03-18",
+            "startDateIso": "2026-03-17",
+            "hasReviewedDates": true,
+            "volume24hr": 1264.2877979999998,
+            "volume1wk": 1264.2877979999998,
+            "volume1mo": 1264.2877979999998,
+            "volume1yr": 1264.2877979999998,
+            "clobTokenIds": "[\"103276242718557581494071198494315921194255549911229829847090707911560556399636\", \"1770777372852627500204781766960779069245317266010588310892005422571600324387\"]",
+            "volume24hrClob": 1264.2877979999998,
+            "volume1wkClob": 1264.2877979999998,
+            "volume1moClob": 1264.2877979999998,
+            "volume1yrClob": 1264.2877979999998,
+            "volumeClob": 1256.287798,
+            "liquidityClob": 40544.2443,
+            "makerBaseFee": 1000,
+            "takerBaseFee": 1000,
+            "acceptingOrders": true,
+            "negRisk": false,
+            "events": [
+              {
+                "id": "280119",
+                "ticker": "btc-updown-5m-1773849600",
+                "slug": "btc-updown-5m-1773849600",
+                "title": "Bitcoin Up or Down - March 18, 12:00PM-12:05PM ET",
+                "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+                "resolutionSource": "https://data.chain.link/streams/btc-usd",
+                "startDate": "2026-03-17T16:10:31.197359Z",
+                "creationDate": "2026-03-17T16:10:31.197353Z",
+                "endDate": "2026-03-18T16:05:00Z",
+                "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "active": true,
+                "closed": false,
+                "archived": false,
+                "new": false,
+                "featured": false,
+                "restricted": true,
+                "liquidity": 40544.2443,
+                "volume": 1256.287798,
+                "openInterest": 0,
+                "createdAt": "2026-03-17T16:07:10.798229Z",
+                "updatedAt": "2026-03-18T15:58:46.434972Z",
+                "competitive": 0.9999750006249843,
+                "volume24hr": 1264.2877979999998,
+                "volume1wk": 1264.2877979999998,
+                "volume1mo": 1264.2877979999998,
+                "volume1yr": 1264.2877979999998,
+                "enableOrderBook": true,
+                "liquidityClob": 40544.2443,
+                "negRisk": false,
+                "commentCount": 0,
+                "series": [
+                  {
+                    "id": "10684",
+                    "ticker": "btc-up-or-down-5m",
+                    "slug": "btc-up-or-down-5m",
+                    "title": "BTC Up or Down 5m",
+                    "seriesType": "single",
+                    "recurrence": "5m",
+                    "image": "",
+                    "icon": "",
+                    "active": true,
+                    "closed": false,
+                    "archived": false,
+                    "featured": false,
+                    "restricted": true,
+                    "createdAt": "2025-11-21T21:46:22.201627Z",
+                    "updatedAt": "2026-03-18T15:58:59.809914Z",
+                    "volume24hr": 38823882.933303975,
+                    "volume": 70770.49726099991,
+                    "liquidity": 4281673.9166,
+                    "commentCount": 36131,
+                    "requiresTranslation": false
+                  }
+                ],
+                "cyom": false,
+                "showAllOutcomes": true,
+                "showMarketImages": true,
+                "enableNegRisk": false,
+                "automaticallyActive": true,
+                "startTime": "2026-03-18T16:00:00Z",
+                "seriesSlug": "btc-up-or-down-5m",
+                "negRiskAugmented": false,
+                "pendingDeployment": false,
+                "deploying": false,
+                "requiresTranslation": false
+              }
+            ],
+            "ready": false,
+            "funded": false,
+            "acceptingOrdersTimestamp": "2026-03-17T16:08:49Z",
+            "cyom": false,
+            "competitive": 0.9999750006249843,
+            "pagerDutyNotificationEnabled": false,
+            "approved": true,
+            "rewardsMinSize": 50,
+            "rewardsMaxSpread": 4.5,
+            "spread": 0.01,
+            "lastTradePrice": 0.51,
+            "bestBid": 0.5,
+            "bestAsk": 0.51,
+            "automaticallyActive": true,
+            "clearBookOnStart": false,
+            "showGmpSeries": false,
+            "showGmpOutcome": false,
+            "manualActivation": false,
+            "negRiskOther": false,
+            "umaResolutionStatuses": "[]",
+            "pendingDeployment": false,
+            "deploying": false,
+            "rfqEnabled": false,
+            "eventStartTime": "2026-03-18T16:00:00Z",
+            "holdingRewardsEnabled": false,
+            "feesEnabled": true,
+            "requiresTranslation": false,
+            "makerRebatesFeeShareBps": 10000,
+            "feeType": "crypto_fees"
+          }
+        },
+        "signal_eval": {
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "modeled_prob_up": 0.68,
+          "gross_edge_pct": 17.0,
+          "net_edge_pct": 13.6575,
+          "reasons": [
+            "Basis +2.49 bps favors BUY_YES",
+            "Gross edge 17.000%",
+            "Net edge 13.657% after modeled costs"
+          ],
+          "filters_passed": {
+            "time_window": "242s",
+            "gross_edge": "17.000%",
+            "net_edge": "13.657% after 3.343% costs",
+            "spread": "1.000%"
+          },
+          "filters_failed": {},
+          "entry_price": 0.51,
+          "roundtrip_fee_pct": 3.1225,
+          "entry_price_bucket": "mid",
+          "cost_structure": {
+            "roundtrip_fee_pct": 3.1225,
+            "slippage_pct": 0.12,
+            "safety_margin_pct": 0.1
+          }
+        },
+        "rank": {
+          "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+          "rank_score": 88,
+          "watchlist_label": "watch-now",
+          "edge_score": 100,
+          "spread_score": 60,
+          "timing_score": 27,
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "net_edge_pct": 13.6575
+        }
+      }
+    }
+  ],
+  "equity_curve": [
+    {
+      "timestamp": "2026-03-15T15:36:13Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T15:36:13Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T15:43:39Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T16:00:18Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T16:45:10Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T16:46:24Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:12Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:24Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:33Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:51Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:04Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:15Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:24Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:35Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:52Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:02Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:20Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:30Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:47Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:58:13Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:58:32Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:58:51Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:59:10Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:59:30Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:59:42Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:00:09Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:00:29Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:00:45Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:01:11Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:01:29Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:01:46Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:05:04Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:05:30Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:06:04Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:09:28Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:10:00Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:10:51Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:11:37Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:12:16Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:13:00Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:13:18Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:13:58Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:14:49Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:15:38Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:16:23Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:17:28Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:18:02Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:20:27Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T17:04:00Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T17:04:00Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:52:18Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:52:19Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:52:44Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:02Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:21Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:31Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:42Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:51Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:01Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:13Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:22Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:32Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:50Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:02:04Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:02:23Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:02:50Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:00Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:11Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:20Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:29Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:40Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:04:00Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:04:24Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:06:40Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:07:19Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:07:20Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:07:39Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:08:32Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-18T15:32:25Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-18T15:32:25Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:38:23Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:55:55Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:56:05Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:56:19Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:56:36Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:56:47Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:57:02Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:57:14Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:57:30Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:57:41Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:57:56Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:58:11Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:58:25Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:58:37Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:58:52Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:59:09Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:59:23Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:59:35Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T15:59:48Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:00:03Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:00:18Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:00:31Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:00:45Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:00:57Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:01:12Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:01:29Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:01:45Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:01:57Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:02:11Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:02:23Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:02:37Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:02:51Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:03:06Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:03:18Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:03:32Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:03:43Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:04:02Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:04:24Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:04:41Z",
+      "equity": 248.47
+    },
+    {
+      "timestamp": "2026-03-18T16:04:41Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:05:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:06:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:06:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:07:00Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:07:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:07:26Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:07:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:07:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:08:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:08:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:08:50Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:09:13Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:09:28Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:09:43Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:10:00Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:10:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:10:30Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:10:51Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:11:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:11:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:11:45Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:12:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:12:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:12:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:12:50Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:13:04Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:13:21Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:13:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:13:53Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:14:10Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:14:27Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:14:44Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:14:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:15:17Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:15:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:16:04Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:16:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:16:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:17:02Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:17:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:17:34Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:17:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:18:03Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:18:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:18:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:18:56Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:19:15Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:19:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:19:47Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:20:00Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:20:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:20:30Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:20:43Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:20:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:21:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:21:28Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:21:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:21:55Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:22:13Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:22:27Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:23:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:23:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:23:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:24:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:24:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:25:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:26:20Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:26:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:27:02Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:27:21Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:27:44Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:27:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:28:15Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:28:51Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:29:09Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:29:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:31:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:32:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:32:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:33:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:33:28Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:33:52Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:34:12Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:34:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:34:51Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:35:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:35:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:35:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:36:17Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:36:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:36:56Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:37:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:37:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:37:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:38:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:38:27Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:38:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:39:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:39:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:39:47Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:40:07Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:40:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:40:40Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:40:55Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:41:10Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:41:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:41:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:42:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:42:17Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:42:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:42:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:43:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:43:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:43:29Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:43:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:43:56Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:44:12Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:44:24Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:44:40Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:45:04Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:45:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:45:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:45:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:46:09Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:46:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:46:39Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:46:51Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:47:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:47:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:47:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:47:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:48:00Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:48:13Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:48:29Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:48:44Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:48:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:49:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:49:30Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:49:45Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:49:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:50:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:50:31Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:50:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:50:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:51:11Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:51:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:51:36Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:51:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:52:08Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:52:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:52:36Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:52:55Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:53:13Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:53:26Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:53:43Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:53:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:54:10Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:54:28Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:54:44Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:55:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:55:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:55:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:56:08Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:56:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:56:38Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:56:54Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T16:58:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:00:55Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:01:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:02:24Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:02:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:04:09Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:05:04Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:05:25Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:06:08Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:06:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:06:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:25:40Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:25:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:26:12Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:26:24Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:26:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:26:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:27:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:27:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:27:30Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:27:45Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:27:55Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:28:11Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:28:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:28:39Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:28:56Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:29:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:29:31Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:29:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:30:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:30:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:30:34Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:30:50Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:31:02Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:31:13Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:31:28Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:31:41Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:31:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:32:12Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:32:25Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:32:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:32:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:33:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:33:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:33:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:33:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:34:12Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:34:36Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:34:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:35:44Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:36:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:37:04Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:37:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:38:08Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:39:10Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:39:29Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:39:50Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:40:33Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:40:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:44:41Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:44:54Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:45:09Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:45:25Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:45:38Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:45:53Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:46:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:46:17Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:46:31Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:46:45Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:47:02Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:47:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:47:41Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:48:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:49:07Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:49:36Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:50:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:52:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:52:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:53:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:55:39Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:56:09Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:56:38Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:56:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:57:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:57:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:57:47Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:58:07Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:58:24Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:58:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:58:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:59:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:59:34Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T17:59:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:00:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:00:39Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:00:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:01:18Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:01:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:01:56Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:02:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:02:36Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:02:52Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:03:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:03:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:03:42Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:04:02Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:04:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:05:29Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:05:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:06:07Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:06:24Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:06:40Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:07:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:07:15Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:08:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:08:23Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:08:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:09:31Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:10:01Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:10:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:11:16Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:11:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:11:53Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:12:37Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:13:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:13:28Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:14:07Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:15:04Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:16:14Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:16:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:17:35Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T18:18:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:11:46Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:11:59Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:12:10Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:12:26Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:12:39Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:12:55Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:13:06Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:14:09Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:14:29Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:14:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:15:27Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:15:45Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:16:20Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:16:41Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:17:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:17:19Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:17:34Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:17:49Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:18:05Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:18:22Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:18:44Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:18:57Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:19:29Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:19:50Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:20:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:21:27Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:21:48Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:22:08Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:22:32Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:22:53Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:24:36Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:24:56Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:25:31Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:25:58Z",
+      "equity": 248.09
+    },
+    {
+      "timestamp": "2026-03-18T20:27:19Z",
+      "equity": 248.09
+    }
+  ],
+  "notes": [
+    "Replay is based on recorded polymarket_btc_5m_snapshots in local SQLite.",
+    "Settlement uses the final recorded yes_price as a proxy for realized event outcome.",
+    "This remains a research replay until live/paper journal density improves."
+  ],
+  "lineage": {
+    "stage": "backtest",
+    "parents": [],
+    "children": [
+      "validation_report",
+      "paper_candidate"
+    ]
+  },
+  "research_summary": {
+    "variant_leaderboard": [
+      {
+        "variant": "strict_spread",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "cheap_tail_taker",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "micro_live_tail",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "extreme_tail_confirmed",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "baseline_taker",
+        "return_pct": -0.76,
+        "profit_factor": 0.0,
+        "total_trades": 3,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.76,
+        "fees_paid": 1.09,
+        "latest_signal_status": "ready"
+      }
+    ],
+    "recommended_next_variant": {
+      "variant": "maker_basis_skew_research",
+      "reason": "All current taker variants are too weak or too sparse after fees, so the next serious candidate should reduce crossing costs."
+    },
+    "live_pilot_candidate": {
+      "variant": "micro_live_tail",
+      "return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_trades": 0,
+      "win_rate_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "fees_paid": 0,
+      "latest_signal_status": "watch"
+    },
+    "notes": [
+      "Local Polymarket sample is still sparse, so variant ranking is directional research rather than production evidence.",
+      "If all taker variants remain weak, the next serious strategy should be maker-biased basis skew rather than looser taker thresholds."
+    ]
+  }
+}

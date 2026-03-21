@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable
+
+from .engine import BacktestConfig, simulate_strategy
+from .io import Candle, canonicalize_ohlcv_csv, dataset_metadata
+from ..strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
+from ..strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
+from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+from ..strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
+from ..strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+from ..strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
+from ..strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
+from ..strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
+from ..strategies.polymarket_btc_updown_5m_oracle_lag.paper import paper_candidate as polymarket_btc_updown_5m_oracle_lag_paper_candidate
+
+PaperCandidateBuilder = Callable[[dict[str, Any]], dict[str, Any]]
+BacktestRunner = Callable[[Path, BacktestConfig], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class ValidationPolicy:
+    min_trades: int = 1
+    min_return_pct: float = 0.0
+    min_profit_factor: float = 1.0
+    min_win_rate_pct: float = 30.0
+    max_drawdown_pct: float = 25.0
+
+
+@dataclass(frozen=True)
+class StrategyDefinition:
+    strategy_id: str
+    backtest_runner: BacktestRunner
+    paper_candidate_builder: PaperCandidateBuilder
+    validation_policy: ValidationPolicy = field(default_factory=ValidationPolicy)
+    default_dataset: str | None = None
+    dataset_label: str = "dataset"
+
+
+def _run_bb_squeeze_adx_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
+    candles = canonicalize_ohlcv_csv(dataset_path)
+    indicators = bb_squeeze_adx_build_signals(candles)
+    result = simulate_strategy(
+        strategy_id="bb_squeeze_adx",
+        candles=candles,
+        indicators=indicators,
+        config=config,
+    )
+    return {
+        "dataset": dataset_metadata(candles, dataset_path),
+        "summary": result["summary"],
+        "latest_signal": bb_squeeze_adx_latest_signal(candles),
+        "trades": result["trades"],
+        "equity_curve": result["equity_curve"],
+        "notes": [
+            "Donor-compatible OHLCV baseline backtest.",
+            "No slippage model yet; fees only.",
+        ],
+    }
+
+
+STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
+    "bb_squeeze_adx": StrategyDefinition(
+        strategy_id="bb_squeeze_adx",
+        backtest_runner=_run_bb_squeeze_adx_backtest,
+        paper_candidate_builder=bb_squeeze_adx_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=3,
+            min_return_pct=0.5,
+            min_profit_factor=1.05,
+            min_win_rate_pct=30.0,
+            max_drawdown_pct=20.0,
+        ),
+        default_dataset=r"C:\Users\leonard\Documents\trading-harvard\Harvard-Algorithmic-Trading-with-AI\backtest\data\BTC-6h-1000wks-data.csv",
+        dataset_label="ohlcv_csv",
+    ),
+    "funding_exhaustion_snap": StrategyDefinition(
+        strategy_id="funding_exhaustion_snap",
+        backtest_runner=funding_exhaustion_snap_run_backtest,
+        paper_candidate_builder=funding_exhaustion_snap_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=0.25,
+            min_profit_factor=1.1,
+            min_win_rate_pct=35.0,
+            max_drawdown_pct=8.0,
+        ),
+        default_dataset=str(Path(__file__).resolve().parents[1] / "data" / "hyperliquid.db"),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "polymarket_btc_updown_5m_oracle_lag": StrategyDefinition(
+        strategy_id="polymarket_btc_updown_5m_oracle_lag",
+        backtest_runner=polymarket_btc_updown_5m_oracle_lag_run_backtest,
+        paper_candidate_builder=polymarket_btc_updown_5m_oracle_lag_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=3,
+            min_return_pct=0.1,
+            min_profit_factor=1.05,
+            min_win_rate_pct=45.0,
+            max_drawdown_pct=6.0,
+        ),
+        default_dataset=str(Path(__file__).resolve().parents[1] / "data" / "hyperliquid.db"),
+        dataset_label="polymarket_snapshot_db",
+    ),
+    "polymarket_btc_5m_maker_basis_skew": StrategyDefinition(
+        strategy_id="polymarket_btc_5m_maker_basis_skew",
+        backtest_runner=polymarket_btc_5m_maker_basis_skew_run_backtest,
+        paper_candidate_builder=polymarket_btc_5m_maker_basis_skew_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=2,
+            min_return_pct=0.1,
+            min_profit_factor=1.05,
+            min_win_rate_pct=50.0,
+            max_drawdown_pct=4.0,
+        ),
+        default_dataset=str(Path(__file__).resolve().parents[1] / "data" / "hyperliquid.db"),
+        dataset_label="polymarket_snapshot_db",
+    ),
+}
+
+
+def available_strategies() -> list[str]:
+    return sorted(STRATEGY_REGISTRY.keys())
+
+
+def discover_strategy_packages(strategies_root: Path | None = None) -> list[str]:
+    root = strategies_root or Path(__file__).resolve().parents[1] / "strategies"
+    if not root.exists():
+        return []
+
+    packages: list[str] = []
+    for path in root.iterdir():
+        if not path.is_dir():
+            continue
+        if path.name.startswith("__"):
+            continue
+        if (path / "logic.py").exists():
+            packages.append(path.name)
+    return sorted(packages)
+
+
+def get_strategy_definition(strategy_id: str) -> StrategyDefinition:
+    try:
+        return STRATEGY_REGISTRY[strategy_id]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported strategy: {strategy_id}") from exc
+
+
+def resolve_default_dataset(strategy_id: str) -> Path:
+    definition = get_strategy_definition(strategy_id)
+    if not definition.default_dataset:
+        raise ValueError(f"Strategy {strategy_id} does not define a default dataset.")
+    return Path(definition.default_dataset)
+
+
+def run_registered_backtest(
+    strategy_id: str,
+    dataset_path: Path,
+    config: BacktestConfig | None = None,
+) -> dict[str, Any]:
+    definition = get_strategy_definition(strategy_id)
+    return definition.backtest_runner(dataset_path, config or BacktestConfig())

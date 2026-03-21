@@ -1,0 +1,59 @@
+# Strategies Folder
+
+This folder is the documentation layer for strategy research.
+
+Each strategy should have its own file:
+
+- `docs/strategies/<strategy-id>.md`
+
+Recommended template:
+
+## Name
+
+Short name and one-line summary.
+
+## Hypothesis
+
+Why this should have edge.
+
+## Market Regime
+
+When it should and should not be active.
+
+## Inputs
+
+Required data, features, and dependencies.
+
+## Entry
+
+Exact trigger conditions.
+
+## Invalidation
+
+What breaks the setup.
+
+## Exit
+
+Profit-taking, time stop, or structural exit.
+
+## Risk
+
+Sizing, max exposure, session kill-switches.
+
+## Costs
+
+Fees, slippage, latency assumptions.
+
+## Validation
+
+Backtest, replay, and paper-trade plan.
+
+## Failure Modes
+
+Where the strategy is likely to break.
+
+## Backend Mapping
+
+Point to the implementation folder under:
+
+- `backend/hyperliquid_gateway/strategies/<strategy-id>/`

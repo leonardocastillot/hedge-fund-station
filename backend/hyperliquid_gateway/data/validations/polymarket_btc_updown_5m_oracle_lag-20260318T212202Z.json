@@ -1,0 +1,77 @@
+{
+  "artifact_id": "validation_report:polymarket_btc_updown_5m_oracle_lag:20260318T212202Z",
+  "generated_at": "2026-03-18T21:22:02Z",
+  "artifact_type": "validation_report",
+  "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+  "status": "blocked",
+  "research": {
+    "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+    "docs_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\docs\\strategies\\polymarket-btc-updown-5m-oracle-lag.md",
+    "spec_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\polymarket_btc_updown_5m_oracle_lag\\spec.md",
+    "strategy_dir": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\polymarket_btc_updown_5m_oracle_lag",
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true
+  },
+  "checks": {
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true,
+    "registered_for_backtest": true,
+    "report_exists": true
+  },
+  "validation_policy": {
+    "min_trades": 3,
+    "min_return_pct": 0.1,
+    "min_profit_factor": 1.05,
+    "min_win_rate_pct": 45.0,
+    "max_drawdown_pct": 6.0
+  },
+  "gate_checks": {
+    "min_trades": true,
+    "min_return_pct": false,
+    "min_profit_factor": false,
+    "min_win_rate_pct": false,
+    "max_drawdown_pct": true
+  },
+  "blocking_reasons": [
+    "min_return_pct",
+    "min_profit_factor",
+    "min_win_rate_pct"
+  ],
+  "report_path": "backend\\hyperliquid_gateway\\data\\backtests\\polymarket_btc_updown_5m_oracle_lag-hyperliquid-20260318T212104Z.json",
+  "report_artifact_id": "backtest_report:polymarket_btc_updown_5m_oracle_lag:20260318T212104Z",
+  "summary": {
+    "initial_equity": 250.0,
+    "final_equity": 248.09,
+    "net_profit": -1.91,
+    "return_pct": -0.76,
+    "total_trades": 3,
+    "wins": 0,
+    "losses": 3,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown_pct": 0.76,
+    "fees_paid": 1.09
+  },
+  "promotion_path": {
+    "current_stage": "research_or_backtest_blocked",
+    "next_stage": "paper_candidate",
+    "final_stage": "production_candidate"
+  },
+  "lineage": {
+    "stage": "validation",
+    "parents": [
+      "backtest_report:polymarket_btc_updown_5m_oracle_lag:20260318T212104Z"
+    ],
+    "children": [
+      "paper_candidate"
+    ]
+  }
+}

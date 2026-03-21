@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+dist-electron/
+release/
+out/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Electron
+*.asar
+
+# Testing
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.temp/
+.tmp/
+
+# User config (should be in .hedge-station)
+workspaces.json
+
+# Local databases / heavy runtime data
+backend/hyperliquid_gateway/data/hyperliquid.db
+backend/hyperliquid_gateway/data/hyperliquid.db-shm
+backend/hyperliquid_gateway/data/hyperliquid.db-wal

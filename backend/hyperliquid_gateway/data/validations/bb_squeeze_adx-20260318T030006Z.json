@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-03-18T03:00:06Z",
+  "artifact_type": "validation_report",
+  "strategy_id": "bb_squeeze_adx",
+  "status": "ready-for-paper",
+  "research": {
+    "strategy_id": "bb_squeeze_adx",
+    "docs_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\docs\\strategies\\bb-squeeze-adx.md",
+    "spec_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\bb_squeeze_adx\\spec.md",
+    "strategy_dir": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\bb_squeeze_adx",
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true
+  },
+  "checks": {
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true,
+    "registered_for_backtest": true,
+    "report_exists": true
+  },
+  "validation_policy": {
+    "min_trades": 3,
+    "min_return_pct": 0.5,
+    "min_profit_factor": 1.05,
+    "min_win_rate_pct": 30.0,
+    "max_drawdown_pct": 20.0
+  },
+  "gate_checks": {
+    "min_trades": true,
+    "min_return_pct": true,
+    "min_profit_factor": true,
+    "min_win_rate_pct": true,
+    "max_drawdown_pct": true
+  },
+  "report_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\data\\backtests\\bb_squeeze_adx-BTC-6h-1000wks-data-20260318T024643Z.json",
+  "summary": {
+    "initial_equity": 100000.0,
+    "final_equity": 101522.79,
+    "net_profit": 1522.79,
+    "return_pct": 1.52,
+    "total_trades": 203,
+    "wins": 81,
+    "losses": 122,
+    "win_rate_pct": 39.9,
+    "profit_factor": 1.07,
+    "max_drawdown_pct": 3.95,
+    "fees_paid": 2253.17
+  },
+  "promotion_path": {
+    "current_stage": "backtest_validated",
+    "next_stage": "paper_candidate",
+    "final_stage": "production_candidate"
+  }
+}

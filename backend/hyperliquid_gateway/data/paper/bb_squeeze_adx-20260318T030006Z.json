@@ -1,0 +1,69 @@
+{
+  "generated_at": "2026-03-18T03:00:06Z",
+  "artifact_type": "paper_candidate",
+  "strategy_id": "bb_squeeze_adx",
+  "research": null,
+  "report_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\data\\backtests\\bb_squeeze_adx-BTC-6h-1000wks-data-20260318T024643Z.json",
+  "validation_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\data\\validations\\bb_squeeze_adx-20260318T030006Z.json",
+  "dataset": {
+    "path": "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\BTC-6h-1000wks-data.csv",
+    "rows": 12903,
+    "start": "2015-07-20T18:00:00Z",
+    "end": "2024-05-19T12:00:00Z"
+  },
+  "summary": {
+    "initial_equity": 100000.0,
+    "final_equity": 101522.79,
+    "net_profit": 1522.79,
+    "return_pct": 1.52,
+    "total_trades": 203,
+    "wins": 81,
+    "losses": 122,
+    "win_rate_pct": 39.9,
+    "profit_factor": 1.07,
+    "max_drawdown_pct": 3.95,
+    "fees_paid": 2253.17
+  },
+  "latest_signal": {
+    "strategy_id": "bb_squeeze_adx",
+    "status": "watch",
+    "signal": "none",
+    "adx": 34.0195,
+    "squeeze_on": false,
+    "bars_since_squeeze": 16,
+    "stop_loss": null,
+    "take_profit": null
+  },
+  "paper_candidate": {
+    "strategy_id": "bb_squeeze_adx",
+    "signal": "none",
+    "status": "standby",
+    "promotion_gate": "eligible-for-paper-review",
+    "report_context": {
+      "return_pct": 1.52,
+      "profit_factor": 1.07,
+      "max_drawdown_pct": 3.95,
+      "total_trades": 203
+    },
+    "trigger_plan": "Wait for the next confirmed breakout candle after squeeze release and verify gateway market data.",
+    "review_fields": [
+      "dataset",
+      "report_path",
+      "validation_path",
+      "adx",
+      "stop_loss",
+      "take_profit",
+      "profit_factor",
+      "max_drawdown_pct"
+    ]
+  },
+  "promotion_path": {
+    "current_stage": "paper_candidate",
+    "next_stage": "production_candidate",
+    "requires": [
+      "paper execution journal",
+      "regime review",
+      "operator sign-off"
+    ]
+  }
+}

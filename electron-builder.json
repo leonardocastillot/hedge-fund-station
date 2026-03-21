@@ -1,0 +1,62 @@
+{
+  "appId": "com.hedgefund.station",
+  "productName": "Hedge Fund Station",
+  "copyright": "Copyright © 2026 Moon Dev",
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "moondev",
+      "repo": "hedge-fund-station"
+    }
+  ],
+  "directories": {
+    "output": "release/${version}",
+    "buildResources": "resources"
+  },
+  "files": [
+    "dist",
+    "dist-electron",
+    "!node_modules",
+    "!src",
+    "!electron",
+    "!*.md",
+    "!.env"
+  ],
+  "extraFiles": [
+    {
+      "from": ".env",
+      "to": "resources/.env"
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "resources/icon.ico",
+    "artifactName": "${productName}-${version}-Setup.${ext}",
+    "publisherName": "Moon Dev"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
+    "installerIcon": "resources/icon.ico",
+    "uninstallerIcon": "resources/icon.ico",
+    "installerHeaderIcon": "resources/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Hedge Fund Station",
+    "deleteAppDataOnUninstall": false,
+    "displayLanguageSelector": false
+  },
+  "portable": {
+    "artifactName": "${productName}-${version}-Portable.${ext}"
+  }
+}

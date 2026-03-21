@@ -1,0 +1,679 @@
+{
+  "artifact_id": "backtest_report:polymarket_btc_updown_5m_oracle_lag:20260318T040826Z",
+  "generated_at": "2026-03-18T04:08:26Z",
+  "artifact_type": "backtest_report",
+  "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+  "research": {
+    "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+    "docs_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\docs\\strategies\\polymarket-btc-updown-5m-oracle-lag.md",
+    "spec_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\polymarket_btc_updown_5m_oracle_lag\\spec.md",
+    "strategy_dir": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\polymarket_btc_updown_5m_oracle_lag",
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true
+  },
+  "dataset": {
+    "path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\data\\hyperliquid.db",
+    "type": "polymarket_btc_5m_snapshot_db",
+    "rows": 77,
+    "events": 5,
+    "start": "2026-03-15T15:36:13Z",
+    "end": "2026-03-15T19:20:27Z"
+  },
+  "config": {
+    "initial_equity": 100000.0,
+    "fee_rate": 0.00055,
+    "risk_fraction": 0.1
+  },
+  "validation_policy": {
+    "min_trades": 3,
+    "min_return_pct": 0.1,
+    "min_profit_factor": 1.05,
+    "min_win_rate_pct": 45.0,
+    "max_drawdown_pct": 6.0
+  },
+  "summary": {
+    "initial_equity": 250.0,
+    "final_equity": 249.08,
+    "net_profit": -0.92,
+    "return_pct": -0.37,
+    "total_trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown_pct": 0.37,
+    "fees_paid": 0.34
+  },
+  "latest_signal": {
+    "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+    "slug": "btc-updown-5m-1773601200",
+    "signal": "HOLD",
+    "side": "BUY_YES",
+    "confidence": 30,
+    "net_edge_pct": -36.3624,
+    "seconds_to_expiry": 0,
+    "rank_score": 21,
+    "watchlist_label": "avoid",
+    "status": "watch"
+  },
+  "trades": [
+    {
+      "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+      "slug": "btc-updown-5m-1773594000",
+      "side": "BUY_YES",
+      "entry_timestamp": "2026-03-15T17:04:00Z",
+      "exit_timestamp": "2026-03-15T17:04:00Z",
+      "entry_price": 0.62,
+      "exit_price": 0.59,
+      "size_usd": 12.0,
+      "gross_pnl": -0.5806,
+      "net_pnl": -0.9227,
+      "return_pct": -7.6893,
+      "fees": 0.342069,
+      "exit_reason": "event_resolution",
+      "entry_context": {
+        "snapshot": {
+          "created_at_ms": 1773594240607,
+          "captured_at": "2026-03-15T17:04:00Z",
+          "slug": "btc-updown-5m-1773594000",
+          "event_id": "0xa10266b9b5b2b242780156b0910d13e11818edd0bab4f0a460bf6a0e7e2b9899",
+          "yes_price": 0.59,
+          "best_bid": 0.61,
+          "best_ask": 0.62,
+          "spread_pct": 1.0,
+          "basis_bps": 12.0,
+          "seconds_to_expiry": 59,
+          "fees_enabled": true,
+          "accepting_orders": true,
+          "price_to_beat": null,
+          "yes_fee_pct": 1.3877,
+          "no_fee_pct": 1.4149,
+          "fee_pct": 2.8298,
+          "slippage_pct": 0.12,
+          "payload": {
+            "id": "1589350",
+            "question": "Bitcoin Up or Down - March 15, 1:00PM-1:05PM ET",
+            "conditionId": "0xcfb4d8cbd3026a014e1c08f5334507bdff84d54ad044e51d6cdc8e1476cb29a0",
+            "slug": "btc-updown-5m-1773594000",
+            "resolutionSource": "https://data.chain.link/streams/btc-usd",
+            "endDate": "2026-03-15T17:05:00Z",
+            "liquidity": "9279.0752",
+            "startDate": "2026-03-14T17:08:07.708665Z",
+            "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+            "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+            "outcomes": "[\"Up\", \"Down\"]",
+            "outcomePrices": "[\"0.615\", \"0.385\"]",
+            "volume": "28046.02207200004",
+            "active": true,
+            "closed": false,
+            "marketMakerAddress": "",
+            "createdAt": "2026-03-14T17:06:57.456355Z",
+            "updatedAt": "2026-03-15T17:02:49.99906Z",
+            "new": false,
+            "featured": false,
+            "archived": false,
+            "restricted": true,
+            "groupItemThreshold": "0",
+            "questionID": "0xa10266b9b5b2b242780156b0910d13e11818edd0bab4f0a460bf6a0e7e2b9899",
+            "enableOrderBook": true,
+            "orderPriceMinTickSize": 0.01,
+            "orderMinSize": 5,
+            "volumeNum": 28046.02207200004,
+            "liquidityNum": 9279.0752,
+            "endDateIso": "2026-03-15",
+            "startDateIso": "2026-03-14",
+            "hasReviewedDates": true,
+            "volume24hr": 30164.373315,
+            "volume1wk": 30164.373315,
+            "volume1mo": 30164.373315,
+            "volume1yr": 30164.373315,
+            "clobTokenIds": "[\"106233864541176787076719468401368618443780190737972569208495206506823978983331\", \"82965247213786712816254349762704046358311217646073951614841199913191444613261\"]",
+            "volume24hrClob": 30164.373315,
+            "volume1wkClob": 30164.373315,
+            "volume1moClob": 30164.373315,
+            "volume1yrClob": 30164.373315,
+            "volumeClob": 28046.02207200004,
+            "liquidityClob": 9279.0752,
+            "makerBaseFee": 1000,
+            "takerBaseFee": 1000,
+            "acceptingOrders": true,
+            "negRisk": false,
+            "events": [
+              {
+                "id": "269952",
+                "ticker": "btc-updown-5m-1773594000",
+                "slug": "btc-updown-5m-1773594000",
+                "title": "Bitcoin Up or Down - March 15, 1:00PM-1:05PM ET",
+                "description": "This market will resolve to \"Up\" if the Bitcoin price at the end of the time range specified in the title is greater than or equal to the price at the beginning of that range. Otherwise, it will resolve to \"Down\".\nThe resolution source for this market is information from Chainlink, specifically the BTC/USD data stream available at https://data.chain.link/streams/btc-usd.\nPlease note that this market is about the price according to Chainlink data stream BTC/USD, not according to other sources or spot markets.",
+                "resolutionSource": "https://data.chain.link/streams/btc-usd",
+                "startDate": "2026-03-14T17:09:26.436037Z",
+                "creationDate": "2026-03-14T17:09:26.43603Z",
+                "endDate": "2026-03-15T17:05:00Z",
+                "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+                "active": true,
+                "closed": false,
+                "archived": false,
+                "new": false,
+                "featured": false,
+                "restricted": true,
+                "liquidity": 33918.897,
+                "volume": 516.532543,
+                "openInterest": 0,
+                "createdAt": "2026-03-14T17:06:57.356888Z",
+                "updatedAt": "2026-03-15T16:59:51.032878Z",
+                "competitive": 0.9999750006249843,
+                "volume24hr": 566.532543,
+                "volume1wk": 566.532543,
+                "volume1mo": 566.532543,
+                "volume1yr": 566.532543,
+                "enableOrderBook": true,
+                "liquidityClob": 33918.897,
+                "negRisk": false,
+                "commentCount": 0,
+                "series": [
+                  {
+                    "id": "10684",
+                    "ticker": "btc-up-or-down-5m",
+                    "slug": "btc-up-or-down-5m",
+                    "title": "BTC Up or Down 5m",
+                    "seriesType": "single",
+                    "recurrence": "5m",
+                    "image": "",
+                    "icon": "",
+                    "active": true,
+                    "closed": false,
+                    "archived": false,
+                    "featured": false,
+                    "restricted": true,
+                    "createdAt": "2025-11-21T21:46:22.201627Z",
+                    "updatedAt": "2026-03-15T16:59:59.592067Z",
+                    "volume24hr": 32152143.628716987,
+                    "volume": 58666.17647299996,
+                    "liquidity": 3865502.1737,
+                    "commentCount": 32284,
+                    "requiresTranslation": false
+                  }
+                ],
+                "cyom": false,
+                "showAllOutcomes": true,
+                "showMarketImages": true,
+                "enableNegRisk": false,
+                "automaticallyActive": true,
+                "startTime": "2026-03-15T17:00:00Z",
+                "seriesSlug": "btc-up-or-down-5m",
+                "negRiskAugmented": false,
+                "pendingDeployment": false,
+                "deploying": false,
+                "requiresTranslation": false
+              }
+            ],
+            "ready": false,
+            "funded": false,
+            "acceptingOrdersTimestamp": "2026-03-14T17:07:01Z",
+            "cyom": false,
+            "competitive": 0.9869476177551876,
+            "pagerDutyNotificationEnabled": false,
+            "approved": true,
+            "rewardsMinSize": 50,
+            "rewardsMaxSpread": 4.5,
+            "spread": 0.01,
+            "lastTradePrice": 0.59,
+            "bestBid": 0.61,
+            "bestAsk": 0.62,
+            "automaticallyActive": true,
+            "clearBookOnStart": false,
+            "showGmpSeries": false,
+            "showGmpOutcome": false,
+            "manualActivation": false,
+            "negRiskOther": false,
+            "umaResolutionStatuses": "[]",
+            "pendingDeployment": false,
+            "deploying": false,
+            "rfqEnabled": false,
+            "eventStartTime": "2026-03-15T17:00:00Z",
+            "holdingRewardsEnabled": false,
+            "feesEnabled": true,
+            "requiresTranslation": false,
+            "makerRebatesFeeShareBps": 10000,
+            "feeType": "crypto_fees"
+          }
+        },
+        "signal_eval": {
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "modeled_prob_up": 0.68,
+          "gross_edge_pct": 6.0,
+          "net_edge_pct": 3.0046,
+          "reasons": [
+            "Basis +12.00 bps favors BUY_YES",
+            "Gross edge 6.000%",
+            "Net edge 3.005% after modeled costs"
+          ],
+          "filters_passed": {
+            "time_window": "59s",
+            "gross_edge": "6.000%",
+            "net_edge": "3.005% after 2.995% costs",
+            "spread": "1.000%"
+          },
+          "filters_failed": {},
+          "entry_price": 0.62,
+          "roundtrip_fee_pct": 2.7754,
+          "entry_price_bucket": "rich",
+          "cost_structure": {
+            "roundtrip_fee_pct": 2.7754,
+            "slippage_pct": 0.12,
+            "safety_margin_pct": 0.1
+          }
+        },
+        "rank": {
+          "strategy_id": "polymarket_btc_updown_5m_oracle_lag",
+          "rank_score": 92,
+          "watchlist_label": "watch-now",
+          "edge_score": 100,
+          "spread_score": 60,
+          "timing_score": 63,
+          "signal": "ENTER",
+          "side": "BUY_YES",
+          "confidence": 99,
+          "net_edge_pct": 3.0046
+        }
+      }
+    }
+  ],
+  "equity_curve": [
+    {
+      "timestamp": "2026-03-15T15:36:13Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T15:36:13Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T15:43:39Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T16:00:18Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T16:45:10Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T16:46:24Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:12Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:24Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:33Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:55:51Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:04Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:15Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:24Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:35Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:56:52Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:02Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:20Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:30Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:57:47Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:58:13Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:58:32Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:58:51Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:59:10Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:59:30Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T18:59:42Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:00:09Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:00:29Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:00:45Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:01:11Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:01:29Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:01:46Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:05:04Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:05:30Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:06:04Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:09:28Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:10:00Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:10:51Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:11:37Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:12:16Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:13:00Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:13:18Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:13:58Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:14:49Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:15:38Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:16:23Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:17:28Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:18:02Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T19:20:27Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T17:04:00Z",
+      "equity": 250.0
+    },
+    {
+      "timestamp": "2026-03-15T17:04:00Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:52:18Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:52:19Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:52:44Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:02Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:21Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:31Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:42Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:53:51Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:01Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:13Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:22Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:32Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T18:54:50Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:02:04Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:02:23Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:02:50Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:00Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:11Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:20Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:29Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:03:40Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:04:00Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:04:24Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:06:40Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:07:19Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:07:20Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:07:39Z",
+      "equity": 249.08
+    },
+    {
+      "timestamp": "2026-03-15T19:08:32Z",
+      "equity": 249.08
+    }
+  ],
+  "notes": [
+    "Replay is based on recorded polymarket_btc_5m_snapshots in local SQLite.",
+    "Settlement uses the final recorded yes_price as a proxy for realized event outcome.",
+    "This remains a research replay until live/paper journal density improves."
+  ],
+  "lineage": {
+    "stage": "backtest",
+    "parents": [],
+    "children": [
+      "validation_report",
+      "paper_candidate"
+    ]
+  },
+  "research_summary": {
+    "variant_leaderboard": [
+      {
+        "variant": "strict_spread",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "cheap_tail_taker",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "micro_live_tail",
+        "return_pct": 0.0,
+        "profit_factor": 0.0,
+        "total_trades": 0,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "fees_paid": 0,
+        "latest_signal_status": "watch"
+      },
+      {
+        "variant": "baseline_taker",
+        "return_pct": -0.37,
+        "profit_factor": 0.0,
+        "total_trades": 1,
+        "win_rate_pct": 0.0,
+        "max_drawdown_pct": 0.37,
+        "fees_paid": 0.34,
+        "latest_signal_status": "watch"
+      }
+    ],
+    "recommended_next_variant": {
+      "variant": "maker_basis_skew_research",
+      "reason": "All current taker variants are too weak or too sparse after fees, so the next serious candidate should reduce crossing costs."
+    },
+    "live_pilot_candidate": {
+      "variant": "micro_live_tail",
+      "return_pct": 0.0,
+      "profit_factor": 0.0,
+      "total_trades": 0,
+      "win_rate_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "fees_paid": 0,
+      "latest_signal_status": "watch"
+    },
+    "notes": [
+      "Local Polymarket sample is still sparse, so variant ranking is directional research rather than production evidence.",
+      "If all taker variants remain weak, the next serious strategy should be maker-biased basis skew rather than looser taker thresholds."
+    ]
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-03-18T03:30:04Z",
+  "repo_root": "C:\\Users\\leonard\\Documents\\hedge-fund-station",
+  "python": {
+    "version": "3.14.0",
+    "executable": "C:\\Users\\leonard\\Documents\\GitHub\\test\\.venv\\Scripts\\python.exe",
+    "platform": "Windows-10-10.0.19045-SP0"
+  },
+  "checks": {
+    "backend_root_exists": true,
+    "donor_root_exists": true,
+    "reports_root_exists": true,
+    "validations_root_exists": true,
+    "paper_root_exists": true,
+    "strategy_count": 3,
+    "donor_csv_count": 6
+  },
+  "donor_csv_files": [
+    "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\BTC-1h-1000wks-data.csv",
+    "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\BTC-6h-1000wks-data.csv",
+    "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\BTC_15m_20250418_133857_historical.csv",
+    "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\BTC_1d_20250418_134026_historical.csv",
+    "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\ETH-1d-1000wks-data.csv",
+    "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data\\SOL-1d-1000wks-data.csv"
+  ],
+  "donor_scripts": [
+    {
+      "path": "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\bb_squeeze_adx.py",
+      "exists": true,
+      "uses_talib": true,
+      "uses_backtesting_py": true,
+      "hardcoded_paths": true,
+      "uses_live_network_fetch": false,
+      "notes": [
+        "Requires TA-Lib; not portable enough for base CLI.",
+        "Depends on backtesting.py; replaced with local deterministic engine.",
+        "Contains hardcoded absolute paths and should not be reused verbatim."
+      ]
+    },
+    {
+      "path": "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\data.py",
+      "exists": true,
+      "uses_talib": false,
+      "uses_backtesting_py": false,
+      "hardcoded_paths": true,
+      "uses_live_network_fetch": true,
+      "notes": [
+        "Contains hardcoded absolute paths and should not be reused verbatim.",
+        "Touches external data acquisition. Milestone 1 keeps donor data as explicit input, not mock data."
+      ]
+    },
+    {
+      "path": "C:\\Users\\leonard\\Documents\\trading-harvard\\Harvard-Algorithmic-Trading-with-AI\\backtest\\template.py",
+      "exists": true,
+      "uses_talib": true,
+      "uses_backtesting_py": true,
+      "hardcoded_paths": true,
+      "uses_live_network_fetch": false,
+      "notes": [
+        "Requires TA-Lib; not portable enough for base CLI.",
+        "Depends on backtesting.py; replaced with local deterministic engine.",
+        "Contains hardcoded absolute paths and should not be reused verbatim."
+      ]
+    }
+  ]
+}

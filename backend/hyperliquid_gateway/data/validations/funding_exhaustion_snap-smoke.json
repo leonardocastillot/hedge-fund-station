@@ -1,0 +1,77 @@
+{
+  "artifact_id": "validation_report:funding_exhaustion_snap:20260318T031634Z",
+  "generated_at": "2026-03-18T03:16:34Z",
+  "artifact_type": "validation_report",
+  "strategy_id": "funding_exhaustion_snap",
+  "status": "blocked",
+  "research": {
+    "strategy_id": "funding_exhaustion_snap",
+    "docs_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\docs\\strategies\\funding-exhaustion-snap.md",
+    "spec_path": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\funding_exhaustion_snap\\spec.md",
+    "strategy_dir": "C:\\Users\\leonard\\Documents\\hedge-fund-station\\backend\\hyperliquid_gateway\\strategies\\funding_exhaustion_snap",
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true
+  },
+  "checks": {
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true,
+    "registered_for_backtest": true,
+    "report_exists": true
+  },
+  "validation_policy": {
+    "min_trades": 8,
+    "min_return_pct": 0.25,
+    "min_profit_factor": 1.1,
+    "min_win_rate_pct": 35.0,
+    "max_drawdown_pct": 8.0
+  },
+  "gate_checks": {
+    "min_trades": false,
+    "min_return_pct": false,
+    "min_profit_factor": false,
+    "min_win_rate_pct": true,
+    "max_drawdown_pct": true
+  },
+  "blocking_reasons": [
+    "min_trades",
+    "min_return_pct",
+    "min_profit_factor"
+  ],
+  "report_path": "backend\\hyperliquid_gateway\\data\\backtests\\funding_exhaustion_snap-smoke.json",
+  "report_artifact_id": "backtest_report:funding_exhaustion_snap:20260318T031525Z",
+  "summary": {
+    "initial_equity": 100000.0,
+    "final_equity": 100059.61,
+    "net_profit": 59.61,
+    "return_pct": 0.06,
+    "total_trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate_pct": 100.0,
+    "profit_factor": 0.0,
+    "max_drawdown_pct": 0.0,
+    "fees_paid": 1.1
+  },
+  "promotion_path": {
+    "current_stage": "research_or_backtest_blocked",
+    "next_stage": "paper_candidate",
+    "final_stage": "production_candidate"
+  },
+  "lineage": {
+    "stage": "validation",
+    "parents": [
+      "backtest_report:funding_exhaustion_snap:20260318T031525Z"
+    ],
+    "children": [
+      "paper_candidate"
+    ]
+  }
+}
