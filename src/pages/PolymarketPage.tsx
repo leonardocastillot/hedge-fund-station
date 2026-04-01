@@ -8,6 +8,7 @@ import {
   type PolymarketBtc5mStatus,
   type PolymarketBtc5mTrade,
   type PolymarketBtc5mAutoStatus,
+  type PolymarketBtc5mStrategiesResponse,
   type PolymarketWalletDiagnostics,
   type PolymarketWalletOverview,
 } from '../services/polymarketService';
@@ -74,6 +75,7 @@ export default function PolymarketPage() {
   const [walletDiagnosticsError, setWalletDiagnosticsError] = useState<string | null>(null);
   const [walletEquityCurve, setWalletEquityCurve] = useState<EquityPoint[]>([]);
   const [btc5mStatus, setBtc5mStatus] = useState<PolymarketBtc5mStatus | null>(null);
+  const [btc5mStrategies, setBtc5mStrategies] = useState<PolymarketBtc5mStrategiesResponse | null>(null);
   const [btc5mTrades, setBtc5mTrades] = useState<PolymarketBtc5mTrade[]>([]);
   const [btc5mEquityCurve, setBtc5mEquityCurve] = useState<EquityPoint[]>([]);
   const [btc5mAutoStatus, setBtc5mAutoStatus] = useState<PolymarketBtc5mAutoStatus | null>(null);
@@ -126,19 +128,22 @@ export default function PolymarketPage() {
         }
 
         try {
-          const [btcStatus, btcTradesData, btcCurve, autoStatus] = await Promise.all([
+          const [btcStatus, btcStrategies, btcTradesData, btcCurve, autoStatus] = await Promise.all([
             polymarketService.getBtc5mStatus(resolvedWalletBalance > 0 ? resolvedWalletBalance : null),
+            polymarketService.getBtc5mStrategies(resolvedWalletBalance > 0 ? resolvedWalletBalance : null).catch(() => null),
             polymarketService.getBtc5mTrades(50),
             polymarketService.getBtc5mEquityCurve(resolvedWalletBalance > 0 ? resolvedWalletBalance : null),
             polymarketService.getBtc5mAutoStatus().catch(() => null),
           ]);
           if (!isMountedRef.current) return;
           setBtc5mStatus(btcStatus);
+          setBtc5mStrategies(btcStrategies);
           setBtc5mTrades(Array.isArray(btcTradesData) ? btcTradesData : []);
           setBtc5mEquityCurve(Array.isArray(btcCurve) ? btcCurve : []);
           setBtc5mAutoStatus(autoStatus);
         } catch {
           setBtc5mStatus(null);
+          setBtc5mStrategies(null);
           setBtc5mTrades([]);
           setBtc5mEquityCurve([]);
           setBtc5mAutoStatus(null);
@@ -173,13 +178,16 @@ export default function PolymarketPage() {
   }, [btc5mMode, btc5mStatus]);
 
   const refreshBtc5mPanel = async () => {
-    const [statusData, tradesData, curveData, autoStatus] = await Promise.all([
-      polymarketService.getBtc5mStatus(walletOverview?.cashBalance ?? walletOverview?.portfolioValue ?? null),
+    const balance = walletOverview?.cashBalance ?? walletOverview?.portfolioValue ?? null;
+    const [statusData, strategiesData, tradesData, curveData, autoStatus] = await Promise.all([
+      polymarketService.getBtc5mStatus(balance),
+      polymarketService.getBtc5mStrategies(balance).catch(() => null),
       polymarketService.getBtc5mTrades(50),
-      polymarketService.getBtc5mEquityCurve(walletOverview?.cashBalance ?? walletOverview?.portfolioValue ?? null),
+      polymarketService.getBtc5mEquityCurve(balance),
       polymarketService.getBtc5mAutoStatus().catch(() => null),
     ]);
     setBtc5mStatus(statusData);
+    setBtc5mStrategies(strategiesData);
     setBtc5mTrades(Array.isArray(tradesData) ? tradesData : []);
     setBtc5mEquityCurve(Array.isArray(curveData) ? curveData : []);
     setBtc5mAutoStatus(autoStatus);
@@ -282,6 +290,7 @@ export default function PolymarketPage() {
 
   const activeBtc5mSlug = btc5mStatus?.latestSnapshot?.slug || btc5mStatus?.marketSlug || 'N/A';
   const strategyAssessment = btc5mStatus?.strategyAssessment ?? lastBtc5mRun?.strategyAssessment ?? null;
+  const strategyDesk = btc5mStrategies?.strategyDesk ?? null;
   const walletAddress = walletDiagnostics?.address || walletOverview?.address || 'N/A';
   const walletConnectedState = walletDiagnostics
     ? (walletDiagnostics.connected ? 'connected' : 'disconnected')
@@ -426,6 +435,99 @@ export default function PolymarketPage() {
             </div>
           </Panel>
         </div>
+
+        <Panel title="Strategy Desk">
+          {strategyDesk ? (
+            <div className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard
+                  label="Recommended"
+                  value={strategyDesk.recommendedStrategy}
+                  hint={`Market ${strategyDesk.marketContext.slug ?? 'N/A'}`}
+                  tone="profit"
+                  icon={<Zap className="h-5 w-5" />}
+                />
+                <MetricCard
+                  label="Entry profile"
+                  value={`${strategyDesk.marketContext.entryPrice.toFixed(3)} / ${strategyDesk.marketContext.spreadPct.toFixed(3)}%`}
+                  hint={`Net edge ${strategyDesk.marketContext.netEdgePct.toFixed(3)}%`}
+                  icon={<TrendingUp className="h-5 w-5" />}
+                />
+                <MetricCard
+                  label="Expiry"
+                  value={`${strategyDesk.marketContext.secondsToExpiry}s`}
+                  hint={strategyDesk.marketContext.priceToBeat !== null ? `Price to beat ${strategyDesk.marketContext.priceToBeat.toFixed(3)}` : 'No price-to-beat'}
+                  tone="warn"
+                  icon={<Activity className="h-5 w-5" />}
+                />
+                <MetricCard
+                  label="Performance"
+                  value={formatPct(strategyDesk.marketContext.performance.roiPct ?? 0)}
+                  hint={`PnL ${formatCurrency(strategyDesk.marketContext.performance.totalPnlUsd ?? 0)}`}
+                  tone={(strategyDesk.marketContext.performance.totalPnlUsd ?? 0) >= 0 ? 'profit' : 'risk'}
+                  icon={<DollarSign className="h-5 w-5" />}
+                />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-3">
+                {strategyDesk.strategies.map((strategy) => (
+                  <div
+                    key={strategy.strategyId}
+                    className={`rounded-2xl border p-4 ${strategy.recommended
+                      ? 'border-cyan-500/40 bg-cyan-950/25'
+                      : 'border-zinc-800 bg-zinc-950/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">#{strategy.rank} · {strategy.mode}</div>
+                        <h4 className="mt-1 text-lg font-semibold text-white">{strategy.title}</h4>
+                      </div>
+                      <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${strategy.fit === 'best'
+                        ? 'bg-emerald-500/15 text-emerald-300'
+                        : strategy.fit === 'good'
+                          ? 'bg-amber-500/15 text-amber-300'
+                          : 'bg-zinc-700/30 text-zinc-300'
+                      }`}>
+                        {strategy.recommended ? 'Recommended' : strategy.fit}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-zinc-300">{strategy.thesis}</p>
+                    <p className="mt-2 text-sm text-zinc-500">{strategy.whyNow}</p>
+                    <div className="mt-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Rules</div>
+                    <ul className="mt-2 space-y-1 text-sm text-zinc-300">
+                      {strategy.rules.slice(0, 3).map((rule) => (
+                        <li key={rule}>• {rule}</li>
+                      ))}
+                    </ul>
+                    <div className="mt-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Risk controls</div>
+                    <ul className="mt-2 space-y-1 text-sm text-zinc-400">
+                      {strategy.riskControls.slice(0, 3).map((rule) => (
+                        <li key={rule}>• {rule}</li>
+                      ))}
+                    </ul>
+                    <div className="mt-4 text-sm">
+                      Ejecutable ahora:{' '}
+                      <span className={strategy.canExecute ? 'text-emerald-400' : 'text-amber-300'}>
+                        {strategy.canExecute ? 'sí' : 'no'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-sm text-zinc-300">
+                {strategyDesk.notes.map((note) => (
+                  <div key={note} className="mt-1 first:mt-0">• {note}</div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-zinc-800 bg-black/30 p-6 text-sm text-zinc-500">
+              Cargando strategy desk...
+            </div>
+          )}
+        </Panel>
 
         <Panel title="BTC 5m Journal">
           <div className="grid gap-4 lg:grid-cols-5">

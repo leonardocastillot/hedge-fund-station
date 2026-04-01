@@ -4,7 +4,18 @@
 
 import { GATEWAY_HTTP_URL } from './backendConfig';
 
-const API_URL = GATEWAY_HTTP_URL;
+const DEFAULT_POLYMARKET_BACKEND_URL = 'http://127.0.0.1:18500';
+
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, '');
+}
+
+const API_URL = trimTrailingSlash(GATEWAY_HTTP_URL);
+const STRATEGY_API_URL = trimTrailingSlash(
+  import.meta.env.VITE_POLYMARKET_API_URL ||
+  import.meta.env.VITE_POLYMARKET_BACKEND_URL ||
+  DEFAULT_POLYMARKET_BACKEND_URL
+);
 
 async function fetchJsonWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs: number = 20_000) {
   const controller = new AbortController();
@@ -317,6 +328,53 @@ export interface PolymarketBtc5mAutoStatus {
   lastResult: PolymarketBtc5mRunResult | null;
 }
 
+export interface PolymarketBtc5mStrategyCard {
+  strategyId: string;
+  title: string;
+  rank: number;
+  mode: string;
+  status: string;
+  thesis: string;
+  whyNow: string;
+  fit: 'best' | 'good' | 'watch';
+  canExecute: boolean;
+  recommended: boolean;
+  rules: string[];
+  riskControls: string[];
+}
+
+export interface PolymarketBtc5mStrategyDesk {
+  recommendedStrategy: string;
+  marketContext: {
+    slug: string | null;
+    secondsToExpiry: number;
+    entryPrice: number;
+    netEdgePct: number;
+    spreadPct: number;
+    priceToBeat: number | null;
+    performance: {
+      startingBalance: number;
+      currentBalance: number;
+      totalPnlUsd: number;
+      roiPct: number;
+      closedTrades: number;
+      openTrades: number;
+      winRatePct: number;
+    };
+  };
+  strategies: PolymarketBtc5mStrategyCard[];
+  notes: string[];
+}
+
+export interface PolymarketBtc5mStrategiesResponse {
+  strategyId: string | null;
+  marketSlug: string | null;
+  strategyDesk: PolymarketBtc5mStrategyDesk;
+  strategyAssessment: PolymarketBtc5mStatus['strategyAssessment'] | null;
+  liveReadiness: PolymarketBtc5mStatus['liveReadiness'];
+  latestSnapshot: PolymarketBtc5mStatus['latestSnapshot'];
+}
+
 class PolymarketService {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -540,6 +598,16 @@ class PolymarketService {
 
   async getBtc5mAutoStatus(): Promise<PolymarketBtc5mAutoStatus> {
     const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/auto/status`, undefined, 15_000);
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
+    }
+    return result.data;
+  }
+
+  async getBtc5mStrategies(balanceUsd?: number | null): Promise<PolymarketBtc5mStrategiesResponse> {
+    const query = balanceUsd && balanceUsd > 0 ? `?balance_usd=${balanceUsd}` : '';
+    const response = await fetchJsonWithTimeout(`${STRATEGY_API_URL}/api/polymarket/btc-5m/strategies${query}`, undefined, 15_000);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
