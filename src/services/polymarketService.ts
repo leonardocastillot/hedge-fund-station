@@ -10,12 +10,19 @@ function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');
 }
 
-const API_URL = trimTrailingSlash(GATEWAY_HTTP_URL);
-const STRATEGY_API_URL = trimTrailingSlash(
+function normalizeApiBaseUrl(value: string): string {
+  const trimmed = trimTrailingSlash(value);
+  return trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
+}
+
+const POLYMARKET_PRIMARY_API_URL = normalizeApiBaseUrl(
   import.meta.env.VITE_POLYMARKET_API_URL ||
   import.meta.env.VITE_POLYMARKET_BACKEND_URL ||
   DEFAULT_POLYMARKET_BACKEND_URL
 );
+const POLYMARKET_FALLBACK_API_URL = normalizeApiBaseUrl(GATEWAY_HTTP_URL);
+const POLYMARKET_API_URLS = Array.from(new Set([POLYMARKET_PRIMARY_API_URL, POLYMARKET_FALLBACK_API_URL]));
+const API_URL = trimTrailingSlash(GATEWAY_HTTP_URL);
 
 async function fetchJsonWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs: number = 20_000) {
   const controller = new AbortController();
@@ -25,6 +32,21 @@ async function fetchJsonWithTimeout(input: RequestInfo | URL, init?: RequestInit
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+async function fetchPolymarketJson(path: string, init?: RequestInit, timeoutMs = 20_000) {
+  let lastError: Error | null = null;
+  for (const baseUrl of POLYMARKET_API_URLS) {
+    const response = await fetchJsonWithTimeout(`${trimTrailingSlash(baseUrl)}${path}`, init, timeoutMs);
+    if (response.ok) {
+      return { response, baseUrl };
+    }
+    if (response.status !== 404) {
+      return { response, baseUrl };
+    }
+    lastError = new Error(`HTTP error! status: ${response.status}`);
+  }
+  throw lastError || new Error('Unable to reach a Polymarket backend');
 }
 
 export interface PolymarketStats {
@@ -489,7 +511,7 @@ class PolymarketService {
 
   async getBtc5mStatus(balanceUsd?: number | null): Promise<PolymarketBtc5mStatus> {
     const query = balanceUsd && balanceUsd > 0 ? `?balance_usd=${balanceUsd}` : '';
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/status${query}`);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/status${query}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -503,7 +525,7 @@ class PolymarketService {
   }
 
   async getBtc5mTrades(limit: number = 100): Promise<PolymarketBtc5mTrade[]> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/trades?limit=${limit}`);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/trades?limit=${limit}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -518,7 +540,7 @@ class PolymarketService {
 
   async getBtc5mEquityCurve(balanceUsd?: number | null): Promise<EquityPoint[]> {
     const query = balanceUsd && balanceUsd > 0 ? `?balance_usd=${balanceUsd}` : '';
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/equity-curve${query}`);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/equity-curve${query}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -544,7 +566,7 @@ class PolymarketService {
     max_seconds_to_expiry: number;
     require_full_fill?: boolean;
   }): Promise<PolymarketBtc5mRunResult> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/run-once`, {
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/run-once`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -557,7 +579,7 @@ class PolymarketService {
   }
 
   async closeBtc5mTrade(tradeId: number, settlementPrice?: number | null): Promise<any> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/trades/${tradeId}/close`, {
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/trades/${tradeId}/close`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ settlement_price: settlementPrice ?? null }),
@@ -570,7 +592,7 @@ class PolymarketService {
   }
 
   async getWalletOverview(): Promise<PolymarketWalletOverview> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/wallet/overview`, undefined, 20_000);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/wallet/overview`, undefined, 20_000);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
@@ -579,7 +601,7 @@ class PolymarketService {
   }
 
   async getWalletEquityCurve(): Promise<EquityPoint[]> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/wallet/equity-curve`, undefined, 20_000);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/wallet/equity-curve`, undefined, 20_000);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
@@ -588,7 +610,7 @@ class PolymarketService {
   }
 
   async getWalletDiagnostics(): Promise<PolymarketWalletDiagnostics> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/wallet/diagnostics`, undefined, 20_000);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/wallet/diagnostics`, undefined, 20_000);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
@@ -597,7 +619,7 @@ class PolymarketService {
   }
 
   async getBtc5mAutoStatus(): Promise<PolymarketBtc5mAutoStatus> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/auto/status`, undefined, 15_000);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/auto/status`, undefined, 15_000);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
@@ -607,7 +629,7 @@ class PolymarketService {
 
   async getBtc5mStrategies(balanceUsd?: number | null): Promise<PolymarketBtc5mStrategiesResponse> {
     const query = balanceUsd && balanceUsd > 0 ? `?balance_usd=${balanceUsd}` : '';
-    const response = await fetchJsonWithTimeout(`${STRATEGY_API_URL}/api/polymarket/btc-5m/strategies${query}`, undefined, 15_000);
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/strategies${query}`, undefined, 15_000);
     const result = await response.json();
     if (!response.ok || !result.success) {
       throw new Error(result.detail || result.message || `HTTP error! status: ${response.status}`);
@@ -627,7 +649,7 @@ class PolymarketService {
     interval_seconds: number;
     require_full_fill?: boolean;
   }): Promise<PolymarketBtc5mAutoStatus> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/auto/start`, {
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/auto/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -640,7 +662,7 @@ class PolymarketService {
   }
 
   async stopBtc5mAuto(): Promise<PolymarketBtc5mAutoStatus> {
-    const response = await fetchJsonWithTimeout(`${API_URL}/api/polymarket/btc-5m/auto/stop`, {
+    const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/auto/stop`, {
       method: 'POST',
     }, 15_000);
     const result = await response.json();
