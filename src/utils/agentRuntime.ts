@@ -101,9 +101,6 @@ export function resolveAgentRuntimeCommand(provider: AgentProvider, shell?: stri
 }
 
 export function resolveAgentRuntimeShell(shell?: string): string | undefined {
-  const normalizedShell = shell?.toLowerCase() ?? '';
-  const windowsShell = isWindowsShell(shell);
-
   if (shell?.trim()) {
     return shell;
   }
@@ -112,7 +109,7 @@ export function resolveAgentRuntimeShell(shell?: string): string | undefined {
     return 'powershell.exe';
   }
 
-  return windowsShell ? shell : shell;
+  return undefined;
 }
 
 export function resolveAgentAwareCommand(

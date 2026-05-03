@@ -4,6 +4,8 @@ Funding Exhaustion Snap - Risk Management
 Invalidation logic, position sizing, and kill-switch rules.
 """
 
+from __future__ import annotations
+
 from typing import Any
 import time
 

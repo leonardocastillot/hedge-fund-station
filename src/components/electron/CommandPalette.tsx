@@ -253,18 +253,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       <div
         onClick={(event) => event.stopPropagation()}
         style={{
-          width: 'min(760px, 100%)',
+          width: 'min(720px, 100%)',
           margin: '0 auto',
-          borderRadius: '20px',
-          border: '1px solid rgba(239, 68, 68, 0.22)',
-          background: 'linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(5, 7, 11, 0.98) 100%)',
-          boxShadow: '0 24px 80px rgba(0, 0, 0, 0.5)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          background: 'rgba(6, 10, 20, 0.7)',
+          backdropFilter: 'blur(40px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(40px) saturate(1.4)',
+          boxShadow: '0 32px 100px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04)',
           overflow: 'hidden'
         }}
       >
         <div style={{
-          padding: '16px 18px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
+          padding: '14px 16px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.03)'
         }}>
           <input
             ref={inputRef}
@@ -274,22 +276,25 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
             placeholder="Search commands, workspaces, profiles, contexts..."
             style={{
               width: '100%',
-              background: '#0b0f19',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              borderRadius: '12px',
-              color: '#f9fafb',
-              padding: '14px 16px',
-              fontSize: '14px',
-              outline: 'none'
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.04)',
+              borderRadius: '10px',
+              color: '#f0f2f5',
+              padding: '12px 14px',
+              fontSize: '13px',
+              outline: 'none',
+              fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.01em'
             }}
           />
           <div style={{
-            marginTop: '10px',
+            marginTop: '8px',
             display: 'flex',
             justifyContent: 'space-between',
             gap: '8px',
-            color: '#6b7280',
-            fontSize: '11px'
+            color: '#545e6e',
+            fontSize: '10px',
+            fontFamily: "'JetBrains Mono', monospace"
           }}>
             <span>Active context: {activeContext}</span>
             <span>Enter to run, Esc to close</span>
@@ -322,17 +327,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
                 }}
                 style={{
                   width: '100%',
-                  padding: '12px 14px',
+                  padding: '10px 12px',
                   textAlign: 'left',
-                  borderRadius: '12px',
+                  borderRadius: '10px',
                   border: index === selectedIndex
-                    ? '1px solid rgba(239, 68, 68, 0.26)'
+                    ? '1px solid rgba(255, 255, 255, 0.06)'
                     : '1px solid transparent',
                   background: index === selectedIndex
-                    ? 'rgba(239, 68, 68, 0.1)'
+                    ? 'rgba(255, 255, 255, 0.03)'
                     : 'transparent',
-                  color: '#f9fafb',
-                  cursor: 'pointer'
+                  color: '#f0f2f5',
+                  cursor: 'pointer',
+                  boxShadow: index === selectedIndex
+                    ? '0 0 12px var(--app-glow)'
+                    : 'none',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 <div style={{ fontSize: '13px', fontWeight: 700 }}>{action.title}</div>

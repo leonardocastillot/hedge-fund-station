@@ -1,11 +1,11 @@
 {
   "appId": "com.hedgefund.station",
   "productName": "Hedge Fund Station",
-  "copyright": "Copyright © 2026 Moon Dev",
+  "copyright": "Copyright © 2026 Leonardo Castillo",
   "publish": [
     {
       "provider": "github",
-      "owner": "moondev",
+      "owner": "leonardocastillot",
       "repo": "hedge-fund-station"
     }
   ],
@@ -16,18 +16,42 @@
   "files": [
     "dist",
     "dist-electron",
-    "!node_modules",
     "!src",
     "!electron",
     "!*.md",
     "!.env"
   ],
-  "extraFiles": [
-    {
-      "from": ".env",
-      "to": "resources/.env"
-    }
+  "asarUnpack": [
+    "node_modules/node-pty/**"
   ],
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["arm64", "x64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["arm64", "x64"]
+      }
+    ],
+    "category": "public.app-category.finance",
+    "icon": "resources/icon.icns",
+    "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "build/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+    "extendInfo": {
+      "NSMicrophoneUsageDescription": "Hedge Fund Station uses the microphone only when the operator starts voice transcription for local agent commands.",
+      "NSCameraUsageDescription": "Hedge Fund Station does not use the camera by default. Embedded web content may request camera access if the operator opens a site that requires it.",
+      "NSBluetoothAlwaysUsageDescription": "Hedge Fund Station does not use Bluetooth by default.",
+      "NSBluetoothPeripheralUsageDescription": "Hedge Fund Station does not use Bluetooth by default."
+    }
+  },
+  "dmg": {
+    "artifactName": "${productName}-${version}-${arch}.${ext}"
+  },
   "win": {
     "target": [
       {
@@ -41,7 +65,7 @@
     ],
     "icon": "resources/icon.ico",
     "artifactName": "${productName}-${version}-Setup.${ext}",
-    "publisherName": "Moon Dev"
+    "publisherName": "Leonardo Castillo"
   },
   "nsis": {
     "oneClick": false,

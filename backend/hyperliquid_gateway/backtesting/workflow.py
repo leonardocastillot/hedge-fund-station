@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -14,9 +15,14 @@ from .registry import (
     run_registered_backtest,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-BACKEND_ROOT = REPO_ROOT / "backend" / "hyperliquid_gateway"
-DATA_ROOT = BACKEND_ROOT / "data"
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+if PACKAGE_ROOT.name == "hyperliquid_gateway" and PACKAGE_ROOT.parent.name == "backend":
+    REPO_ROOT = PACKAGE_ROOT.parents[1]
+    BACKEND_ROOT = PACKAGE_ROOT
+else:
+    REPO_ROOT = PACKAGE_ROOT
+    BACKEND_ROOT = PACKAGE_ROOT
+DATA_ROOT = Path(os.getenv("HYPERLIQUID_DATA_ROOT", str(BACKEND_ROOT / "data"))).expanduser()
 REPORTS_ROOT = DATA_ROOT / "backtests"
 AUDITS_ROOT = DATA_ROOT / "audits"
 PAPER_ROOT = DATA_ROOT / "paper"

@@ -1,17 +1,19 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, session, shell } from 'electron';
+import { ElectronBlocker } from '@ghostery/adblocker-electron';
 import { join } from 'path';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { spawn, spawnSync, ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync } from 'fs';
-import { PTYManager } from './pty-manager';
-import { WorkspaceManager } from './workspace-manager';
-import { registerAgentLoopHandlers, registerDiagnosticsHandlers, registerMarketingHandlers, registerObsidianHandlers, registerTerminalHandlers, registerVoiceHandlers, registerWorkspaceHandlers } from './ipc-handlers';
-import { createApplicationMenu } from './menu';
-import { UpdateManager } from './updater';
-import { MarketingAutomationManager } from './marketing-automation';
-import { VoiceTranscriptionManager } from './voice-transcription';
-import { ObsidianManager } from './obsidian-manager';
-import { DiagnosticsManager } from './diagnostics-manager';
-import { AgentLoopManager } from './agent-loop-manager';
+import { PTYManager } from './native/pty-manager';
+import { WorkspaceManager } from './native/workspace-manager';
+import { registerAgentLoopHandlers, registerDiagnosticsHandlers, registerMarketingHandlers, registerObsidianHandlers, registerTerminalHandlers, registerVoiceHandlers, registerWorkspaceHandlers } from './ipc/ipc-handlers';
+import { createApplicationMenu } from './app/menu';
+import { UpdateManager } from './app/updater';
+import { MarketingAutomationManager } from './native/marketing-automation';
+import { VoiceTranscriptionManager } from './native/voice-transcription';
+import { GeminiLiveVoiceManager } from './native/gemini-live-voice';
+import { ObsidianManager } from './native/obsidian-manager';
+import { DiagnosticsManager } from './native/diagnostics-manager';
+import { AgentLoopManager } from './native/agent-loop-manager';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PTYManager | null = null;
@@ -19,35 +21,80 @@ let workspaceManager: WorkspaceManager | null = null;
 let updateManager: UpdateManager | null = null;
 let marketingAutomationManager: MarketingAutomationManager | null = null;
 let voiceTranscriptionManager: VoiceTranscriptionManager | null = null;
+let geminiLiveVoiceManager: GeminiLiveVoiceManager | null = null;
 let obsidianManager: ObsidianManager | null = null;
 let diagnosticsManager: DiagnosticsManager | null = null;
 let agentLoopManager: AgentLoopManager | null = null;
 let backendProcess: ChildProcessWithoutNullStreams | null = null;
 let legacyBackendProcess: ChildProcessWithoutNullStreams | null = null;
 let backendStartTimer: NodeJS.Timeout | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+let youtubeAdBlockerReady: Promise<void> | null = null;
+
+function focusMainWindow(): void {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+  }
+
+  mainWindow.focus();
+  app.focus({ steal: true });
+}
 
 type BackendBootstrapConfig = {
   mode: 'docker' | 'process';
   backendPath: string;
   command: string;
   args: string[];
+  env?: NodeJS.ProcessEnv;
 };
 
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 app.commandLine.appendSwitch('disable-gpu-program-cache');
 
+const singleInstanceLock = app.requestSingleInstanceLock();
+
+if (!singleInstanceLock) {
+  app.quit();
+}
+
+app.on('second-instance', () => {
+  focusMainWindow();
+});
+
 function getProjectRoot(): string {
   return join(__dirname, '../../');
 }
 
+function canUseDocker(): boolean {
+  const command = process.platform === 'win32' ? 'docker.exe' : 'docker';
+  const result = spawnSync(command, ['info'], {
+    shell: false,
+    stdio: 'ignore',
+    timeout: 5000
+  });
+  return result.status === 0;
+}
+
 function getBackendConfig(): BackendBootstrapConfig {
-  const mode = process.env.HEDGE_STATION_BACKEND_MODE || 'docker';
+  const mode = process.env.HEDGE_STATION_BACKEND_MODE || (canUseDocker() ? 'docker' : 'process');
   if (mode === 'process') {
     return {
       mode,
       backendPath: join(getProjectRoot(), 'backend/hyperliquid_gateway'),
       command: process.platform === 'win32' ? 'python' : 'python3',
-      args: ['-m', 'uvicorn', 'app:app', '--host', '0.0.0.0', '--port', '18400']
+      args: ['-m', 'uvicorn', 'app:app', '--host', '0.0.0.0', '--port', '18001'],
+      env: {
+        HYPERLIQUID_DB_PATH: join(getProjectRoot(), 'backend/hyperliquid_gateway/data/hyperliquid.db')
+      }
     };
   }
 
@@ -79,7 +126,7 @@ function getLegacyBackendConfig(): BackendBootstrapConfig | null {
 }
 
 function shouldAutoStartBackend(): boolean {
-  return process.env.HEDGE_STATION_AUTOSTART_BACKEND === '1';
+  return process.env.HEDGE_STATION_AUTOSTART_BACKEND !== '0';
 }
 
 function shouldAutoStartLegacyBackend(): boolean {
@@ -91,6 +138,7 @@ function startBootstrapProcess(config: BackendBootstrapConfig, label: string): C
 
   const processRef = spawn(config.command, config.args, {
     cwd: config.backendPath,
+    env: { ...process.env, ...config.env },
     shell: false,
     detached: false,
     windowsHide: true
@@ -235,6 +283,9 @@ function clearIpcChannels(): void {
     'agentLoop:startMission',
     'agentLoop:getRun',
     'agentLoop:cancelRun',
+    'external:openUrl',
+    'external:openUrlInBrave',
+    'external:openUrlsInBrave',
     'update:check',
     'update:download',
     'update:install'
@@ -274,16 +325,217 @@ function registerUpdateHandlers(updateManagerInstance: UpdateManager): void {
 
 }
 
+function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function openUrlInBrave(url: string): Promise<{ success: boolean; fallback: boolean }> {
+  if (!isSafeExternalUrl(url)) {
+    return Promise.reject(new Error('Only http(s) URLs can be opened externally.'));
+  }
+
+  if (process.platform !== 'darwin') {
+    return shell.openExternal(url).then(() => ({ success: true, fallback: true }));
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn('open', ['-a', 'Brave Browser', url], {
+      shell: false,
+      detached: true,
+      stdio: 'ignore'
+    });
+
+    child.once('error', () => {
+      void shell.openExternal(url).then(() => resolve({ success: true, fallback: true }));
+    });
+
+    child.once('close', (code) => {
+      if (code === 0) {
+        resolve({ success: true, fallback: false });
+        return;
+      }
+
+      void shell.openExternal(url).then(() => resolve({ success: true, fallback: true }));
+    });
+
+    child.unref();
+  });
+}
+
+function registerExternalHandlers(): void {
+  ipcMain.handle('external:openUrl', async (_event, params: { url: string }) => {
+    if (!isSafeExternalUrl(params.url)) {
+      throw new Error('Only http(s) URLs can be opened externally.');
+    }
+
+    await shell.openExternal(params.url);
+    return { success: true };
+  });
+
+  ipcMain.handle('external:openUrlInBrave', async (_event, params: { url: string }) => {
+    return openUrlInBrave(params.url);
+  });
+
+  ipcMain.handle('external:openUrlsInBrave', async (_event, params: { urls: string[] }) => {
+    const results = [];
+    for (const url of params.urls) {
+      results.push(await openUrlInBrave(url));
+    }
+    return { success: true, results };
+  });
+}
+
+function reloadMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.reload();
+  focusMainWindow();
+}
+
+function toggleDevTools(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.webContents.toggleDevTools();
+  focusMainWindow();
+}
+
+function getTrayIconPath(): string {
+  const pngPath = join(getProjectRoot(), 'resources/icon-source.png');
+  if (existsSync(pngPath)) {
+    return pngPath;
+  }
+
+  return join(getProjectRoot(), 'resources/icon.icns');
+}
+
+function createTray(): void {
+  if (process.platform !== 'darwin' || tray) {
+    return;
+  }
+
+  const icon = nativeImage.createFromPath(getTrayIconPath()).resize({
+    width: 18,
+    height: 18
+  });
+  icon.setTemplateImage(true);
+
+  tray = new Tray(icon);
+  tray.setToolTip('Hedge Fund Station');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {
+      label: 'Open Hedge Fund Station',
+      click: focusMainWindow
+    },
+    {
+      label: 'Reload Window',
+      click: reloadMainWindow
+    },
+    {
+      label: 'Toggle DevTools',
+      click: toggleDevTools
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]));
+
+  tray.on('click', focusMainWindow);
+}
+
+function registerYoutubeEmbedHeaders(): void {
+  const youtubeSession = session.fromPartition('persist:youtube');
+  const urls = [
+    '*://youtube.com/*',
+    '*://www.youtube.com/*',
+    '*://*.youtube.com/*',
+    '*://*.googlevideo.com/*',
+    '*://*.ytimg.com/*'
+  ];
+
+  youtubeSession.webRequest.onBeforeSendHeaders({ urls }, (details, callback) => {
+    const requestHeaders = { ...details.requestHeaders };
+
+    try {
+      const url = new URL(details.url);
+      const hostname = url.hostname;
+      const isYoutubeEmbed = (hostname === 'youtube.com' || hostname.endsWith('.youtube.com')) && url.pathname.startsWith('/embed/');
+      const isPlaybackAsset = hostname.endsWith('.googlevideo.com') || hostname.endsWith('.ytimg.com');
+
+      if (isYoutubeEmbed || isPlaybackAsset) {
+        requestHeaders.Referer = 'https://www.youtube.com/';
+      }
+
+      if (isYoutubeEmbed) {
+        requestHeaders.Origin = 'https://www.youtube.com';
+      }
+    } catch {
+      requestHeaders.Referer = 'https://www.youtube.com/';
+    }
+
+    callback({ requestHeaders });
+  });
+}
+
+function enableYoutubeAdBlocker(): Promise<void> {
+  if (youtubeAdBlockerReady) {
+    return youtubeAdBlockerReady;
+  }
+
+  const youtubeSession = session.fromPartition('persist:youtube');
+  if (!('registerPreloadScript' in youtubeSession)) {
+    youtubeAdBlockerReady = Promise.resolve();
+    console.log('YouTube ad blocker skipped: current Electron session API does not support registerPreloadScript');
+    return youtubeAdBlockerReady;
+  }
+
+  youtubeAdBlockerReady = ElectronBlocker.fromPrebuiltAdsAndTracking(fetch)
+    .then((blocker) => {
+      blocker.enableBlockingInSession(youtubeSession);
+      console.log('YouTube ad blocker enabled for persist:youtube session');
+    })
+    .catch((error) => {
+      console.warn('YouTube ad blocker could not be enabled:', error);
+    });
+
+  return youtubeAdBlockerReady;
+}
+
+async function configureYoutubeSession(): Promise<void> {
+  registerYoutubeEmbedHeaders();
+  await enableYoutubeAdBlocker();
+}
+
 function createWindow(): void {
+  createTray();
+
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
+    minWidth: 1180,
+    minHeight: 760,
+    show: false,
+    title: 'Hedge Fund Station',
     backgroundColor: '#0B0F19',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true
     }
   });
 
@@ -292,6 +544,7 @@ function createWindow(): void {
   updateManager = new UpdateManager(mainWindow);
   marketingAutomationManager = new MarketingAutomationManager();
   voiceTranscriptionManager = new VoiceTranscriptionManager();
+  geminiLiveVoiceManager = new GeminiLiveVoiceManager();
   obsidianManager = new ObsidianManager();
   diagnosticsManager = new DiagnosticsManager();
   agentLoopManager = new AgentLoopManager();
@@ -300,10 +553,11 @@ function createWindow(): void {
   registerTerminalHandlers(ptyManager);
   registerWorkspaceHandlers(workspaceManager);
   registerMarketingHandlers(marketingAutomationManager);
-  registerVoiceHandlers(voiceTranscriptionManager);
+  registerVoiceHandlers(voiceTranscriptionManager, geminiLiveVoiceManager);
   registerObsidianHandlers(obsidianManager);
   registerDiagnosticsHandlers(diagnosticsManager);
   registerAgentLoopHandlers(agentLoopManager);
+  registerExternalHandlers();
   registerUpdateHandlers(updateManager);
   createApplicationMenu(mainWindow);
 
@@ -315,6 +569,32 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../../dist/index.html'));
   }
+
+  mainWindow.once('ready-to-show', () => {
+    focusMainWindow();
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    focusMainWindow();
+  });
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`Window failed to load ${validatedURL}: ${errorCode} ${errorDescription}`);
+    focusMainWindow();
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details);
+  });
+
+  mainWindow.on('close', (event) => {
+    if (process.platform !== 'darwin' || isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    mainWindow?.hide();
+  });
 
   mainWindow.on('closed', () => {
     if (ptyManager) {
@@ -328,6 +608,7 @@ function createWindow(): void {
     stopBackendServer();
     marketingAutomationManager = null;
     voiceTranscriptionManager = null;
+    geminiLiveVoiceManager = null;
     obsidianManager = null;
     diagnosticsManager = null;
     workspaceManager = null;
@@ -335,7 +616,8 @@ function createWindow(): void {
   });
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
+  await configureYoutubeSession();
   createWindow();
 
   if (shouldAutoStartBackend()) {
@@ -348,11 +630,13 @@ function initializeApp(): void {
 }
 
 app.whenReady().then(() => {
-  initializeApp();
+  void initializeApp();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      initializeApp();
+      void initializeApp();
+    } else {
+      focusMainWindow();
     }
   });
 });
@@ -364,5 +648,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
   stopBackendServer();
 });

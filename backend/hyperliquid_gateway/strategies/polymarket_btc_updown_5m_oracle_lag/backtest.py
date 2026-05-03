@@ -5,8 +5,12 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from ...backtesting.engine import BacktestConfig
-from ...backtesting.metrics import build_summary
+try:
+    from ...backtesting.engine import BacktestConfig
+    from ...backtesting.metrics import build_summary
+except ImportError:
+    from backtesting.engine import BacktestConfig
+    from backtesting.metrics import build_summary
 from .logic import apply_signal_confirmation, evaluate_signal, side_entry_price
 from .paper import calculate_realized_pnl, estimate_fee_pct
 from .risk import calculate_position_size, check_session_killswitch, entry_allowed

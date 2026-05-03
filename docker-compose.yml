@@ -11,7 +11,8 @@ services:
       HYPERLIQUID_API_URL: https://api.hyperliquid.xyz/info
       HYPERLIQUID_TIMEOUT: 20
       HYPERLIQUID_REFRESH_LOOP_SECONDS: 8
+      HYPERLIQUID_DATA_ROOT: /data
       HYPERLIQUID_DB_PATH: /data/hyperliquid.db
     volumes:
-      - ./backend/hyperliquid_gateway/data:/data
+      - ${HF_HOST_DATA_ROOT:-./backend/hyperliquid_gateway/data}:/data
     restart: unless-stopped

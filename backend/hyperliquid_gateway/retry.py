@@ -7,7 +7,11 @@ Provides resilient API calls with configurable retry logic.
 import asyncio
 from functools import wraps
 from typing import Any, Callable, Type, TypeVar
-from logger import logger
+
+try:
+    from .logger import logger
+except ImportError:
+    from logger import logger
 
 T = TypeVar('T')
 

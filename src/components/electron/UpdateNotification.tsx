@@ -6,6 +6,10 @@ export const UpdateNotification: React.FC = () => {
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
+    if (!window.electronAPI?.update?.onStatus) {
+      return undefined;
+    }
+
     const cleanup = window.electronAPI.update.onStatus((status) => {
       setUpdateStatus(status);
 
@@ -21,6 +25,9 @@ export const UpdateNotification: React.FC = () => {
 
   const handleDownload = async () => {
     try {
+      if (!window.electronAPI?.update?.download) {
+        return;
+      }
       await window.electronAPI.update.download();
     } catch (error) {
       console.error('Failed to download update:', error);
@@ -29,6 +36,9 @@ export const UpdateNotification: React.FC = () => {
 
   const handleInstall = async () => {
     try {
+      if (!window.electronAPI?.update?.install) {
+        return;
+      }
       await window.electronAPI.update.install();
     } catch (error) {
       console.error('Failed to install update:', error);

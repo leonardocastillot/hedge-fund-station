@@ -652,7 +652,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      background: '#05070b',
+      background: 'var(--app-terminal-bg)',
       border: isActive
         ? `1.5px solid ${colorScheme.primary}`
         : `1px solid ${colorScheme.border}`,
@@ -757,15 +757,15 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         justifyContent: 'space-between',
         padding: '4px 10px',
         background: isActive
-          ? 'rgba(15, 23, 42, 0.98)'
-          : 'rgba(2, 6, 23, 0.96)',
-        borderBottom: isActive ? `1px solid ${colorScheme.primary}40` : `1px solid ${colorScheme.border}`,
+          ? 'var(--app-surface-raised)'
+          : 'var(--app-surface)',
+        borderBottom: isActive ? '1px solid var(--app-border-strong)' : '1px solid var(--app-terminal-border)',
         fontSize: '10px',
-        color: isActive ? '#ffffff' : '#d0d5dd',
+        color: isActive ? 'var(--app-text)' : 'var(--app-muted)',
         fontWeight: isActive ? '700' : '500',
         position: 'relative',
         zIndex: 10,
-        boxShadow: isActive ? `0 2px 10px ${colorScheme.glow}20` : 'inset 0 1px 1px rgba(255, 255, 255, 0.05)'
+        boxShadow: isActive ? '0 2px 10px var(--app-glow)' : 'inset 0 1px 1px rgba(255, 255, 255, 0.05)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
           {/* Color Picker Button */}

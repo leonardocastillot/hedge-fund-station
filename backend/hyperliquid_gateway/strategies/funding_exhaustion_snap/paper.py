@@ -4,6 +4,8 @@ Funding Exhaustion Snap - Paper Trading Helpers
 Simulation functions for paper execution with realistic slippage and latency.
 """
 
+from __future__ import annotations
+
 from typing import Any
 import random
 

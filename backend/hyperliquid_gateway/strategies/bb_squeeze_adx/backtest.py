@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from ...backtesting.indicators import adx, atr, rolling_std, sma
-from ...backtesting.io import Candle
+try:
+    from ...backtesting.indicators import adx, atr, rolling_std, sma
+    from ...backtesting.io import Candle
+except ImportError:
+    from backtesting.indicators import adx, atr, rolling_std, sma
+    from backtesting.io import Candle
 
 
 DEFAULTS = {

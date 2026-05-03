@@ -9,6 +9,6 @@ Intended module split:
 - `risk.py`: invalidation and sizing rules
 - `paper.py`: paper-trading helpers or replay adapters
 
-The matching strategy document should live at:
+The matching strategy document lives at:
 
-- `docs/strategies/short-squeeze-continuation-template.md`
+- `docs/strategies/short-squeeze-continuation.md`

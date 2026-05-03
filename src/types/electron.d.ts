@@ -186,6 +186,22 @@ export interface VoiceTranscriptionResult {
   model: string;
 }
 
+export interface GeminiLiveStatus {
+  isConfigured: boolean;
+  model: string;
+  fallbackModel: string;
+  keyPreview: string | null;
+}
+
+export interface GeminiLiveTokenResponse {
+  token: string;
+  model: string;
+  fallbackModel: string;
+  expiresAt: string;
+  newSessionExpiresAt: string;
+  voiceName: string;
+}
+
 export interface TerminalSnapshot {
   id: string;
   buffer: string;
@@ -237,6 +253,8 @@ export interface ElectronAPI {
   };
   voice: {
     transcribe: (audio: ArrayBuffer, mimeType?: string) => Promise<VoiceTranscriptionResult>;
+    getLiveStatus: () => Promise<GeminiLiveStatus>;
+    createLiveToken: (params?: { model?: string }) => Promise<GeminiLiveTokenResponse>;
   };
   obsidian: {
     getStatus: (workspacePath: string, vaultPath?: string) => Promise<ObsidianVaultStatus>;
@@ -260,6 +278,7 @@ export interface ElectronAPI {
     checkCommands: (commands: string[]) => Promise<DiagnosticsCommandStatus[]>;
     shellSmokeTest: (cwd: string, shell?: string) => Promise<DiagnosticsShellSmokeTestResult>;
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) => Promise<DiagnosticsMissionDrillResult>;
+    launchCodexLogin: () => Promise<{ success: boolean; command: string; error?: string }>;
   };
   agentLoop: {
     startMission: (params: {
@@ -276,6 +295,11 @@ export interface ElectronAPI {
     }) => Promise<AgentLoopRunSnapshot>;
     getRun: (runId: string) => Promise<AgentLoopRunSnapshot | null>;
     cancelRun: (runId: string) => Promise<{ success: boolean }>;
+  };
+  external: {
+    openUrl: (url: string) => Promise<{ success: boolean }>;
+    openUrlInBrave: (url: string) => Promise<{ success: boolean; fallback: boolean }>;
+    openUrlsInBrave: (urls: string[]) => Promise<{ success: boolean; results: Array<{ success: boolean; fallback: boolean }> }>;
   };
   update: {
     check: () => Promise<{ success: boolean }>;

@@ -64,7 +64,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   voice: {
     transcribe: (audio: ArrayBuffer, mimeType?: string) =>
-      ipcRenderer.invoke('voice:transcribe', { audio, mimeType })
+      ipcRenderer.invoke('voice:transcribe', { audio, mimeType }),
+    getLiveStatus: () =>
+      ipcRenderer.invoke('voice:getLiveStatus'),
+    createLiveToken: (params?: { model?: string }) =>
+      ipcRenderer.invoke('voice:createLiveToken', params)
   },
 
   obsidian: {
@@ -108,7 +112,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     shellSmokeTest: (cwd: string, shell?: string) =>
       ipcRenderer.invoke('diagnostics:shellSmokeTest', { cwd, shell }),
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) =>
-      ipcRenderer.invoke('diagnostics:runMissionDrill', { workspaceName, workspacePath, commands, vaultPath, shell })
+      ipcRenderer.invoke('diagnostics:runMissionDrill', { workspaceName, workspacePath, commands, vaultPath, shell }),
+    launchCodexLogin: () =>
+      ipcRenderer.invoke('diagnostics:launchCodexLogin')
   },
 
   agentLoop: {
@@ -126,6 +132,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }) => ipcRenderer.invoke('agentLoop:startMission', params),
     getRun: (runId: string) => ipcRenderer.invoke('agentLoop:getRun', { runId }),
     cancelRun: (runId: string) => ipcRenderer.invoke('agentLoop:cancelRun', { runId })
+  },
+
+  external: {
+    openUrl: (url: string) => ipcRenderer.invoke('external:openUrl', { url }),
+    openUrlInBrave: (url: string) => ipcRenderer.invoke('external:openUrlInBrave', { url }),
+    openUrlsInBrave: (urls: string[]) => ipcRenderer.invoke('external:openUrlsInBrave', { urls })
   },
 
   // Update operations

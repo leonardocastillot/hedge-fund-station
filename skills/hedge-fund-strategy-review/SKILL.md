@@ -23,9 +23,10 @@ Use this skill when the task is:
 ## Read First
 
 1. `AGENTS.md`
-2. `docs/hedge-fund-agent-operating-model.md`
-3. relevant strategy file in `docs/strategies/`
-4. relevant backend implementation in `backend/hyperliquid_gateway/strategies/`
+2. `docs/project-architecture.md`
+3. `docs/hedge-fund-agent-operating-model.md`
+4. relevant strategy file in `docs/strategies/`
+5. relevant backend implementation in `backend/hyperliquid_gateway/strategies/`
 
 ## Output Standard
 
@@ -36,3 +37,13 @@ Return:
 - recommended changes third
 
 If the strategy is acceptable, still list residual risks and validation gaps.
+
+## Allowed Target Areas
+
+Review primarily:
+
+- `docs/strategies/`
+- `backend/hyperliquid_gateway/strategies/`
+- `backend/hyperliquid_gateway/backtesting/`
+- generated artifacts in `backend/hyperliquid_gateway/data/`
+- UI surfaces only to check whether humans can inspect backend outputs quickly

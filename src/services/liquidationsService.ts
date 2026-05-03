@@ -2,14 +2,17 @@
  * Liquidations Service - API client para monitoreo de liquidaciones
  */
 import { withRequestCache } from './requestCache';
-import { GATEWAY_HTTP_URL } from './backendConfig';
+import { HYPERLIQUID_GATEWAY_HTTP_URL } from './backendConfig';
 
-const API_URL = GATEWAY_HTTP_URL;
+const API_URL = HYPERLIQUID_GATEWAY_HTTP_URL;
 const REQUEST_TIMEOUT_MS = 35_000;
 
 function normalizeRequestError(error: unknown, label: string): Error {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return new Error(`${label} timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check the Hyperliquid gateway on ${API_URL}.`);
+  }
+  if (error instanceof TypeError) {
+    return new Error(`${label} could not reach the Hyperliquid gateway at ${API_URL}. Start the local gateway or set VITE_HYPERLIQUID_GATEWAY_API_URL to the running service.`);
   }
   if (error instanceof Error) {
     return error;
@@ -59,9 +62,9 @@ export interface LiquidationSnapshot {
   };
   top_markets?: Array<{
     symbol: string;
-    pressure_usd: number;
-    bias: string;
-    price_change_pct: number;
+    pressure_usd: number | null;
+    bias: string | null;
+    price_change_pct: number | null;
     funding_rate: number | null;
     open_interest_usd: number | null;
   }>;
@@ -81,6 +84,15 @@ export interface LiquidationChartData {
   longs: number[];
   shorts: number[];
   total: number[];
+  metadata?: {
+    windowHours: number;
+    pointCount: number;
+    oldestTimestamp: string | null;
+    newestTimestamp: string | null;
+    source: string;
+    isEstimate: boolean;
+    coverageLabel: 'good' | 'thin' | 'insufficient' | string;
+  };
 }
 
 export interface HedgeFundInsights {

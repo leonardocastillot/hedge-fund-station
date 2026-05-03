@@ -7,6 +7,7 @@ export interface MissionActionResult {
 }
 
 export async function runMissionAction(task: CommanderTask, actionKey: string): Promise<MissionActionResult> {
+  void task;
   switch (actionKey) {
     case 'load-strategy-library': {
       const library = await strategyService.getLibrary('all', 'score');

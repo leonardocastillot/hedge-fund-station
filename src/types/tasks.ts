@@ -1,4 +1,5 @@
 import type { AgentRole } from './agents';
+import type { AgentProvider } from './agents';
 
 export type TaskStatus = 'queued' | 'routing' | 'running' | 'completed' | 'failed';
 export type RunLaunchMode = 'profile' | 'direct' | 'loop';
@@ -15,6 +16,69 @@ export type MissionDecision =
 export type MissionReviewConfidence = 'low' | 'medium' | 'high';
 export type MissionStageReviewStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type MissionActionStatus = 'idle' | 'running' | 'completed' | 'failed';
+export type MissionApprovalStatus =
+  | 'draft'
+  | 'awaiting-approval'
+  | 'approved'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type MissionChatMessageRole = 'user' | 'assistant' | 'system';
+
+export type MissionBackendActionKind = 'agent-research' | 'agent-audit' | 'hf-command';
+export type MissionBackendActionStatus = 'proposed' | 'running' | 'completed' | 'failed' | 'skipped';
+export type MissionArtifactKind = 'agent-run' | 'backtest' | 'validation' | 'paper' | 'terminal' | 'command';
+
+export interface MissionRuntimePlan {
+  preferredRuntime: AgentProvider;
+  backendRuntime: 'auto' | 'codex-local' | 'api-provider' | 'deterministic';
+  codexConnected?: boolean;
+  claudeAvailable?: boolean;
+  apiProviderAvailable?: boolean;
+  defaultModel?: string | null;
+  summary: string;
+}
+
+export interface MissionBackendAction {
+  id: string;
+  kind: MissionBackendActionKind;
+  label: string;
+  command: string;
+  strategyId?: string;
+  status: MissionBackendActionStatus;
+  runId?: string;
+  path?: string;
+  summary?: string;
+  updatedAt?: number;
+}
+
+export interface MissionArtifactRef {
+  id: string;
+  kind: MissionArtifactKind;
+  label: string;
+  path?: string;
+  runId?: string;
+  strategyId?: string;
+  summary?: string;
+  createdAt?: number;
+}
+
+export interface MissionPacket {
+  missionId: string;
+  workspaceId: string;
+  mode: string;
+  goal: string;
+  strategyId?: string;
+  runtimePlan: MissionRuntimePlan;
+  frontierRuntime: AgentProvider;
+  backendActions: MissionBackendAction[];
+  evidenceRefs: MissionArtifactRef[];
+  guardrails: string[];
+  approvalState: MissionApprovalStatus;
+  outputs: MissionArtifactRef[];
+}
 
 export interface MissionWorkflowStep {
   role: AgentRole;
@@ -69,12 +133,55 @@ export interface MissionActionRecord {
   updatedAt?: number;
 }
 
+export interface MissionChatMessage {
+  id: string;
+  workspaceId: string;
+  taskId?: string;
+  draftId?: string;
+  role: MissionChatMessageRole;
+  content: string;
+  createdAt: number;
+}
+
+export interface MissionDraft {
+  id: string;
+  workspaceId: string;
+  taskId?: string;
+  title: string;
+  goal: string;
+  mode: string;
+  suggestedRoles: AgentRole[];
+  proposedCommands: string[];
+  risks: string[];
+  finalPrompt: string;
+  missionPacket?: MissionPacket;
+  approvalStatus: MissionApprovalStatus;
+  createdAt: number;
+  updatedAt: number;
+  approvedAt?: number;
+  runId?: string;
+  terminalIds?: string[];
+  error?: string;
+}
+
+export interface ApprovedMission {
+  draftId: string;
+  workspaceId: string;
+  title: string;
+  goal: string;
+  finalPrompt: string;
+  suggestedRoles: AgentRole[];
+  proposedCommands: string[];
+}
+
 export interface CommanderTask {
   id: string;
   title: string;
   goal: string;
   workspaceId: string;
   status: TaskStatus;
+  approvalStatus?: MissionApprovalStatus;
+  draftId?: string;
   createdAt: number;
   mission?: MissionTaskMetadata;
   stageReviews?: MissionStageReview[];

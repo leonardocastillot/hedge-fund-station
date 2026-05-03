@@ -7,7 +7,11 @@ Monitors failures to external services and temporarily blocks calls when thresho
 import time
 from enum import Enum
 from typing import Any, Callable, TypeVar
-from logger import logger
+
+try:
+    from .logger import logger
+except ImportError:
+    from logger import logger
 
 T = TypeVar('T')
 

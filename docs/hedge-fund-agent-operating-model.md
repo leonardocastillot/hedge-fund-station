@@ -4,6 +4,11 @@
 
 This repo should support hedge fund research, strategy design, validation, and visualization without turning the Electron app into the execution engine.
 
+The agents are part of the hedge fund operating company. They should help carry
+the company through the trading lifecycle: research, backtesting, evaluation,
+and production. Their work should improve the fund's memory, evidence quality,
+and operating reliability over years, not just solve one prompt.
+
 The operating rule is simple:
 
 - heavy strategy computation, research pipelines, ranking, replay, and paper-execution logic belong in backend services and should run in Docker or an external process
@@ -138,6 +143,30 @@ When an agent receives a hedge fund strategy task, it should follow this order:
 6. Expose outputs through an API shape the app can inspect
 7. Add or update visualization only after the backend contract is clear
 8. End with validation notes, risks, and next tests
+
+For company-level work, every agent should also ask:
+
+- Which lifecycle stage is this mission improving: research, backtesting,
+  evaluation, or production?
+- What artifact will the next agent inherit?
+- What evidence did this mission make easier to inspect?
+- What risk did this mission reduce?
+- What should remain impossible without explicit human approval?
+
+## Long-Horizon Agent Standard
+
+Agents should act like durable members of the hedge fund:
+
+- leave handoffs that another agent can continue
+- prefer backend artifacts over hidden chat context
+- improve docs when a rule or decision should persist
+- use stable `hf:*` commands before ad hoc scripts
+- keep production/live changes behind human approval
+- treat agentic conclusions as auxiliary evidence until validated
+
+The desired end state is a company where agents can keep research, validation,
+data quality, and operations moving while the human operator remains the final
+owner of promotion and risk.
 
 ## What Agents Must Avoid
 

@@ -10,7 +10,10 @@ from __future__ import annotations
 from typing import Any
 
 from .backtest import build_signals
-from ...backtesting.io import Candle
+try:
+    from ...backtesting.io import Candle
+except ImportError:
+    from backtesting.io import Candle
 
 
 def evaluate_latest_signal(candles: list[Candle]) -> dict[str, Any]:

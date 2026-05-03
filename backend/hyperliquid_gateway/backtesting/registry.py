@@ -1,23 +1,42 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 from .engine import BacktestConfig, simulate_strategy
 from .io import Candle, canonicalize_ohlcv_csv, dataset_metadata
-from ..strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
-from ..strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
-from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
-from ..strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
-from ..strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
-from ..strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
-from ..strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
-from ..strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
-from ..strategies.polymarket_btc_updown_5m_oracle_lag.paper import paper_candidate as polymarket_btc_updown_5m_oracle_lag_paper_candidate
+
+try:
+    from ..strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
+    from ..strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
+    from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+    from ..strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
+    from ..strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+    from ..strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
+    from ..strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
+    from ..strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
+    from ..strategies.polymarket_btc_updown_5m_oracle_lag.paper import paper_candidate as polymarket_btc_updown_5m_oracle_lag_paper_candidate
+    from ..strategies.short_squeeze_continuation.backtest import run_backtest as short_squeeze_continuation_run_backtest
+    from ..strategies.short_squeeze_continuation.paper import paper_candidate as short_squeeze_continuation_paper_candidate
+except ImportError:
+    from strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
+    from strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
+    from strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+    from strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
+    from strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+    from strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
+    from strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
+    from strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
+    from strategies.polymarket_btc_updown_5m_oracle_lag.paper import paper_candidate as polymarket_btc_updown_5m_oracle_lag_paper_candidate
+    from strategies.short_squeeze_continuation.backtest import run_backtest as short_squeeze_continuation_run_backtest
+    from strategies.short_squeeze_continuation.paper import paper_candidate as short_squeeze_continuation_paper_candidate
 
 PaperCandidateBuilder = Callable[[dict[str, Any]], dict[str, Any]]
 BacktestRunner = Callable[[Path, BacktestConfig], dict[str, Any]]
+DATA_ROOT = Path(os.getenv("HYPERLIQUID_DATA_ROOT", str(Path(__file__).resolve().parents[1] / "data"))).expanduser()
+DEFAULT_GATEWAY_DB = DATA_ROOT / "hyperliquid.db"
 
 
 @dataclass(frozen=True)
@@ -87,7 +106,7 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_win_rate_pct=35.0,
             max_drawdown_pct=8.0,
         ),
-        default_dataset=str(Path(__file__).resolve().parents[1] / "data" / "hyperliquid.db"),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
         dataset_label="gateway_snapshot_db",
     ),
     "polymarket_btc_updown_5m_oracle_lag": StrategyDefinition(
@@ -101,7 +120,7 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_win_rate_pct=45.0,
             max_drawdown_pct=6.0,
         ),
-        default_dataset=str(Path(__file__).resolve().parents[1] / "data" / "hyperliquid.db"),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
         dataset_label="polymarket_snapshot_db",
     ),
     "polymarket_btc_5m_maker_basis_skew": StrategyDefinition(
@@ -115,8 +134,22 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_win_rate_pct=50.0,
             max_drawdown_pct=4.0,
         ),
-        default_dataset=str(Path(__file__).resolve().parents[1] / "data" / "hyperliquid.db"),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
         dataset_label="polymarket_snapshot_db",
+    ),
+    "short_squeeze_continuation": StrategyDefinition(
+        strategy_id="short_squeeze_continuation",
+        backtest_runner=short_squeeze_continuation_run_backtest,
+        paper_candidate_builder=short_squeeze_continuation_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=5,
+            min_return_pct=0.1,
+            min_profit_factor=1.02,
+            min_win_rate_pct=35.0,
+            max_drawdown_pct=8.0,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
     ),
 }
 

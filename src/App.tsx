@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TerminalProvider, useTerminalContext } from './contexts/TerminalContext';
 import { WorkspaceProvider, useWorkspaceContext } from './contexts/WorkspaceContext';
 import { ContextProvider } from './contexts/ContextContext';
@@ -12,6 +12,13 @@ import { CommandPalette } from './components/electron/CommandPalette';
 import { PreloadApiNotice } from './components/electron/PreloadApiNotice';
 import { AppErrorBoundary } from './components/ui/AppErrorBoundary';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import {
+  APP_SETTINGS_CHANGED_EVENT,
+  applyAppTheme,
+  loadAppSettings,
+  type AppSettings
+} from './utils/appSettings';
+import lcLogo from './assets/logo-lc.jpeg';
 
 function AppWithShortcuts() {
   const { createTerminal, closeTerminal, activeTerminalId } = useTerminalContext();
@@ -73,6 +80,29 @@ function AppWithShortcuts() {
 }
 
 function App() {
+  const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
+
+  useEffect(() => {
+    applyAppTheme(settings.theme);
+  }, [settings.theme]);
+
+  useEffect(() => {
+    const syncSettings = (event?: Event) => {
+      const nextSettings = event instanceof CustomEvent && event.detail
+        ? event.detail as AppSettings
+        : loadAppSettings();
+      setSettings(nextSettings);
+    };
+
+    window.addEventListener(APP_SETTINGS_CHANGED_EVENT, syncSettings);
+    window.addEventListener('storage', syncSettings);
+
+    return () => {
+      window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, syncSettings);
+      window.removeEventListener('storage', syncSettings);
+    };
+  }, []);
+
   return (
     <ContextProvider>
       <AgentProfilesProvider>
@@ -85,7 +115,8 @@ function App() {
                     style={{
                       width: '100vw',
                       height: '100vh',
-                      background: '#05070b',
+                      background: '#020408',
+                      color: 'var(--app-text, #f0f2f5)',
                       display: 'flex',
                       flexDirection: 'column',
                       position: 'relative',
@@ -94,78 +125,107 @@ function App() {
                   >
                     <div
                       style={{
-                        padding: '10px 20px',
-                        background: '#0b0f19',
-                        borderBottom: '1px solid rgba(239, 68, 68, 0.18)',
+                        padding: '8px 20px',
+                        background: 'rgba(6, 10, 20, 0.4)',
+                        backdropFilter: 'blur(32px) saturate(1.3)',
+                        WebkitBackdropFilter: 'blur(32px) saturate(1.3)',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
-                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.28)',
+                        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03)',
                         position: 'relative',
                         zIndex: 10
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div
+                          style={{
+                            width: '38px',
+                            height: '28px',
+                            borderRadius: '6px',
+                            overflow: 'hidden',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
+                          }}
+                        >
+                          <img
+                            src={lcLogo}
+                            alt="LC"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
+                              opacity: 0.9
+                            }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
                           <div
                             style={{
-                              color: '#f9fafb',
-                              fontSize: '14px',
-                              fontWeight: 800,
-                              letterSpacing: '0.08em',
+                              color: 'var(--app-text)',
+                              fontSize: '13px',
+                              fontWeight: 700,
+                              letterSpacing: '0.1em',
                               textTransform: 'uppercase'
                             }}
                           >
-                            Hedge Station
+                            Hedge Fund Station
                           </div>
                           <div
                             style={{
-                              color: '#6b7280',
-                              fontSize: '10px',
-                              letterSpacing: '0.12em',
-                              textTransform: 'uppercase'
+                              color: 'var(--app-subtle)',
+                              fontSize: '9px',
+                              letterSpacing: '0.14em',
+                              textTransform: 'uppercase',
+                              fontFamily: "'JetBrains Mono', monospace"
                             }}
                           >
-                            Workstation Shell
+                            Trading Operating System
                           </div>
                         </div>
                         <BackendStatus />
                       </div>
 
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                         {[
-                          { key: 'Ctrl+K', label: 'Palette' },
-                          { key: 'Ctrl+T', label: 'New Term' },
-                          { key: 'Ctrl+W', label: 'Close Term' },
-                          { key: 'Ctrl+1-9', label: 'Switch WS' }
+                          { key: '⌘K', label: 'Palette' },
+                          { key: '⌘T', label: 'New Term' },
+                          { key: '⌘W', label: 'Close' },
+                          { key: '⌘1-9', label: 'WS' }
                         ].map((shortcut, idx) => (
                           <div
                             key={idx}
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              fontSize: '10px',
-                              color: '#e5e7eb',
-                              padding: '4px 8px',
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              borderRadius: '4px',
-                              border: '1px solid rgba(239, 68, 68, 0.15)',
-                              fontFamily: 'monospace',
+                              gap: '5px',
+                              fontSize: '9px',
+                              color: 'var(--app-muted)',
+                              padding: '3px 7px',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              borderRadius: '5px',
+                              border: '1px solid rgba(255, 255, 255, 0.04)',
+                              fontFamily: "'JetBrains Mono', monospace",
                               fontWeight: '500',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                              letterSpacing: '0.02em'
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                              e.currentTarget.style.borderColor = 'var(--app-border-strong)';
+                              e.currentTarget.style.boxShadow = '0 0 12px var(--app-glow)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.15)';
+                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
+                              e.currentTarget.style.boxShadow = 'none';
                             }}
                           >
-                            <span style={{ color: '#ef4444', fontWeight: '600' }}>{shortcut.key}</span>
-                            <span style={{ color: '#9ca3af' }}>{shortcut.label}</span>
+                            <span style={{ color: 'var(--app-accent)', fontWeight: '600', fontSize: '10px' }}>{shortcut.key}</span>
+                            <span style={{ color: 'var(--app-subtle)' }}>{shortcut.label}</span>
                           </div>
                         ))}
                       </div>

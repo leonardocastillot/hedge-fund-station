@@ -6,6 +6,7 @@ import { WorkspaceModal } from './WorkspaceModal';
 import type { Workspace } from '../../types/electron';
 import { buildTerminalLabel, getLaunchProfileCommandSummary, launchProfileSequence } from '../../utils/workspaceLaunch';
 import { hyperliquidService, type HyperliquidMarketRow } from '../../services/hyperliquidService';
+import { buildOverviewTrapDecisions, type TrapAction, type TrapDecision, type TrapSide } from '@/features/liquidations/trapDecisions';
 
 const ICONS: Record<string, string> = {
   briefcase: 'BK',
@@ -78,7 +79,7 @@ export const Sidebar: React.FC = () => {
     };
   }, [hasLiquidationSnapshot]);
 
-  const liquidationTraps = useMemo(() => buildLiquidationTraps(liquidationMarkets), [liquidationMarkets]);
+  const liquidationTraps = useMemo(() => buildOverviewTrapDecisions(liquidationMarkets, 5), [liquidationMarkets]);
 
   const runWorkspaceCommand = React.useCallback((workspace: Workspace, command?: string, switchWorkspace = true) => {
     if (switchWorkspace) {
@@ -158,11 +159,11 @@ export const Sidebar: React.FC = () => {
       <div style={{
         width: '100%',
         height: '100%',
-        background: '#11151d',
+        background: 'var(--app-surface)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#9ca3af'
+        color: 'var(--app-muted)'
       }}>
         Loading...
       </div>
@@ -173,17 +174,17 @@ export const Sidebar: React.FC = () => {
     <div style={{
       width: '100%',
       height: '100%',
-      background: 'rgba(0, 0, 0, 0.96)',
-      backdropFilter: 'blur(18px)',
-      WebkitBackdropFilter: 'blur(18px)',
+      background: 'rgba(4, 8, 16, 0.35)',
+      backdropFilter: 'blur(28px) saturate(1.2)',
+      WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
       display: 'flex',
       flexDirection: 'column',
-      borderRight: '1px solid rgba(239, 68, 68, 0.2)',
-      boxShadow: '4px 0 20px rgba(0, 0, 0, 0.45)'
+      borderRight: '1px solid rgba(255, 255, 255, 0.03)',
+      boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.02)'
     }}>
       <div style={{
         padding: '10px 12px',
-        borderBottom: '1px solid rgba(239, 68, 68, 0.15)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -193,13 +194,13 @@ export const Sidebar: React.FC = () => {
           <div style={{
             fontSize: '10px',
             fontWeight: 700,
-            color: '#ef4444',
+            color: 'var(--app-accent)',
             textTransform: 'uppercase',
             letterSpacing: '0.12em'
           }}>
             Workspaces
           </div>
-          <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '3px' }}>
+          <div style={{ color: 'var(--app-subtle)', fontSize: '10px', marginTop: '3px' }}>
             Click = switch + open shell
           </div>
         </div>
@@ -207,14 +208,15 @@ export const Sidebar: React.FC = () => {
           type="button"
           onClick={handleCreateWorkspace}
           style={{
-            padding: '6px 8px',
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.22)',
-            borderRadius: '8px',
-            color: '#fecaca',
+            padding: '5px 8px',
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            borderRadius: '6px',
+            color: 'var(--app-accent)',
             cursor: 'pointer',
-            fontSize: '11px',
-            fontWeight: 700
+            fontSize: '10px',
+            fontWeight: 600,
+            transition: 'all 0.2s ease'
           }}
         >
           New
@@ -237,11 +239,13 @@ export const Sidebar: React.FC = () => {
               onMouseEnter={() => setHoveredId(workspace.id)}
               onMouseLeave={() => setHoveredId(null)}
               style={{
-                marginBottom: '8px',
-                borderRadius: '12px',
-                border: isActive ? '1px solid rgba(239, 68, 68, 0.28)' : '1px solid rgba(255, 255, 255, 0.06)',
-                background: isActive ? 'rgba(239, 68, 68, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                overflow: 'hidden'
+                marginBottom: '6px',
+                borderRadius: '10px',
+                border: isActive ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid rgba(255, 255, 255, 0.02)',
+                background: isActive ? 'rgba(255, 255, 255, 0.03)' : 'rgba(255, 255, 255, 0.01)',
+                overflow: 'hidden',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: isActive ? '0 0 16px var(--app-glow)' : 'none'
               }}
             >
               <button
@@ -261,12 +265,12 @@ export const Sidebar: React.FC = () => {
                     width: '34px',
                     height: '34px',
                     borderRadius: '10px',
-                    background: isActive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(255, 255, 255, 0.04)',
-                    border: isActive ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    background: isActive ? 'var(--app-focus)' : 'var(--app-panel-muted)',
+                    border: isActive ? '1px solid var(--app-border-strong)' : '1px solid var(--app-border)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#f3f4f6',
+                    color: 'var(--app-text)',
                     fontSize: '11px',
                     fontWeight: 700
                   }}>
@@ -276,7 +280,7 @@ export const Sidebar: React.FC = () => {
                     <div style={{
                       fontSize: '12px',
                       fontWeight: 700,
-                      color: '#f9fafb',
+                      color: 'var(--app-text)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
@@ -285,7 +289,7 @@ export const Sidebar: React.FC = () => {
                     </div>
                     <div style={{
                       fontSize: '10px',
-                      color: isActive ? '#fca5a5' : '#6b7280',
+                      color: isActive ? 'var(--app-accent)' : 'var(--app-subtle)',
                       marginTop: '3px',
                       textTransform: 'uppercase',
                       letterSpacing: '0.08em'
@@ -298,12 +302,12 @@ export const Sidebar: React.FC = () => {
 
               {showDetails && (
                 <div style={{
-                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderTop: '1px solid var(--app-border)',
                   padding: '0 10px 10px 10px'
                 }}>
                   <div style={{
                     fontSize: '10px',
-                    color: '#6b7280',
+                    color: 'var(--app-subtle)',
                     fontFamily: 'Consolas, monospace',
                     lineHeight: 1.45,
                     padding: '8px 0',
@@ -359,8 +363,8 @@ export const Sidebar: React.FC = () => {
                       onClick={() => handleDeleteWorkspace(workspace)}
                       style={{
                         ...miniActionButton,
-                        color: '#fca5a5',
-                        border: '1px solid rgba(239, 68, 68, 0.22)'
+                        color: 'var(--app-negative)',
+                        border: '1px solid var(--app-border-strong)'
                       }}
                     >
                       Del
@@ -378,9 +382,9 @@ export const Sidebar: React.FC = () => {
                             onClick={() => runWorkspaceProfile(workspace, profile.id)}
                             style={commandButtonStyle}
                           >
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#f3f4f6' }}>{profile.name}</div>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--app-text)' }}>{profile.name}</div>
                             <div style={commandTextStyle}>{getLaunchProfileCommandSummary(profile)}</div>
-                            <div style={{ ...commandTextStyle, color: '#9ca3af', marginTop: '4px' }}>
+                            <div style={{ ...commandTextStyle, color: 'var(--app-muted)', marginTop: '4px' }}>
                               {profile.steps.map((step) => `${step.delayMs}ms>${step.command}`).join(' | ')}
                             </div>
                           </button>
@@ -416,12 +420,11 @@ export const Sidebar: React.FC = () => {
 
       <div style={{
         padding: '8px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-        background: 'linear-gradient(180deg, rgba(7, 10, 16, 0.92) 0%, rgba(3, 6, 12, 0.98) 100%)'
+        borderTop: '1px solid rgba(255, 255, 255, 0.03)',
+        background: 'rgba(4, 8, 16, 0.3)'
       }}>
         <LiquidationTrapsCard
-          longs={liquidationTraps.longs}
-          shorts={liquidationTraps.shorts}
+          decisions={liquidationTraps}
           updatedAt={liquidationsUpdatedAt}
           error={liquidationsError}
           stale={liquidationsStale}
@@ -439,29 +442,29 @@ export const Sidebar: React.FC = () => {
 };
 
 function LiquidationTrapsCard({
-  longs,
-  shorts,
+  decisions,
   updatedAt,
   error,
   stale
 }: {
-  longs: HyperliquidMarketRow[];
-  shorts: HyperliquidMarketRow[];
+  decisions?: TrapDecision[];
   updatedAt: number | null;
   error: string | null;
   stale: boolean;
 }) {
+  const safeDecisions = decisions ?? [];
+
   return (
     <div style={{
-      borderRadius: '14px',
-      border: '1px solid rgba(56, 189, 248, 0.18)',
-      background: 'linear-gradient(180deg, rgba(8, 20, 34, 0.96) 0%, rgba(4, 10, 19, 0.98) 100%)',
+      borderRadius: '10px',
+      border: '1px solid rgba(255, 255, 255, 0.03)',
+      background: 'rgba(255, 255, 255, 0.015)',
       overflow: 'hidden',
-      boxShadow: '0 10px 24px rgba(2, 6, 23, 0.4)'
+      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
     }}>
       <div style={{
         padding: '10px 12px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -471,22 +474,22 @@ function LiquidationTrapsCard({
           <div style={{
             fontSize: '10px',
             fontWeight: 700,
-            color: '#38bdf8',
+            color: 'var(--app-accent)',
             textTransform: 'uppercase',
             letterSpacing: '0.12em'
           }}>
             Liquidation Traps
           </div>
-          <div style={{ color: '#6b7280', fontSize: '10px', marginTop: '3px' }}>
-            BTC, ETH, SOL crowding pressure
+          <div style={{ color: 'var(--app-subtle)', fontSize: '10px', marginTop: '3px' }}>
+            Decision queue from crowding pressure
           </div>
         </div>
         <div style={{
           padding: '4px 7px',
           borderRadius: '999px',
-          background: stale ? 'rgba(251, 191, 36, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-          border: stale ? '1px solid rgba(251, 191, 36, 0.24)' : '1px solid rgba(255, 255, 255, 0.08)',
-          color: stale ? '#fcd34d' : '#9ca3af',
+          background: stale ? 'var(--app-warning-soft)' : 'var(--app-panel-muted)',
+          border: stale ? '1px solid var(--app-warning)' : '1px solid var(--app-border)',
+          color: stale ? 'var(--app-warning)' : 'var(--app-muted)',
           fontSize: '10px',
           fontWeight: 700
         }}>
@@ -498,10 +501,10 @@ function LiquidationTrapsCard({
         <div style={{
           margin: '10px',
           padding: '10px',
-          borderRadius: '10px',
-          border: '1px solid rgba(239, 68, 68, 0.24)',
-          background: 'rgba(127, 29, 29, 0.24)',
-          color: '#fecaca',
+          borderRadius: '8px',
+          border: '1px solid var(--app-negative)',
+          background: 'var(--app-negative-soft)',
+          color: 'var(--app-negative)',
           fontSize: '11px',
           lineHeight: 1.45
         }}>
@@ -511,10 +514,10 @@ function LiquidationTrapsCard({
         <div style={{ padding: '10px', display: 'grid', gap: '8px' }}>
           {error ? (
             <div style={{
-              borderRadius: '10px',
-              border: '1px solid rgba(251, 191, 36, 0.22)',
-              background: 'rgba(120, 53, 15, 0.2)',
-              color: '#fde68a',
+              borderRadius: '8px',
+              border: '1px solid var(--app-warning)',
+              background: 'var(--app-warning-soft)',
+              color: 'var(--app-warning)',
               fontSize: '10px',
               lineHeight: 1.45,
               padding: '8px 10px'
@@ -522,15 +525,30 @@ function LiquidationTrapsCard({
               Gateway slow. Showing last good snapshot.
             </div>
           ) : null}
-          <TrapSection title="Longs At Risk" tone="rose" rows={longs} />
-          <TrapSection title="Shorts At Risk" tone="emerald" rows={shorts} />
+          {safeDecisions.length === 0 ? (
+            <div style={{
+              borderRadius: '8px',
+              border: '1px dashed var(--app-border)',
+              background: 'var(--app-panel-muted)',
+              color: 'var(--app-muted)',
+              fontSize: '11px',
+              lineHeight: 1.45,
+              padding: '10px'
+            }}>
+              No clear BTC, ETH or SOL trap yet. Wait for pressure to concentrate.
+            </div>
+          ) : (
+            safeDecisions.map((decision) => (
+              <TrapDecisionRow key={`${decision.symbol}-${decision.sideAtRisk}`} decision={decision} />
+            ))
+          )}
           <div style={{
             paddingTop: '2px',
             fontSize: '10px',
             lineHeight: 1.45,
-            color: '#6b7280'
+            color: 'var(--app-subtle)'
           }}>
-            Pressure = forced-flow estimate. Current price is shown as reference zone, not exact liquidation level.
+            Confirm before acting: this queue ranks review urgency, not a standalone trade signal.
           </div>
         </div>
       )}
@@ -538,157 +556,97 @@ function LiquidationTrapsCard({
   );
 }
 
-function TrapSection({
-  title,
-  tone,
-  rows
-}: {
-  title: string;
-  tone: 'rose' | 'emerald';
-  rows: HyperliquidMarketRow[];
-}) {
-  const accent = tone === 'rose' ? '#fb7185' : '#34d399';
-  const background = tone === 'rose' ? 'rgba(127, 29, 29, 0.18)' : 'rgba(6, 78, 59, 0.18)';
-
+function TrapDecisionRow({ decision }: { decision: TrapDecision }) {
   return (
     <div style={{
-      borderRadius: '12px',
-      border: `1px solid ${tone === 'rose' ? 'rgba(244, 63, 94, 0.18)' : 'rgba(16, 185, 129, 0.18)'}`,
-      background
+      borderRadius: '10px',
+      border: '1px solid var(--app-border)',
+      background: 'var(--app-panel-muted)',
+      padding: '9px'
     }}>
-      <div style={{
-        padding: '8px 10px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px'
-      }}>
-        <div style={{
-          fontSize: '10px',
-          fontWeight: 700,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          color: accent
-        }}>
-          {title}
-        </div>
-        <div style={{ fontSize: '10px', color: '#9ca3af' }}>
-          {rows.length > 0 ? `${rows.length} setups` : 'No major trap'}
-        </div>
-      </div>
-
-      <div style={{ padding: '8px', display: 'grid', gap: '6px' }}>
-        {rows.length === 0 ? (
-          <div style={{ color: '#9ca3af', fontSize: '11px', lineHeight: 1.45 }}>
-            No clear imbalance across the main assets right now.
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--app-text)' }}>{decision.symbol}</div>
+            <ActionPill action={decision.action} />
           </div>
-        ) : (
-          rows.map((market) => (
-            <div
-              key={`${title}-${market.symbol}`}
-              style={{
-                borderRadius: '10px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                background: 'rgba(2, 6, 23, 0.45)',
-                padding: '8px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc' }}>{market.symbol}</div>
-                  <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '2px' }}>
-                    {market.crowdingBias === 'balanced' || !market.crowdingBias ? 'monitoring' : market.crowdingBias.replace(/-/g, ' ')}
-                  </div>
-                </div>
-                <div style={{
-                  padding: '3px 6px',
-                  borderRadius: '999px',
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  color: accent,
-                  fontSize: '10px',
-                  fontWeight: 700
-                }}>
-                  {formatCompact(tone === 'rose' ? market.estimatedLongLiquidationUsd ?? null : market.estimatedShortLiquidationUsd ?? null)}
-                </div>
-              </div>
-
-              <div style={{
-                marginTop: '8px',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: '6px 10px'
-              }}>
-                <TrapMetric label="Price" value={market.price !== null ? `$${formatCompact(market.price, 2)}` : 'N/A'} />
-                <TrapMetric label="OI" value={formatCompact(market.openInterestUsd ?? null)} />
-                <TrapMetric label="Funding" value={formatFunding(market.fundingRate)} />
-                <TrapMetric label="24h" value={formatSignedPct(market.change24hPct)} positive={market.change24hPct >= 0} />
-              </div>
-            </div>
-          ))
-        )}
+          <div style={{ color: sideColor(decision.sideAtRisk), fontSize: '10px', fontWeight: 800, marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            {sideCopy(decision.sideAtRisk)}
+          </div>
+        </div>
+        <div style={{
+          flexShrink: 0,
+          padding: '3px 6px',
+          borderRadius: '999px',
+          background: 'var(--app-surface)',
+          border: '1px solid var(--app-border)',
+          color: 'var(--app-text)',
+          fontSize: '10px',
+          fontWeight: 800
+        }}>
+          {formatCompact(decision.pressureUsd)}
+        </div>
       </div>
+      <div style={{ marginTop: '7px', color: 'var(--app-muted)', fontSize: '11px', lineHeight: 1.4 }}>
+        {decision.setupReason}
+      </div>
+      <TrapMiniLine label="Confirm" value={decision.confirmation} />
+      <TrapMiniLine label="Risk" value={decision.risk} />
     </div>
   );
 }
 
-function TrapMetric({
-  label,
-  value,
-  positive
-}: {
-  label: string;
-  value: string;
-  positive?: boolean;
-}) {
+function TrapMiniLine({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div style={{
-        fontSize: '9px',
-        fontWeight: 700,
-        textTransform: 'uppercase',
-        letterSpacing: '0.12em',
-        color: '#6b7280'
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: '11px',
-        fontWeight: 700,
-        color: positive === undefined ? '#e5e7eb' : positive ? '#86efac' : '#fda4af',
-        marginTop: '2px'
-      }}>
+    <div style={{ marginTop: '6px', display: 'grid', gridTemplateColumns: '46px minmax(0, 1fr)', gap: '7px', fontSize: '10px', lineHeight: 1.35 }}>
+      <span style={{ color: 'var(--app-subtle)', fontWeight: 800, textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ color: 'var(--app-muted)' }}>
         {value}
-      </div>
+      </span>
     </div>
   );
 }
 
-function buildLiquidationTraps(markets: HyperliquidMarketRow[]) {
-  const longs = [...markets]
-    .filter((market) => (market.estimatedLongLiquidationUsd || 0) > 0)
-    .sort((a, b) => {
-      const biasScore = (b.crowdingBias === 'longs-at-risk' ? 1 : 0) - (a.crowdingBias === 'longs-at-risk' ? 1 : 0);
-      if (biasScore !== 0) {
-        return biasScore;
-      }
-      return (b.estimatedLongLiquidationUsd || 0) - (a.estimatedLongLiquidationUsd || 0);
-    })
-    .slice(0, 3);
+function ActionPill({ action }: { action: TrapAction }) {
+  return (
+    <span style={{
+      borderRadius: '999px',
+      border: `1px solid ${actionColor(action)}`,
+      background: actionBackground(action),
+      color: actionColor(action),
+      padding: '2px 6px',
+      fontSize: '9px',
+      fontWeight: 900,
+      textTransform: 'uppercase',
+      letterSpacing: '0.08em'
+    }}>
+      {action}
+    </span>
+  );
+}
 
-  const shorts = [...markets]
-    .filter((market) => (market.estimatedShortLiquidationUsd || 0) > 0)
-    .sort((a, b) => {
-      const biasScore = (b.crowdingBias === 'shorts-at-risk' ? 1 : 0) - (a.crowdingBias === 'shorts-at-risk' ? 1 : 0);
-      if (biasScore !== 0) {
-        return biasScore;
-      }
-      return (b.estimatedShortLiquidationUsd || 0) - (a.estimatedShortLiquidationUsd || 0);
-    })
-    .slice(0, 3);
+function actionColor(action: TrapAction) {
+  if (action === 'Confirm') return 'var(--app-positive)';
+  if (action === 'Watch') return 'var(--app-warning)';
+  return 'var(--app-subtle)';
+}
 
-  return { longs, shorts };
+function actionBackground(action: TrapAction) {
+  if (action === 'Confirm') return 'var(--app-positive-soft)';
+  if (action === 'Watch') return 'var(--app-warning-soft)';
+  return 'var(--app-panel-muted)';
+}
+
+function sideColor(side: TrapSide) {
+  if (side === 'longs') return 'var(--app-negative)';
+  if (side === 'shorts') return 'var(--app-positive)';
+  return 'var(--app-muted)';
+}
+
+function sideCopy(side: TrapSide) {
+  if (side === 'longs') return 'Longs at risk';
+  if (side === 'shorts') return 'Shorts at risk';
+  return 'Balanced';
 }
 
 function isMajorMarket(symbol: string) {
@@ -712,35 +670,21 @@ function formatCompact(value: number | null, digits = 2) {
   return value.toFixed(digits);
 }
 
-function formatSignedPct(value: number | null | undefined, digits = 2) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return 'N/A';
-  }
-  return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}%`;
-}
-
-function formatFunding(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return 'N/A';
-  }
-  const pct = value * 100;
-  return `${pct >= 0 ? '+' : ''}${pct.toFixed(3)}%`;
-}
-
 const miniActionButton: React.CSSProperties = {
-  padding: '5px 8px',
-  background: 'rgba(255, 255, 255, 0.04)',
-  border: '1px solid rgba(255, 255, 255, 0.08)',
-  borderRadius: '8px',
-  color: '#e5e7eb',
+  padding: '4px 7px',
+  background: 'rgba(255, 255, 255, 0.02)',
+  border: '1px solid rgba(255, 255, 255, 0.04)',
+  borderRadius: '6px',
+  color: 'var(--app-muted)',
   cursor: 'pointer',
   fontSize: '10px',
-  fontWeight: 700
+  fontWeight: 500,
+  transition: 'all 0.2s ease'
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: '10px',
-  color: '#6b7280',
+  color: 'var(--app-subtle)',
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
   fontWeight: 700,
@@ -748,18 +692,19 @@ const sectionTitleStyle: React.CSSProperties = {
 };
 
 const commandButtonStyle: React.CSSProperties = {
-  padding: '8px 10px',
-  background: 'rgba(255, 255, 255, 0.03)',
-  border: '1px solid rgba(255, 255, 255, 0.06)',
-  borderRadius: '10px',
-  color: '#f3f4f6',
+  padding: '7px 10px',
+  background: 'rgba(255, 255, 255, 0.015)',
+  border: '1px solid rgba(255, 255, 255, 0.03)',
+  borderRadius: '8px',
+  color: 'var(--app-text)',
   cursor: 'pointer',
-  textAlign: 'left'
+  textAlign: 'left',
+  transition: 'all 0.2s ease'
 };
 
 const commandTextStyle: React.CSSProperties = {
   fontSize: '11px',
-  color: '#d1d5db',
+  color: 'var(--app-muted)',
   fontFamily: 'Consolas, monospace',
   wordBreak: 'break-word',
   marginTop: '4px'

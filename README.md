@@ -1,566 +1,283 @@
-# ⚡ Leonardo's Command Center
+# Hedge Fund Station
 
-**A unified workspace management system for trading, development, services, and marketing.**
+Hedge Fund Station is a desktop cockpit for hedge fund research, strategy
+validation, paper trading, and operator review.
 
-Built with Electron, React, TypeScript, and integrated native terminals.
+The app is intentionally split:
 
----
+- `backend/hyperliquid_gateway/` is the quant, market-data, strategy,
+  persistence, replay, validation, paper, and API layer
+- `src/` is the React cockpit for dashboards, watchlists, signal review, paper
+  review, and controls
+- `electron/` is the native desktop shell, terminal/workspace bridge, and app
+  lifecycle layer
+- `docs/` is the operating memory for architecture, strategy specs, validation
+  plans, and runbooks
+- `skills/` is the repeatable workflow layer for agents
+- `scripts/` exposes stable commands for humans and agents
 
-## ✨ Overview
+Read the repo contract first:
 
-**Command Center** is a multi-context desktop application that serves as the central hub for all work activities:
-
-- 💹 **Hedge Fund**: Trading strategies, backtesting, market analysis, economic calendar
-- 💻 **Development**: Project development, code editing, testing, debugging
-- 🏢 **Services**: Client project management, deliverables, time tracking
-- 📱 **Marketing**: Content calendar, landing pages, social media management
-
-Each context provides a tailored interface with relevant tools, workspaces, and workflows.
-
----
-
-## 🎯 Key Features
-
-### 🖥️ Native Desktop Experience
-- **Integrated Terminals**: PowerShell/CMD/Bash terminals with WebGL-accelerated rendering (xterm.js)
-- **Workspace Management**: Quick switching between project directories
-- **Resizable Layout**: 3-panel interface (Sidebar | Context Panel | Terminal Grid)
-- **Native Performance**: Zero-latency terminal I/O using node-pty
-
-### 🎨 Context Switching System
-- **4 Contexts**: Switch between Hedge Fund, Development, Services, and Marketing
-- **Dynamic Panels**: Center panel changes based on active context
-- **Visual Indicators**: Color-coded tabs with active state highlighting
-- **State Persistence**: Last active context saved to localStorage
-
-### 📊 Hedge Fund Context
-- **Dashboard**: Live BTC price, market indicators, buy signals
-- **Strategies**: Browse and analyze trading strategies
-- **Backtesting**: Run strategy simulations with detailed analytics
-- **Insights**: Market analysis and technical indicators
-- **Calendar**: Forex Factory economic calendar with impact levels
-
-### 💻 Development Context
-- **Quick Actions**: npm run dev, build, test, lint buttons
-- **Project Status**: Path, stack, and status information
-- **Development Workspace**: Direct terminal access to project directory
-- **Self-managing**: Work on the app from within the app
-
-### 📟 Terminal Grid
-- **Maximum 6 Terminals**: Organized in auto-layout grid (1x1, 2x1, 2x2, 2x3)
-- **Space Optimized**: Ultra-compact headers (~50% less padding)
-- **Legible Font**: 11px with 0.3 letter-spacing for clarity
-- **Glassmorphism**: Transparent backgrounds with blur effects
-- **Smart Layout**: Automatically arranges terminals based on count
-
----
-
-## 🏗️ Architecture
-
-### Tech Stack
-- **Framework**: Electron 28 with electron-vite
-- **Frontend**: React 18, TypeScript, Tailwind CSS
-- **Terminal**: xterm.js (WebGL), node-pty
-- **Layout**: react-resizable-panels
-- **Charts**: Chart.js, Recharts, Lightweight Charts
-- **State**: React Context API
-- **Backends**:
-  - Hyperliquid FastAPI gateway in Docker on `http://127.0.0.1:18001`
-  - Legacy trading API in Docker on `http://127.0.0.1:18000`
-
-### Hedge Fund Operating Model
-
-For hedge fund work, this repo should be split by responsibility:
-
-- Electron app: visualization, review, control surfaces, anomaly inspection
-- backend services: strategy logic, signal generation, persistence, replay, paper execution
-- Docker / external processes: heavy and long-running workloads
-
-If an agent creates or improves a strategy, the default target should be:
-
-- strategy spec in `docs/strategies/`
-- backend implementation in `backend/hyperliquid_gateway/strategies/`
-- UI only after the backend contract exists
-
-Reference:
-
-- `docs/hedge-fund-agent-operating-model.md`
 - `AGENTS.md`
-- `skills/`
+- `docs/project-architecture.md`
+- `docs/operations/product-objective.md`
+- `docs/operations/agents/harness.md`
+- `docs/hedge-fund-agent-operating-model.md`
+- `docs/hyperliquid-strategy-roadmap.md`
 
-### Project Structure
-```
+## Operating Model
+
+Do not treat the Electron app as the trading engine.
+
+The backend owns anything that needs deterministic logic, repeated computation,
+persistence, replay, paper execution, validation, or auditability. The UI makes
+those outputs faster to inspect and control.
+
+Official strategy flow:
+
+1. Research note or donor audit
+2. Strategy spec in `docs/strategies/<strategy-id>.md`
+3. Backend implementation in `backend/hyperliquid_gateway/strategies/<strategy_id>/`
+4. `npm run hf:backtest`
+5. `npm run hf:validate`
+6. `npm run hf:paper`
+7. UI integration after backend artifacts are inspectable
+
+## Project Structure
+
+```text
 hedge-fund-station/
-├── electron/              # Main Process (Node.js)
-│   ├── main/              # PTY manager, workspace manager, IPC
-│   ├── preload/           # Security bridge
-│   └── types/             # TypeScript definitions
-│
-├── src/                   # Renderer Process (React)
-│   ├── components/
-│   │   ├── electron/      # Terminal, Sidebar, Layout
-│   │   ├── panels/        # DevPanel, ServicesPanel, MarketingPanel
-│   │   ├── widgets/       # WidgetPanel (Hedge Fund router)
-│   │   ├── trading/       # Charts, live price
-│   │   └── ui/            # Primitives
-│   ├── contexts/          # ContextContext, TerminalContext, WorkspaceContext
-│   ├── pages/             # Dashboard, Backtest, Insights, Calendar, etc.
-│   ├── services/          # API client (api.ts)
-│   └── hooks/             # Custom hooks
-│
-├── .env                   # VITE_API_URL=http://127.0.0.1:18001
-├── package.json           # Dependencies and scripts
-└── README.md              # This file
+├── AGENTS.md                         # Repo constitution for agents
+├── backend/
+│   └── hyperliquid_gateway/          # FastAPI gateway, strategies, backtests, artifacts
+│       ├── app.py                    # Inspectable HTTP API surface
+│       ├── backtesting/              # Shared deterministic backtest workflow
+│       ├── data/                     # Generated audit/backtest/validation/paper artifacts
+│       └── strategies/               # One backend package per strategy
+├── docs/
+│   ├── architecture/                 # Architecture and runtime docs
+│   ├── operations/                   # Runbooks and command/operator docs
+│   ├── strategies/                   # Strategy specs and research notes
+│   └── project-architecture.md       # Repo-wide architecture contract
+├── electron/                         # Electron app, IPC, native managers, preload, types
+├── scripts/                          # Stable human/agent command wrappers
+├── skills/                           # Workspace-specific agent workflows
+└── src/
+    ├── features/                     # Product modules: cockpit, hyperliquid, paper, agents
+    ├── services/                     # Backend API adapters
+    ├── contexts/                     # Shared renderer state
+    └── components/                   # Shared UI and Electron shell UI
 ```
 
-### Key Components
+Existing root-level docs are kept as compatibility entrypoints during the
+incremental cleanup. Prefer adding new architecture docs under
+`docs/architecture/`, operation runbooks under `docs/operations/`, and strategy
+research under `docs/strategies/`.
 
-**Context System**:
-- `ContextContext.tsx`: Manages active context and provides context switching
-- `ContextSwitcher.tsx`: Tab bar at top for switching between contexts
-- Context-specific panels: `DevPanel`, `ServicesPanel`, `MarketingPanel`, `WidgetPanel`
+For recurring agent work and future automations, start with:
 
-**Terminal System**:
-- `TerminalContext.tsx`: Manages terminal sessions with callback pattern
-- `TerminalGrid.tsx`: CSS Grid layout for up to 6 terminals
-- `TerminalPane.tsx`: Individual terminal component with xterm.js
+- `docs/operations/product-objective.md`
+- `docs/operations/agents/harness.md`
+- `docs/operations/agents/memory/memory-policy.md`
+- `docs/operations/agents/memory/shared-memory.md`
+- `docs/operations/agents/automation-system.md`
+- `docs/operations/agents/backlog.md`
+- `docs/operations/agents/templates/handoff.md`
 
-**Workspace System**:
-- `WorkspaceContext.tsx`: Manages workspace configuration
-- `Sidebar.tsx`: Workspace list and switching interface
-- Config: `C:\Users\leonard\.hedge-station\workspaces.json`
+For first-run agent orientation and task shaping, use:
 
----
+- `docs/operations/agents/orientation.md`
+- `docs/operations/agents/templates/tasks.md`
+- `docs/operations/agents/templates/change-summary.md`
 
-## 🚀 Quick Start
+For cleanup and readiness review, use:
 
-### Prerequisites
-- Node.js 18+
-- Python 3.9+ (for Hedge Fund backend)
-- Windows 10/11 (current build)
+- `docs/operations/strategy-readiness-matrix.md`
+- `docs/architecture/backend-source-of-truth.md`
+- `docs/operations/mac-distribution-runbook.md`
+- `docs/architecture/mac-app-store-gap-analysis.md`
 
-### Installation
+## Stable Commands
+
+Use these commands for milestone research and validation work:
 
 ```bash
-# Navigate to project
-cd C:\Users\leonard\Documents\hedge-fund-station
+npm run hf:doctor
+npm run hf:strategy:new -- --strategy-id <strategy_id>
+npm run hf:backtest
+npm run hf:validate
+npm run hf:paper
+npm run hf:status
+```
 
-# Install dependencies
+Desktop/backend commands:
+
+```bash
+npm run dev
+npm run build
+npm run backend:health
+npm run backend:tunnel
+```
+
+The `hf:*` command wrappers live in `scripts/hf.py`; backend CLI behavior lives
+in `backend/hyperliquid_gateway/cli.py`.
+
+## Local Development
+
+Prerequisites:
+
+- Node.js 18+
+- Python 3.9+
+- Docker, if running the backend service container
+- macOS is the current local development target for this workspace
+
+Install dependencies:
+
+```bash
 npm install
+```
 
-# Start development server
+Run the canonical desktop app in development mode:
+
+```bash
+./open-hedge-fund-station-dev.command
+```
+
+Or run the underlying dev command directly:
+
+```bash
 npm run dev
 ```
 
-The app will open automatically with Electron.
+There is not a second app. Electron is the macOS desktop runtime, and it loads
+the React renderer that lives under `src/`. Build folders such as `dist/`,
+`dist-electron/`, and `release/` are generated outputs, not places to develop.
 
-### Backend Setup (for Hedge Fund features)
+Run the Hyperliquid backend with Docker:
 
 ```bash
-# In this repo
 docker compose up -d hyperliquid-backend
 ```
 
-Backends run on:
+Check backend health:
 
-- `http://127.0.0.1:18001` for Hyperliquid market and paper-trading services
-- `http://127.0.0.1:18000` for calendar, legacy strategy cache, backtests and portfolio services
-
-The implementation owned by this repo is still `backend/hyperliquid_gateway/`, but the current desktop runtime is dual-backend until those legacy capabilities are migrated.
-
----
-
-## 📖 Usage Guide
-
-### 🎯 Context Switching
-
-**Top Tab Bar** shows 4 contexts:
-- 💹 **Hedge Fund**: Trading, strategies, backtesting
-- 💻 **Development**: Work on the app itself
-- 🏢 **Services**: Client projects (coming soon)
-- 📱 **Marketing**: Content and social media (coming soon)
-
-Click any tab to switch contexts. The center panel updates dynamically.
-
-### 📁 Workspaces
-
-**Left Sidebar** shows available workspaces:
-- **Hedge Fund Trading**: `C:\Users\leonard\Documents\trading`
-- **m-risk**: `C:\Users\leonard\Documents\powerbi`
-- **🚀 Development**: `C:\Users\leonard\Documents\hedge-fund-station`
-
-Click a workspace to:
-- Open a new terminal in that directory
-- Set it as the active workspace
-- The terminal appears in the right panel grid
-
-### 💹 Hedge Fund Context
-
-Navigate through pages using the internal tab bar:
-
-**Dashboard**:
-- Live BTC price with 24h change
-- Market indicators (RSI, MACD, Bollinger Bands)
-- Buy signals with scoring system
-- Performance stats
-
-**Strategies**:
-- Strategy library with risk/reward profiles
-- Performance metrics
-- Strategy details and parameters
-
-**Backtest**:
-- Select strategy, timeframe, and period
-- Run backtesting simulations
-- View detailed results with equity curves
-- Compare multiple strategies
-
-**Insights**:
-- Market analysis across timeframes
-- Technical indicators
-- Trend detection
-- Signal strength analysis
-
-**Calendar**:
-- Forex Factory economic calendar
-- High/medium/low impact events
-- Countdown to next event
-- Actual vs forecast values
-
-### 💻 Development Context
-
-**Quick Actions**:
-- 🚀 npm run dev
-- 📦 npm run build
-- 🧪 npm test
-- 🔍 npm run lint
-
-**Tip**: Use the "🚀 Development" workspace in the sidebar to open a terminal in the project directory, then execute commands manually.
-
-### 📟 Terminal Grid
-
-**Right Panel** (Terminal Grid):
-- Displays up to 6 terminals in organized grid
-- **Auto-layout**:
-  - 1 terminal: 1x1
-  - 2 terminals: 2x1 (horizontal)
-  - 3-4 terminals: 2x2 (grid)
-  - 5-6 terminals: 2x3 (3 columns)
-- Click **workspace** in sidebar to create new terminal
-- Close terminal with **×** button in header
-- Terminals maintain their working directory
-
-**Keyboard Shortcuts**:
-- `Ctrl+T`: New terminal (planned)
-- `Ctrl+W`: Close active terminal (planned)
-- `Ctrl+1-9`: Switch workspace (planned)
-
-### 🎨 Resize Panels
-
-Drag the **purple handles** between panels to adjust sizes:
-- Sidebar: 15-30% width
-- Center Panel: 30%+ width
-- Terminal Grid: 20%+ width
-
----
-
-## ⚙️ Configuration
-
-### Workspace Configuration
-
-**Location**: `C:\Users\leonard\.hedge-station\workspaces.json`
-
-```json
-{
-  "workspaces": [
-    {
-      "id": "hedge-fund-trading",
-      "name": "Hedge Fund Trading",
-      "path": "C:\\Users\\leonard\\Documents\\trading",
-      "icon": "briefcase",
-      "color": "#8b5cf6",
-      "default_commands": [],
-      "shell": "powershell.exe"
-    },
-    {
-      "id": "development-workspace",
-      "name": "🚀 Development",
-      "path": "C:\\Users\\leonard\\Documents\\hedge-fund-station",
-      "icon": "rocket",
-      "color": "#10b981",
-      "shell": "powershell.exe",
-      "default_commands": []
-    }
-  ],
-  "active_workspace_id": "hedge-fund-trading"
-}
+```bash
+npm run backend:health
 ```
 
-**Fields**:
-- `id`: Unique workspace identifier
-- `name`: Display name in sidebar
-- `path`: Workspace directory (terminals open here)
-- `icon`: Icon identifier (briefcase, rocket, folder, code)
-- `color`: Hex color for active indicator
-- `default_commands`: Commands to execute on switch (optional)
-- `shell`: Shell executable (powershell.exe, cmd.exe, bash)
+Daily hybrid mode keeps compute on the VM and the app local:
 
-### Environment Variables
+```bash
+npm run backend:tunnel:start
+npm run dev
+```
 
-**Location**: `.env`
+Package for macOS only when preparing a distributable build:
+
+```bash
+npm run dist:mac
+```
+
+The Mac distribution runbook lives at
+`docs/operations/mac-distribution-runbook.md`. The day-to-day development guide
+lives at `docs/operations/how-to-develop-this-app.md`.
+
+## Ports And Environment
+
+Preferred local defaults:
 
 ```env
-VITE_API_URL=http://127.0.0.1:18001
-VITE_WS_URL=ws://127.0.0.1:18001
+VITE_ALPHA_ENGINE_API_URL=http://127.0.0.1:18500
+VITE_ALPHA_ENGINE_WS_URL=ws://127.0.0.1:18500
+VITE_HYPERLIQUID_GATEWAY_API_URL=http://127.0.0.1:18001
+VITE_HYPERLIQUID_GATEWAY_WS_URL=ws://127.0.0.1:18001
 VITE_LEGACY_API_URL=http://127.0.0.1:18000
 ```
 
-Change these to point to a different backend server if needed.
+Alpha-engine compatibility aliases still accepted by the app:
 
-### Context Persistence
-
-Active context is automatically saved to `localStorage` and restored on app restart.
-
----
-
-## 🧪 Development
-
-### Running Development Server
-
-```bash
-npm run dev
+```env
+VITE_API_URL=http://127.0.0.1:18500
+VITE_WS_URL=ws://127.0.0.1:18500
 ```
 
-This starts:
-- Electron app with hot reload
-- Vite dev server (port 5173-5176)
-- TypeScript compilation
-- Main process watching
+Current backend-related scripts also reference:
 
-### Key Commands
+- Alpha engine VM tunnel through `http://127.0.0.1:18500`
+- optional local Hyperliquid gateway through `http://127.0.0.1:18001`
+- legacy trading API at `http://127.0.0.1:18000`
+- Docker compose service mapping `18001:18400` for the containerized gateway
+
+Do not change runtime ports casually. Document any port migration in
+`docs/architecture/` or `docs/operations/` first.
+
+## Strategy Standard
+
+Every serious strategy needs three layers:
+
+1. Spec: `docs/strategies/<strategy-id>.md`
+2. Backend implementation:
+   `backend/hyperliquid_gateway/strategies/<strategy_id>/`
+3. Visualization/review: API client in `src/services/`, feature UI under
+   `src/features/<domain>/`, reusable shell/primitives under `src/components/`
+
+The backend strategy package should normally include:
+
+- `logic.py` for deterministic signal logic
+- `scoring.py` for setup ranking
+- `risk.py` for invalidations, guards, and sizing assumptions
+- `paper.py` for paper-candidate or paper execution helpers
+- `backtest.py` when the strategy has a registered deterministic backtest
+- `spec.md` for backend implementation notes
+
+## Artifact Policy
+
+Backend-generated evidence belongs under:
+
+- `backend/hyperliquid_gateway/data/audits/`
+- `backend/hyperliquid_gateway/data/backtests/`
+- `backend/hyperliquid_gateway/data/validations/`
+- `backend/hyperliquid_gateway/data/paper/`
+
+These artifacts are not source logic. Keep curated examples when they help
+review or regression work. Avoid committing private datasets, large runtime
+outputs, SQLite databases, temporary payloads, caches, and build outputs.
+
+## Agent Workflows
+
+Workspace-specific skills live in `skills/`:
+
+- `hedge-fund-strategy-lab`
+- `hedge-fund-strategy-review`
+- `hedge-fund-data-quality`
+- `hedge-fund-repo-architect`
+
+For structure or scalability work, use `hedge-fund-repo-architect`. For strategy
+work, use the strategy lab/review/data-quality skills as appropriate.
+
+Recurring agents should use `docs/operations/agents/backlog.md` and leave a
+handoff. They should make small, verifiable improvements and must not promote
+strategies to live trading without explicit human approval.
+
+The agent harness is documented in
+`docs/operations/agents/harness.md`. It defines the mission matrix,
+permission levels, approved commands, artifact expectations, verification
+standard, and anti-live-trading rules. Backend agent runtime code lives in
+`backend/hyperliquid_gateway/agents/`; generated agent evidence belongs under
+`backend/hyperliquid_gateway/data/agent_runs/`. The renderer workbench is for
+mission control and review, while Electron remains the launcher and IPC bridge.
+Shared agent memory lives under `docs/operations/agents/memory/`.
+It is governed by `docs/operations/agents/memory/memory-policy.md`, which keeps
+memory capped, curated, and promotion-oriented.
+
+## Verification
+
+Recommended smoke checks after repo-structure or strategy workflow changes:
 
 ```bash
-npm run dev          # Start development
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run dist:win     # Create Windows installer
-npm run hf:doctor    # Audit repo + donor assets + CLI prerequisites
-npm run hf:backtest  # Run backend-first backtest and write JSON report
-npm run hf:validate  # Validate strategy doc/module/report completeness
-npm run hf:paper     # Create paper candidate artifact from latest report
-npm run hf:status    # Show latest research/backtest/paper artifact status
+npm run hf:doctor
+npm run hf:agent:runtime
+npm run build
 ```
 
-### File Watching
-
-- **Main Process**: Auto-restarts on changes to `electron/`
-- **Renderer**: Hot Module Replacement (HMR) for `src/`
-- **Preload**: Requires manual reload (Ctrl+R in app)
-
-### Debugging
-
-- **Renderer**: DevTools (Ctrl+Shift+I or F12)
-- **Main Process**: Console logs in terminal running `npm run dev`
-- **Backend**: FastAPI logs in backend terminal
-- **Terminal I/O**: PTY logs appear in main process console
-
----
-
-## 📊 API Endpoints
-
-### Hedge Fund Backends
-
-**Hyperliquid gateway** (`http://127.0.0.1:18001`):
-- `GET /health`
-- `GET /api/hyperliquid/overview`
-- `GET /api/hyperliquid/paper/trades`
-- `GET /api/liquidations/*`
-- `GET /api/polymarket/*`
-
-**Legacy trading API** (`http://127.0.0.1:18000`):
-- `GET /health`
-- `GET /api/calendar/this-week`
-- `POST /api/calendar/fetch`
-- `GET /api/portfolio/strategies/library`
-- `GET /api/portfolio/overview`
-- `GET /api/backtest/trades/{strategy_name}`
-
----
-
-## 🎨 Design System
-
-### Context Colors
-
-- 💹 Hedge Fund: `#8b5cf6` (purple)
-- 💻 Development: `#10b981` (green)
-- 🏢 Services: `#3b82f6` (blue)
-- 📱 Marketing: `#f59e0b` (amber)
-
-### Terminal Styling
-
-- **Font**: 11px monospace with 0.3 letter-spacing
-- **Line Height**: 1.1
-- **Background**: Glassmorphism (rgba(26, 31, 46, 0.7) with blur)
-- **Border**: 1px solid rgba(167, 139, 250, 0.2)
-- **Header**: Ultra-compact 4px padding
-- **Cursor**: Block style with purple accent
-
-### Theme
-
-- **Background**: Dark gradient (`#060913` → `#0a0e1a` → `#0d1221`)
-- **Primary**: Purple (`#8b5cf6`)
-- **Accent**: Light purple (`#a78bfa`)
-- **Text**: Light gray (`#e0e0e0`)
-- **Secondary**: Medium gray (`#9ca3af`)
-
----
-
-## 📝 Development Status
-
-### ✅ Phase 1-2: Command Center Core (COMPLETE)
-- [x] Context switching system
-- [x] 4-context architecture
-- [x] Dynamic panel rendering
-- [x] State persistence
-- [x] ContextSwitcher UI
-- [x] DevPanel implementation
-- [x] ServicesPanel placeholder
-- [x] MarketingPanel placeholder
-
-### ✅ Phase 3: Terminal Optimization (COMPLETE)
-- [x] CSS Grid layout system
-- [x] 6-terminal maximum
-- [x] Auto-layout (1x1, 2x1, 2x2, 2x3)
-- [x] Space optimization (~50% less padding)
-- [x] Font optimization (11px)
-- [x] Glassmorphism styling
-- [x] WebGL rendering
-
-### ✅ Phase 4: Workspace Integration (COMPLETE)
-- [x] Workspace switching with callback pattern
-- [x] Terminal creation on workspace switch
-- [x] Development workspace configuration
-- [x] Component visibility fixes (height cascade)
-- [x] All hedge fund pages visible and scrollable
-
-### 🚧 Phase 5: Enhancement (IN PROGRESS)
-- [x] All core features working
-- [ ] Keyboard shortcuts (Ctrl+1-4, Ctrl+T, Ctrl+W)
-- [ ] File explorer in DevPanel
-- [ ] Git integration in DevPanel
-- [ ] ServicesPanel implementation
-- [ ] MarketingPanel implementation
-
-### ⏳ Phase 6: Production (PLANNED)
-- [ ] App icon (1024x1024)
-- [ ] Windows installer (NSIS)
-- [ ] Code signing
-- [ ] Auto-updater
-- [ ] Error boundaries
-- [ ] Settings persistence
-
-**Current Progress**: ~85% complete
-
----
-
-## 🐛 Known Issues
-
-### Non-Critical
-- GPU cache warnings on startup (Windows permission issue, cosmetic only)
-- Backend DNS errors for Coinglass API (external service, doesn't affect app)
-- Hot reload occasionally causes terminal creation errors (restart fixes)
-
-### Backend Dependencies
-- Hedge Fund features require FastAPI backend on localhost:8000
-- Economic calendar requires external Forex Factory scraping
-- Liquidations require Coinglass API (optional)
-
-### Performance
-- Maximum 6 terminals enforced to prevent grid overflow
-- WebGL rendering enabled for optimal terminal performance
-- Terminal font size optimized for legibility
-
----
-
-## 🔧 Troubleshooting
-
-### App Won't Start
-```bash
-# Clear cache and reinstall
-rm -rf node_modules dist-electron
-npm install
-npm run dev
-```
-
-### Backend Connection Failed
-- Verify backend is running: `http://localhost:8000/docs`
-- Check `.env` file has correct `VITE_API_URL`
-- Ensure no firewall blocking port 8000
-
-### Terminal Not Opening
-- Check workspace path exists in filesystem
-- Verify shell executable exists (powershell.exe)
-- Check terminal context logs in DevTools console
-
-### Context Switching Not Working
-- Clear localStorage: DevTools → Application → Local Storage → Clear
-- Restart app
-- Check browser console for React errors
-
----
-
-## 🚀 Roadmap
-
-### Short Term (Phase 5)
-- File explorer with directory tree in DevPanel
-- Git status and branch info in DevPanel
-- ProjectsPanel for Services context (client list, tasks)
-- ContentPanel for Marketing context (calendar, queue)
-- Keyboard shortcuts implementation
-
-### Medium Term (Phase 6)
-- Workspace templates
-- Terminal themes and customization
-- Command history sync
-- Settings page (theme, font, shell preference)
-- Performance monitoring dashboard
-
-### Long Term
-- Remote workspace support (SSH)
-- Multi-user collaboration
-- Plugin system for custom contexts
-- AI assistant per context
-- Mobile companion app
-- Cloud sync
-
----
-
-## 📄 License
-
-Private project - All rights reserved
-
----
-
-## 👤 Author
-
-**Leonardo**
-
-Built with Claude Code (Anthropic)
-
----
-
-## 🙏 Acknowledgments
-
-- **Electron** - Desktop app framework
-- **xterm.js** - Terminal emulator with WebGL
-- **node-pty** - Native pseudoterminal bindings
-- **React** - UI library
-- **Tailwind CSS** - Utility-first styling
-- **FastAPI** - Python backend framework
-- **Anthropic Claude** - AI pair programming
-
----
-
-**Current Version**: 1.0.0 (Command Center Launch)
-**Last Updated**: March 4, 2026
-**Status**: 🚀 Operational - Command Center Online
+If a check is skipped, record why in the handoff.

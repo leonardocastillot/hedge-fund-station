@@ -1,0 +1,1548 @@
+import React from 'react';
+import { Bot, Check, Edit3, Mic, Send, Square, TerminalSquare } from 'lucide-react';
+import { useAgentProfilesContext } from '@/contexts/AgentProfilesContext';
+import { useCommanderTasksContext } from '@/contexts/CommanderTasksContext';
+import { useTerminalContext } from '@/contexts/TerminalContext';
+import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { useGeminiLiveVoice } from '@/hooks/useGeminiLiveVoice';
+import {
+  hyperliquidService,
+  type HyperliquidAgentRunCreateResponse,
+  type HyperliquidAgentRuntimeStatus,
+  type HyperliquidLatestAgentRunResponse
+} from '@/services/hyperliquidService';
+import type { AgentProfile, AgentProvider, AgentRole } from '@/types/agents';
+import type { ApprovedMission, MissionBackendAction, MissionDraft, MissionPacket } from '@/types/tasks';
+import { getProviderMeta, inferRequestedProvider, resolveAgentRuntimeCommand } from '@/utils/agentRuntime';
+import { launchAgentRun } from '@/utils/agentOrchestration';
+import {
+  buildMissionMetadata,
+  formatRoleLabel,
+  inferAgentRoles,
+  inferMissionMode,
+  MISSION_MODE_CONFIG,
+  type MissionMode
+} from '@/utils/missionControl';
+import { VoiceOrbScene } from './VoiceOrbScene';
+
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function getProposedCommands(mode: MissionMode): string[] {
+  switch (mode) {
+    case 'strategy-lab':
+      return ['npm run hf:status', 'npm run hf:agent:research -- --strategy <strategy_id>', 'npm run hf:backtest', 'npm run hf:validate'];
+    case 'flow-radar':
+      return ['npm run gateway:probe', 'npm run hf:status'];
+    case 'risk-watch':
+      return ['npm run backend:health', 'npm run gateway:probe'];
+    case 'execution-prep':
+      return ['npm run hf:status', 'npm run gateway:health'];
+    case 'build-fix':
+      return ['git status --short', 'npx tsc --noEmit', 'npm run build'];
+    case 'market-scan':
+    default:
+      return ['npm run backend:health', 'npm run gateway:probe'];
+  }
+}
+
+function extractStrategyId(goal: string): string | undefined {
+  const patterns = [
+    /--strategy\s+([a-zA-Z0-9_-]+)/,
+    /\bstrategy(?:\s+id)?[:=]\s*([a-zA-Z0-9_-]+)/i,
+    /\bestrategia(?:\s+id)?[:=]?\s+([a-zA-Z0-9_-]+)/i
+  ];
+  for (const pattern of patterns) {
+    const match = goal.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim().replace(/-/g, '_').toLowerCase();
+    }
+  }
+  return undefined;
+}
+
+function buildBackendActions(mode: MissionMode, strategyId?: string): MissionBackendAction[] {
+  if (!strategyId || !['strategy-lab', 'risk-watch', 'flow-radar', 'market-scan'].includes(mode)) {
+    return [];
+  }
+  const kind = mode === 'risk-watch' ? 'agent-audit' : 'agent-research';
+  const subcommand = kind === 'agent-audit' ? 'audit' : 'research';
+  return [{
+    id: `${kind}:${strategyId}`,
+    kind,
+    label: kind === 'agent-audit' ? 'Research OS audit preflight' : 'Research OS research preflight',
+    command: `npm run hf:agent:${subcommand} -- --strategy ${strategyId} --runtime auto`,
+    strategyId,
+    status: 'proposed'
+  }];
+}
+
+function buildRuntimePlan(params: {
+  preferredRuntime: AgentProvider;
+  runtimeStatus: HyperliquidAgentRuntimeStatus | null;
+  claudeAvailable: boolean;
+}): MissionPacket['runtimePlan'] {
+  const backendRuntime = params.runtimeStatus?.runtimeMode || 'auto';
+  const codexConnected = Boolean(params.runtimeStatus?.codexAuthenticated);
+  const apiProviderAvailable = Boolean(params.runtimeStatus?.apiProviderAvailable);
+  const parts = [
+    `Frontier: ${getProviderMeta(params.preferredRuntime).label}`,
+    `Research OS: ${backendRuntime}`,
+    codexConnected ? 'Codex connected' : 'Codex login pending',
+    params.claudeAvailable ? 'Claude CLI available' : 'Claude CLI not detected'
+  ];
+  return {
+    preferredRuntime: params.preferredRuntime,
+    backendRuntime,
+    codexConnected,
+    claudeAvailable: params.claudeAvailable,
+    apiProviderAvailable,
+    defaultModel: params.runtimeStatus?.defaultModel || null,
+    summary: parts.join(' | ')
+  };
+}
+
+function getRiskNotes(mode: MissionMode): string[] {
+  const base = [
+    'Do not place live trades or change credentials.',
+    'Ask before mutating source files, services, data, or long-running processes.'
+  ];
+
+  if (mode === 'strategy-lab') {
+    return [...base, 'Do not claim edge without backtest, replay, or paper-validation evidence.'];
+  }
+
+  if (mode === 'execution-prep') {
+    return [...base, 'Treat output as operator planning only; no order routing.'];
+  }
+
+  return [...base, 'Prefer read-only inspection until the operator approves a concrete action.'];
+}
+
+function buildCodexPrompt(params: {
+  goal: string;
+  mode: MissionMode;
+  suggestedRoles: AgentRole[];
+  proposedCommands: string[];
+  risks: string[];
+  missionPacket?: MissionPacket;
+}): string {
+  const config = MISSION_MODE_CONFIG[params.mode];
+
+  return [
+    `You are ${params.missionPacket ? getProviderMeta(params.missionPacket.frontierRuntime).label : 'Codex'} inside Hedge Fund Station.`,
+    'Read AGENTS.md first and follow the hedge fund workspace constitution.',
+    '',
+    `Mission mode: ${config.title}`,
+    `Goal: ${params.goal}`,
+    `Suggested specialist lens: ${params.suggestedRoles.map(formatRoleLabel).join(', ') || 'Commander'}`,
+    params.missionPacket?.strategyId ? `Strategy ID: ${params.missionPacket.strategyId}` : '',
+    params.missionPacket ? `Runtime plan: ${params.missionPacket.runtimePlan.summary}` : '',
+    '',
+    params.missionPacket?.evidenceRefs.length ? 'Evidence refs:' : '',
+    ...(params.missionPacket?.evidenceRefs.map((ref) => `- ${ref.label}: ${ref.path || ref.runId || ref.summary || ref.id}`) || []),
+    params.missionPacket?.backendActions.length ? 'Research OS backend actions:' : '',
+    ...(params.missionPacket?.backendActions.map((action) => `- ${action.label}: ${action.command} (${action.status})${action.path ? ` -> ${action.path}` : ''}`) || []),
+    '',
+    'Guardrails:',
+    ...params.risks.map((risk) => `- ${risk}`),
+    '- Keep heavy market logic, replay, validation, and paper evidence in backend/scripts, not React.',
+    '- Use stable hf:* commands and documented backend probes before ad hoc commands.',
+    '',
+    'Operator-approved command shortlist:',
+    ...params.proposedCommands.map((command) => `- ${command}`),
+    '',
+    'Deliverable:',
+    `- ${config.deliverables.join('\n- ')}`,
+    '',
+    'Return a concise operator brief with files inspected, commands run, evidence found, blockers, and next action.'
+  ].join('\n');
+}
+
+function getDraftTone(status: MissionDraft['approvalStatus']) {
+  switch (status) {
+    case 'running':
+      return { label: 'running', background: 'rgba(14, 165, 233, 0.18)', color: '#7dd3fc' };
+    case 'completed':
+      return { label: 'completed', background: 'rgba(34, 197, 94, 0.16)', color: '#86efac' };
+    case 'failed':
+      return { label: 'failed', background: 'rgba(239, 68, 68, 0.16)', color: '#fca5a5' };
+    case 'cancelled':
+      return { label: 'cancelled', background: 'rgba(100, 116, 139, 0.18)', color: '#cbd5e1' };
+    case 'approved':
+      return { label: 'approved', background: 'rgba(59, 130, 246, 0.16)', color: '#93c5fd' };
+    case 'awaiting-approval':
+    case 'draft':
+    default:
+      return { label: 'awaiting approval', background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24' };
+  }
+}
+
+function updateDraftWithLatestAgentRun(
+  draftId: string,
+  missionPacket: MissionPacket,
+  latest: HyperliquidLatestAgentRunResponse,
+  suggestedRoles: AgentRole[],
+  proposedCommands: string[],
+  updateMissionDraft: (draftId: string, updates: Partial<MissionDraft>) => void
+): void {
+  const decision = latest.agentRun.decision;
+  const evidenceRefs = [
+    ...missionPacket.evidenceRefs,
+    {
+      id: latest.agentRun.run_id,
+      kind: 'agent-run' as const,
+      label: `Latest Research OS ${latest.agentRun.mode}`,
+      path: latest.agentRun.lineage?.parents?.[0] as string | undefined,
+      runId: latest.agentRun.run_id,
+      strategyId: latest.strategyId,
+      summary: `${decision.recommendation} | ${decision.blockers.length} blockers`,
+      createdAt: Date.parse(latest.agentRun.generated_at)
+    }
+  ];
+  const nextPacket: MissionPacket = {
+    ...missionPacket,
+    evidenceRefs,
+    backendActions: missionPacket.backendActions.map((action) => (
+      action.strategyId === latest.strategyId
+        ? {
+            ...action,
+            status: 'completed',
+            runId: latest.agentRun.run_id,
+            summary: decision.executive_summary,
+            updatedAt: Date.now()
+          }
+        : action
+    ))
+  };
+  updateMissionDraft(draftId, {
+    missionPacket: nextPacket,
+    finalPrompt: buildCodexPrompt({
+      goal: nextPacket.goal,
+      mode: nextPacket.mode as MissionMode,
+      suggestedRoles,
+      proposedCommands: Array.from(new Set([...decision.recommended_commands, ...proposedCommands])),
+      risks: nextPacket.guardrails,
+      missionPacket: nextPacket
+    })
+  });
+}
+
+const voiceSceneStageStyle: React.CSSProperties = {
+  position: 'relative',
+  minHeight: '320px',
+  overflow: 'hidden',
+  background: 'radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.05), rgba(10, 10, 12, 0.22) 40%, rgba(0, 0, 0, 0.97) 100%)',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+};
+
+const voiceSceneOverlayStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'flex-end',
+  justifyContent: 'center',
+  padding: '0 0 14px',
+  pointerEvents: 'none'
+};
+
+const voiceSceneLabelStyle: React.CSSProperties = {
+  padding: '7px 10px',
+  borderRadius: '8px',
+  background: 'rgba(0, 0, 0, 0.65)',
+  border: '1px solid rgba(255, 255, 255, 0.10)',
+  color: '#e4e4e7',
+  fontSize: '10px',
+  fontWeight: 900,
+  textTransform: 'uppercase',
+  letterSpacing: '0.14em',
+  backdropFilter: 'blur(10px)'
+};
+
+export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; variant?: 'full' | 'dock' }> = ({
+  workspaceId,
+  variant = 'full'
+}) => {
+  const isDock = variant === 'dock';
+  const { activeWorkspace, workspaces } = useWorkspaceContext();
+  const { agents, ensureWorkspaceAgents } = useAgentProfilesContext();
+  const {
+    missionMessages,
+    missionDrafts,
+    runs,
+    createTask,
+    updateTaskStatus,
+    createRun,
+    updateRun,
+    addMissionMessage,
+    createMissionDraft,
+    updateMissionDraft
+  } = useCommanderTasksContext();
+  const { createTerminal, closeTerminal, setActiveTerminal, terminals } = useTerminalContext();
+  const [input, setInput] = React.useState('');
+  const [editingDraftId, setEditingDraftId] = React.useState<string | null>(null);
+  const [runtimeStatus, setRuntimeStatus] = React.useState<HyperliquidAgentRuntimeStatus | null>(null);
+  const [claudeAvailable, setClaudeAvailable] = React.useState(false);
+  const pointerRecordingRef = React.useRef(false);
+  const buildDraftRef = React.useRef<(goal: string) => void>(() => undefined);
+
+  const workspace = React.useMemo(
+    () => workspaces.find((item) => item.id === workspaceId) || activeWorkspace || null,
+    [activeWorkspace, workspaceId, workspaces]
+  );
+
+  const workspaceAgents = React.useMemo(
+    () => agents.filter((agent) => agent.workspaceId === workspace?.id),
+    [agents, workspace?.id]
+  );
+
+  const scopedMessages = React.useMemo(
+    () => missionMessages
+      .filter((message) => message.workspaceId === workspace?.id)
+      .slice(0, 14)
+      .reverse(),
+    [missionMessages, workspace?.id]
+  );
+
+  const scopedDrafts = React.useMemo(
+    () => missionDrafts
+      .filter((draft) => draft.workspaceId === workspace?.id)
+      .slice(0, 6),
+    [missionDrafts, workspace?.id]
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadRuntimeMatrix = async () => {
+      try {
+        const [status, commands] = await Promise.all([
+          hyperliquidService.getAgentRuntimeStatus().catch(() => null),
+          window.electronAPI?.diagnostics?.checkCommands
+            ? window.electronAPI.diagnostics.checkCommands(['claude']).catch(() => [])
+            : Promise.resolve([])
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setRuntimeStatus(status);
+        setClaudeAvailable(commands.some((command) => command.command === 'claude' && command.available));
+      } catch {
+        if (!cancelled) {
+          setRuntimeStatus(null);
+          setClaudeAvailable(false);
+        }
+      }
+    };
+    void loadRuntimeMatrix();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const buildDraft = React.useCallback((goal: string) => {
+    if (!workspace) {
+      return;
+    }
+
+    const mode = inferMissionMode(goal);
+    const suggestedRoles = Array.from(new Set([...MISSION_MODE_CONFIG[mode].routeRoles, ...inferAgentRoles(goal)]));
+    const strategyId = extractStrategyId(goal);
+    const requestedProvider = inferRequestedProvider(goal);
+    const preferredRuntime = requestedProvider || 'codex';
+    const backendActions = buildBackendActions(mode, strategyId);
+    const proposedCommands = [
+      ...backendActions.map((action) => action.command),
+      ...getProposedCommands(mode).map((command) => strategyId ? command.replace('<strategy_id>', strategyId) : command)
+    ].filter((command, index, commands) => !command.includes('<strategy_id>') && commands.indexOf(command) === index);
+    const risks = getRiskNotes(mode);
+    const title = `${MISSION_MODE_CONFIG[mode].title}: ${goal.slice(0, 56)}`;
+    const missionPacket: MissionPacket = {
+      missionId: `mission-${Date.now()}`,
+      workspaceId: workspace.id,
+      mode,
+      goal,
+      strategyId,
+      runtimePlan: buildRuntimePlan({ preferredRuntime, runtimeStatus, claudeAvailable }),
+      frontierRuntime: preferredRuntime,
+      backendActions,
+      evidenceRefs: [],
+      guardrails: risks,
+      approvalState: 'awaiting-approval',
+      outputs: []
+    };
+    const finalPrompt = buildCodexPrompt({ goal, mode, suggestedRoles, proposedCommands, risks, missionPacket });
+
+    addMissionMessage({
+      workspaceId: workspace.id,
+      role: 'user',
+      content: goal
+    });
+
+    const draft = createMissionDraft({
+      workspaceId: workspace.id,
+      title,
+      goal,
+      mode,
+      suggestedRoles,
+      proposedCommands,
+      risks,
+      finalPrompt,
+      missionPacket,
+      approvalStatus: 'awaiting-approval'
+    });
+
+    addMissionMessage({
+      workspaceId: workspace.id,
+      draftId: draft.id,
+      role: 'assistant',
+      content: `Draft ready for approval: ${title}. Codex will launch only after approval.`
+    });
+
+    setInput('');
+    if (strategyId) {
+      void hyperliquidService.getLatestAgentRun(strategyId).then((latest) => {
+        updateDraftWithLatestAgentRun(draft.id, missionPacket, latest, suggestedRoles, proposedCommands, updateMissionDraft);
+      }).catch(() => undefined);
+    }
+  }, [addMissionMessage, claudeAvailable, createMissionDraft, runtimeStatus, updateMissionDraft, workspace]);
+
+  buildDraftRef.current = buildDraft;
+
+  const {
+    status: voiceStatus,
+    transcript,
+    outputTranscript,
+    error: voiceError,
+    durationSeconds,
+    audioLevel,
+    start: startRecording,
+    stop: stopRecording,
+    reset
+  } = useGeminiLiveVoice({
+    onConversationReady: (conversation) => {
+      const goal = conversation.missionText.trim();
+      if (!goal) {
+        return;
+      }
+
+      setInput(goal);
+      buildDraftRef.current(goal);
+    }
+  });
+  const voiceSceneStatus = voiceStatus === 'connecting' || voiceStatus === 'waiting-response' || voiceStatus === 'responding'
+    ? 'transcribing'
+    : voiceStatus === 'missing-key'
+      ? 'error'
+      : voiceStatus;
+
+  const handleSubmit = React.useCallback(() => {
+    const goal = input.trim();
+    if (!goal) {
+      return;
+    }
+
+    if (editingDraftId) {
+      const mode = inferMissionMode(goal);
+      const suggestedRoles = Array.from(new Set([...MISSION_MODE_CONFIG[mode].routeRoles, ...inferAgentRoles(goal)]));
+      const strategyId = extractStrategyId(goal);
+      const requestedProvider = inferRequestedProvider(goal);
+      const preferredRuntime = requestedProvider || 'codex';
+      const backendActions = buildBackendActions(mode, strategyId);
+      const proposedCommands = [
+        ...backendActions.map((action) => action.command),
+        ...getProposedCommands(mode).map((command) => strategyId ? command.replace('<strategy_id>', strategyId) : command)
+      ].filter((command, index, commands) => !command.includes('<strategy_id>') && commands.indexOf(command) === index);
+      const risks = getRiskNotes(mode);
+      const title = `${MISSION_MODE_CONFIG[mode].title}: ${goal.slice(0, 56)}`;
+      const missionPacket: MissionPacket = {
+        missionId: `mission-${Date.now()}`,
+        workspaceId: workspace?.id || '',
+        mode,
+        goal,
+        strategyId,
+        runtimePlan: buildRuntimePlan({ preferredRuntime, runtimeStatus, claudeAvailable }),
+        frontierRuntime: preferredRuntime,
+        backendActions,
+        evidenceRefs: [],
+        guardrails: risks,
+        approvalState: 'awaiting-approval',
+        outputs: []
+      };
+      updateMissionDraft(editingDraftId, {
+        title,
+        goal,
+        mode,
+        suggestedRoles,
+        proposedCommands,
+        risks,
+        finalPrompt: buildCodexPrompt({ goal, mode, suggestedRoles, proposedCommands, risks, missionPacket }),
+        missionPacket,
+        approvalStatus: 'awaiting-approval'
+      });
+      addMissionMessage({
+        workspaceId: workspace?.id || '',
+        draftId: editingDraftId,
+        role: 'assistant',
+        content: `Draft updated and waiting for approval: ${title}.`
+      });
+      setEditingDraftId(null);
+      setInput('');
+      return;
+    }
+
+    buildDraft(goal);
+  }, [addMissionMessage, buildDraft, claudeAvailable, editingDraftId, input, runtimeStatus, updateMissionDraft, workspace?.id]);
+
+  const getFrontierAgent = React.useCallback((draft: MissionDraft): AgentProfile | null => {
+    if (!workspace) {
+      return null;
+    }
+
+    const preferredRole = draft.suggestedRoles[0] || 'commander';
+    const provider = draft.missionPacket?.frontierRuntime || inferRequestedProvider(draft.goal) || 'codex';
+    const existing = workspaceAgents.find((agent) => agent.role === preferredRole) || workspaceAgents.find((agent) => agent.role === 'commander') || workspaceAgents[0];
+
+    if (existing) {
+      return { ...existing, provider };
+    }
+
+    return {
+      id: `${workspace.id}:${provider}-mission-chat`,
+      name: `${getProviderMeta(provider).label} Mission Chat`,
+      role: preferredRole,
+      provider,
+      workspaceId: workspace.id,
+      promptTemplate: 'Frontier mission runtime for the trading workbench.',
+      objective: 'Turn approved mission chat into auditable terminal execution.',
+      accentColor: '#38bdf8',
+      autoAssignTerminalPurpose: 'mission-chat'
+    };
+  }, [workspace, workspaceAgents]);
+
+  const runResearchOsPreflight = React.useCallback(async (draft: MissionDraft): Promise<MissionDraft> => {
+    const packet = draft.missionPacket;
+    const action = packet?.backendActions.find((item) => (
+      (item.kind === 'agent-research' || item.kind === 'agent-audit')
+        && item.status !== 'completed'
+        && item.strategyId
+    ));
+    if (!packet || !action?.strategyId) {
+      return draft;
+    }
+
+    const runningPacket: MissionPacket = {
+      ...packet,
+      backendActions: packet.backendActions.map((item) => (
+        item.id === action.id ? { ...item, status: 'running', updatedAt: Date.now() } : item
+      ))
+    };
+    updateMissionDraft(draft.id, { missionPacket: runningPacket });
+
+    const response: HyperliquidAgentRunCreateResponse = action.kind === 'agent-audit'
+      ? await hyperliquidService.runAgentAudit({
+          strategy_id: action.strategyId,
+          runtime: runningPacket.runtimePlan.backendRuntime === 'auto' ? 'auto' : runningPacket.runtimePlan.backendRuntime,
+          mission_id: runningPacket.missionId
+        })
+      : await hyperliquidService.runAgentResearch({
+          strategy_id: action.strategyId,
+          runtime: runningPacket.runtimePlan.backendRuntime === 'auto' ? 'auto' : runningPacket.runtimePlan.backendRuntime,
+          mission_id: runningPacket.missionId
+        });
+
+    const nextPacket: MissionPacket = {
+      ...runningPacket,
+      backendActions: runningPacket.backendActions.map((item) => (
+        item.id === action.id
+          ? {
+              ...item,
+              status: 'completed',
+              runId: response.runId,
+              path: response.runPath,
+              summary: `${response.recommendation} | ${response.blockerCount} blockers`,
+              updatedAt: Date.now()
+            }
+          : item
+      )),
+      evidenceRefs: [
+        ...runningPacket.evidenceRefs,
+        {
+          id: response.runId,
+          kind: 'agent-run',
+          label: `Research OS ${response.mode}`,
+          path: response.runPath,
+          runId: response.runId,
+          strategyId: response.strategyId,
+          summary: `${response.recommendation} | ${response.blockerCount} blockers`,
+          createdAt: Date.now()
+        }
+      ],
+      outputs: [
+        ...runningPacket.outputs,
+        {
+          id: response.runId,
+          kind: 'agent-run',
+          label: `Research OS ${response.mode}`,
+          path: response.runPath,
+          runId: response.runId,
+          strategyId: response.strategyId,
+          summary: response.agentRun.decision.executive_summary,
+          createdAt: Date.now()
+        }
+      ]
+    };
+    const finalPrompt = buildCodexPrompt({
+      goal: draft.goal,
+      mode: draft.mode as MissionMode,
+      suggestedRoles: draft.suggestedRoles,
+      proposedCommands: Array.from(new Set([...response.recommendedCommands, ...draft.proposedCommands])),
+      risks: draft.risks,
+      missionPacket: nextPacket
+    });
+    updateMissionDraft(draft.id, {
+      missionPacket: nextPacket,
+      finalPrompt,
+      proposedCommands: Array.from(new Set([...response.recommendedCommands, ...draft.proposedCommands]))
+    });
+    return {
+      ...draft,
+      missionPacket: nextPacket,
+      finalPrompt,
+      proposedCommands: Array.from(new Set([...response.recommendedCommands, ...draft.proposedCommands]))
+    };
+  }, [updateMissionDraft]);
+
+  const approveDraft = React.useCallback(async (draft: MissionDraft) => {
+    if (!workspace) {
+      return;
+    }
+
+    if (workspaceAgents.length === 0) {
+      ensureWorkspaceAgents([workspace]);
+    }
+
+    const missionMode = inferMissionMode(draft.goal);
+    const missionMetadata = buildMissionMetadata({
+      goal: draft.goal,
+      missionMode,
+      missionDepth: 'focused',
+      pinnedNotes: [],
+      memoryNotes: []
+    });
+    const task = createTask(draft.goal, workspace.id, draft.title, missionMetadata);
+    updateTaskStatus(task.id, 'routing');
+
+    let launchDraft = draft;
+    try {
+      launchDraft = await runResearchOsPreflight(draft);
+    } catch (err) {
+      const packet = draft.missionPacket;
+      if (packet) {
+        updateMissionDraft(draft.id, {
+          missionPacket: {
+            ...packet,
+            backendActions: packet.backendActions.map((action) => (
+              action.status === 'running'
+                ? { ...action, status: 'failed', summary: err instanceof Error ? err.message : 'Research OS preflight failed.', updatedAt: Date.now() }
+                : action
+            ))
+          }
+        });
+      }
+      addMissionMessage({
+        workspaceId: workspace.id,
+        draftId: draft.id,
+        role: 'system',
+        content: `Research OS preflight failed: ${err instanceof Error ? err.message : 'unknown error'}. Frontier launch blocked until review.`
+      });
+      updateTaskStatus(task.id, 'failed');
+      updateMissionDraft(draft.id, {
+        taskId: task.id,
+        approvalStatus: 'failed',
+        error: err instanceof Error ? err.message : 'Research OS preflight failed.'
+      });
+      return;
+    }
+
+    const approvedMission: ApprovedMission = {
+      draftId: draft.id,
+      workspaceId: workspace.id,
+      title: launchDraft.title,
+      goal: launchDraft.goal,
+      finalPrompt: launchDraft.finalPrompt,
+      suggestedRoles: launchDraft.suggestedRoles,
+      proposedCommands: launchDraft.proposedCommands
+    };
+    const agent = getFrontierAgent(launchDraft);
+    if (!agent) {
+      updateTaskStatus(task.id, 'failed');
+      updateMissionDraft(draft.id, {
+        taskId: task.id,
+        approvalStatus: 'failed',
+        error: 'No frontier agent could be resolved for this workspace.'
+      });
+      return;
+    }
+
+    const run = launchAgentRun(
+      {
+        workspace,
+        createTerminal,
+        createRun,
+        updateRun
+      },
+      {
+        task,
+        agent,
+        approvedMission,
+        summaryPrefix: 'Approved mission launching',
+        forceDirectLaunch: true
+      }
+    );
+
+    updateTaskStatus(task.id, 'running');
+    updateMissionDraft(draft.id, {
+      taskId: task.id,
+      runId: run.id,
+      terminalIds: run.terminalIds,
+      approvalStatus: 'running',
+      approvedAt: Date.now()
+    });
+    addMissionMessage({
+      workspaceId: workspace.id,
+      taskId: task.id,
+      draftId: draft.id,
+      role: 'system',
+      content: `Approved. ${getProviderMeta(agent.provider).label} launched for "${draft.title}" with Research OS evidence attached.`
+    });
+  }, [
+    addMissionMessage,
+    createRun,
+    createTask,
+    createTerminal,
+    ensureWorkspaceAgents,
+    getFrontierAgent,
+    runResearchOsPreflight,
+    updateMissionDraft,
+    updateRun,
+    updateTaskStatus,
+    workspace,
+    workspaceAgents.length
+  ]);
+
+  const cancelDraft = React.useCallback((draft: MissionDraft) => {
+    draft.terminalIds?.forEach((terminalId) => {
+      window.electronAPI.terminal.kill(terminalId);
+      closeTerminal(terminalId);
+    });
+    if (draft.runId) {
+      updateRun(draft.runId, {
+        status: 'failed',
+        launchState: 'attention',
+        summary: 'Mission cancelled by operator.',
+        endedAt: Date.now()
+      });
+    }
+    if (draft.taskId) {
+      updateTaskStatus(draft.taskId, 'failed');
+    }
+    updateMissionDraft(draft.id, { approvalStatus: 'cancelled' });
+    if (workspace) {
+      addMissionMessage({
+        workspaceId: workspace.id,
+        draftId: draft.id,
+        role: 'system',
+        content: `Cancelled mission: ${draft.title}.`
+      });
+    }
+  }, [addMissionMessage, closeTerminal, updateMissionDraft, updateRun, updateTaskStatus, workspace]);
+
+  React.useEffect(() => {
+    scopedDrafts.forEach((draft) => {
+      if (!draft.runId || draft.approvalStatus !== 'running') {
+        return;
+      }
+      const run = runs.find((item) => item.id === draft.runId);
+      if (!run) {
+        return;
+      }
+      if (run.status === 'completed' || run.status === 'failed') {
+        updateMissionDraft(draft.id, {
+          approvalStatus: run.status,
+          terminalIds: run.terminalIds
+        });
+      } else if (draft.terminalIds?.join('|') !== run.terminalIds.join('|')) {
+        updateMissionDraft(draft.id, { terminalIds: run.terminalIds });
+      }
+    });
+  }, [runs, scopedDrafts, updateMissionDraft]);
+
+  const handlePressStart = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (voiceStatus === 'connecting' || voiceStatus === 'recording' || voiceStatus === 'waiting-response' || voiceStatus === 'responding') {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointerRecordingRef.current = true;
+    void startRecording();
+  }, [startRecording, voiceStatus]);
+
+  const handlePressEnd = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!pointerRecordingRef.current) {
+      return;
+    }
+    event.preventDefault();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    pointerRecordingRef.current = false;
+    stopRecording();
+  }, [stopRecording]);
+
+  const latestTerminalCount = terminals.filter((terminal) => terminal.runId).length;
+
+  return (
+    <div style={{ ...shellStyle, ...(isDock ? dockShellStyle : null) }}>
+      <div style={{ ...headerStyle, ...(isDock ? dockHeaderStyle : null) }}>
+        <div>
+          <div style={eyebrowStyle}>{isDock ? 'Voice Source' : 'Codex Mission Chat'}</div>
+          <h2 style={{ ...titleStyle, ...(isDock ? dockTitleStyle : null) }}>
+            {isDock ? 'Speak to the desk' : 'Talk first. Approve. Then run auditable agents.'}
+          </h2>
+          <p style={copyStyle}>
+            {isDock
+              ? 'Hold to speak, draft the mission, approve the frontier runtime when ready.'
+              : 'Research OS prepares evidence first; Codex or Claude runs the approved frontier mission.'}
+          </p>
+        </div>
+        <div style={{ ...statusStripStyle, ...(isDock ? dockStatusStripStyle : null) }}>
+          <div style={statusPillStyle}>Approval required</div>
+          <div style={statusPillStyle}>{runtimeStatus?.codexAuthenticated ? 'Codex connected' : 'Codex pending'}</div>
+          <div style={statusPillStyle}>{claudeAvailable ? 'Claude available' : 'Claude optional'}</div>
+          <div style={statusPillStyle}>{latestTerminalCount} evidence terminals</div>
+        </div>
+      </div>
+
+      <div style={{ ...mainGridStyle, ...(isDock ? dockMainGridStyle : null) }}>
+        <section style={{ ...chatPanelStyle, ...(isDock ? dockChatPanelStyle : null) }}>
+          {isDock ? (
+            <div style={voiceSceneStageStyle}>
+                <VoiceOrbScene status={voiceSceneStatus} durationSeconds={durationSeconds} audioLevel={audioLevel} />
+              <div style={voiceSceneOverlayStyle}>
+                <div style={voiceSceneLabelStyle}>
+                  {voiceStatus === 'recording'
+                    ? 'Listening'
+                    : voiceStatus === 'connecting'
+                      ? 'Connecting'
+                      : voiceStatus === 'waiting-response'
+                        ? 'Waiting'
+                      : voiceStatus === 'responding'
+                        ? 'Responding'
+                      : voiceStatus === 'ready'
+                        ? 'Ready'
+                        : voiceStatus === 'error' || voiceStatus === 'missing-key'
+                          ? 'Voice Error'
+                          : 'Standing By'}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div style={{ ...messageListStyle, ...(isDock ? dockMessageListStyle : null) }}>
+            {scopedMessages.length === 0 ? (
+              <div style={{ ...emptyStateStyle, ...(isDock ? dockEmptyStateStyle : null) }}>
+                <Bot size={24} />
+                <div>{isDock ? 'Hold the mic and talk. I will turn it into an approvable mission.' : 'Describe a market scan, strategy idea, backend fix, or execution prep. The workbench will draft the mission and attach backend evidence before anything runs.'}</div>
+              </div>
+            ) : (
+              scopedMessages.map((message) => (
+                <div
+                  key={message.id}
+                  style={{
+                    ...messageStyle,
+                    alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
+                    background: message.role === 'user' ? 'rgba(56, 189, 248, 0.14)' : 'rgba(15, 23, 42, 0.78)',
+                    borderColor: message.role === 'user' ? 'rgba(56, 189, 248, 0.24)' : 'rgba(148, 163, 184, 0.14)'
+                  }}
+                >
+                  <div style={messageMetaStyle}>{message.role} • {formatTime(message.createdAt)}</div>
+                  <div style={messageContentStyle}>{message.content}</div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div style={{ ...composerStyle, ...(isDock ? dockComposerStyle : null) }}>
+            {isDock ? (
+              <button
+                type="button"
+                onPointerDown={handlePressStart}
+                onPointerUp={handlePressEnd}
+                onPointerCancel={handlePressEnd}
+                disabled={voiceStatus === 'connecting' || voiceStatus === 'waiting-response' || voiceStatus === 'responding'}
+                style={{
+                  ...dockPrimaryVoiceButtonStyle,
+                  background: voiceStatus === 'recording'
+                    ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(200, 200, 200, 0.90))'
+                    : 'linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(180, 180, 180, 0.10))',
+                  color: voiceStatus === 'recording' ? '#0a0a0a' : '#ffffff'
+                }}
+              >
+                <Mic size={20} />
+                {voiceStatus === 'recording'
+                  ? `Listening ${durationSeconds}s`
+                  : voiceStatus === 'connecting'
+                    ? 'Connecting'
+                    : voiceStatus === 'waiting-response'
+                      ? 'Waiting For Gemini'
+                    : voiceStatus === 'responding'
+                      ? 'Gemini Responding'
+                      : 'Hold To Speak'}
+              </button>
+            ) : null}
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder={isDock ? 'Voice transcript or quick mission...' : 'Speak or type the mission. Example: scan Hyperliquid for crowded squeeze candidates and prepare a no-trade list.'}
+              rows={isDock ? 3 : 4}
+              style={{ ...textareaStyle, ...(isDock ? dockTextareaStyle : null) }}
+            />
+            <div style={composerActionsStyle}>
+              {!isDock ? (
+                <button
+                  type="button"
+                  onPointerDown={handlePressStart}
+                  onPointerUp={handlePressEnd}
+                  onPointerCancel={handlePressEnd}
+                  disabled={voiceStatus === 'connecting' || voiceStatus === 'waiting-response' || voiceStatus === 'responding'}
+                  style={{
+                    ...voiceButtonStyle,
+                    background: voiceStatus === 'recording' ? 'rgba(239, 68, 68, 0.24)' : 'rgba(59, 130, 246, 0.18)',
+                    color: voiceStatus === 'recording' ? '#fecaca' : '#bfdbfe'
+                  }}
+                >
+                  <Mic size={15} />
+                  {voiceStatus === 'recording'
+                    ? `Listening ${durationSeconds}s`
+                    : voiceStatus === 'connecting'
+                      ? 'Connecting'
+                      : voiceStatus === 'waiting-response'
+                        ? 'Waiting for Gemini'
+                      : voiceStatus === 'responding'
+                        ? 'Gemini responding'
+                        : 'Hold to speak'}
+                </button>
+              ) : null}
+              <button type="button" onClick={() => { reset(); setInput(''); }} style={ghostButtonStyle}>
+                Clear
+              </button>
+              <button type="button" onClick={handleSubmit} disabled={!input.trim() || !workspace} style={sendButtonStyle}>
+                <Send size={15} />
+                {editingDraftId ? 'Update Draft' : 'Draft Mission'}
+              </button>
+            </div>
+            {voiceError ? <div style={errorStyle}>{voiceError}</div> : null}
+            {transcript && voiceStatus === 'ready' ? <div style={hintStyle}>Voice captured and draft prepared for approval.</div> : null}
+            {outputTranscript ? <div style={hintStyle}>Gemini: {outputTranscript}</div> : null}
+          </div>
+        </section>
+
+        <aside style={{ ...draftPanelStyle, ...(isDock ? dockDraftPanelStyle : null) }}>
+          <div style={panelHeaderStyle}>
+            <div>
+              <div style={panelLabelStyle}>Mission Drafts</div>
+              <div style={panelCopyStyle}>Nothing runs until you approve it.</div>
+            </div>
+          </div>
+
+          <div style={{ ...draftListStyle, ...(isDock ? dockDraftListStyle : null) }}>
+            {scopedDrafts.length === 0 ? (
+              <div style={emptyDraftStyle}>No mission drafts yet.</div>
+            ) : (
+              scopedDrafts.map((draft) => {
+                const tone = getDraftTone(draft.approvalStatus);
+                const provider = getProviderMeta(draft.missionPacket?.frontierRuntime || 'codex');
+                const draftRun = draft.runId ? runs.find((run) => run.id === draft.runId) : null;
+                return (
+                  <div key={draft.id} style={draftCardStyle}>
+                    <div style={draftHeaderStyle}>
+                      <div>
+                        <div style={draftTitleStyle}>{draft.title}</div>
+                        <div style={draftModeStyle}>{MISSION_MODE_CONFIG[draft.mode as MissionMode]?.label || draft.mode}</div>
+                      </div>
+                      <div style={{ ...draftStatusStyle, background: tone.background, color: tone.color }}>{tone.label}</div>
+                    </div>
+
+                    <div style={draftGoalStyle}>{draft.goal}</div>
+
+                    {draft.missionPacket ? (
+                      <div style={miniSectionStyle}>
+                        <div style={miniLabelStyle}>Mission packet</div>
+                        <div style={riskStyle}>{draft.missionPacket.runtimePlan.summary}</div>
+                        {draft.missionPacket.strategyId ? (
+                          <code style={commandStyle}>strategy: {draft.missionPacket.strategyId}</code>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div style={chipRowStyle}>
+                      {draft.suggestedRoles.slice(0, 4).map((role) => (
+                        <span key={role} style={chipStyle}>{formatRoleLabel(role)}</span>
+                      ))}
+                    </div>
+
+                    <div style={miniSectionStyle}>
+                      <div style={miniLabelStyle}>Approved command shortlist</div>
+                      {draft.proposedCommands.map((command) => (
+                        <code key={command} style={commandStyle}>{command}</code>
+                      ))}
+                    </div>
+
+                    {draft.missionPacket?.backendActions.length ? (
+                      <div style={miniSectionStyle}>
+                        <div style={miniLabelStyle}>Research OS preflight</div>
+                        {draft.missionPacket.backendActions.map((action) => (
+                          <div key={action.id} style={riskStyle}>
+                            {action.label} · {action.status}{action.summary ? ` · ${action.summary}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {draft.missionPacket?.evidenceRefs.length ? (
+                      <div style={miniSectionStyle}>
+                        <div style={miniLabelStyle}>Evidence attached</div>
+                        {draft.missionPacket.evidenceRefs.slice(0, 3).map((ref) => (
+                          <div key={ref.id} style={riskStyle}>{ref.label}: {ref.summary || ref.path || ref.runId}</div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div style={miniSectionStyle}>
+                      <div style={miniLabelStyle}>Risk guardrails</div>
+                      {draft.risks.map((risk) => (
+                        <div key={risk} style={riskStyle}>{risk}</div>
+                      ))}
+                    </div>
+
+                    {draftRun?.outputExcerpt ? (
+                      <pre style={excerptStyle}>{draftRun.outputExcerpt.slice(-900)}</pre>
+                    ) : null}
+
+                    <div style={draftActionsStyle}>
+                      <button
+                        type="button"
+                        onClick={() => void approveDraft(draft)}
+                        disabled={draft.approvalStatus === 'running' || draft.approvalStatus === 'completed'}
+                        style={approveButtonStyle}
+                      >
+                        <Check size={14} />
+                        Approve {provider.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDraftId(draft.id);
+                          setInput(draft.goal);
+                        }}
+                        disabled={draft.approvalStatus === 'running'}
+                        style={draftGhostButtonStyle}
+                      >
+                        <Edit3 size={14} />
+                        Edit
+                      </button>
+                      {draft.terminalIds?.[0] ? (
+                        <button type="button" onClick={() => setActiveTerminal(draft.terminalIds![0])} style={draftGhostButtonStyle}>
+                          <TerminalSquare size={14} />
+                          Console
+                        </button>
+                      ) : null}
+                      <button type="button" onClick={() => cancelDraft(draft)} style={stopButtonStyle}>
+                        <Square size={13} />
+                        Stop
+                      </button>
+                    </div>
+
+                    <div style={{ ...providerStripStyle, color: provider.accent }}>
+                      {provider.label} frontier runtime • Research OS artifacts retained
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+const shellStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  background: '#020617',
+  color: '#e5e7eb'
+};
+
+const dockShellStyle: React.CSSProperties = {
+  height: '100%',
+  minHeight: 0,
+  overflow: 'hidden',
+  borderLeft: '1px solid rgba(148, 163, 184, 0.12)'
+};
+
+const headerStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '16px',
+  padding: '22px 24px 16px',
+  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
+  flexWrap: 'wrap'
+};
+
+const dockHeaderStyle: React.CSSProperties = {
+  padding: '16px 14px 12px',
+  gap: '10px'
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  color: '#38bdf8',
+  fontSize: '11px',
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  letterSpacing: '0.14em'
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: '8px 0 4px',
+  color: '#f8fafc',
+  fontSize: '26px',
+  fontWeight: 800,
+  letterSpacing: 0
+};
+
+const dockTitleStyle: React.CSSProperties = {
+  fontSize: '18px',
+  lineHeight: 1.2
+};
+
+const copyStyle: React.CSSProperties = {
+  margin: 0,
+  color: '#94a3b8',
+  fontSize: '13px'
+};
+
+const statusStripStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '8px',
+  alignItems: 'flex-start',
+  flexWrap: 'wrap'
+};
+
+const dockStatusStripStyle: React.CSSProperties = {
+  gap: '6px'
+};
+
+const statusPillStyle: React.CSSProperties = {
+  padding: '8px 10px',
+  borderRadius: '8px',
+  background: 'rgba(15, 23, 42, 0.75)',
+  border: '1px solid rgba(148, 163, 184, 0.14)',
+  color: '#cbd5e1',
+  fontSize: '11px',
+  fontWeight: 800,
+  textTransform: 'uppercase'
+};
+
+const mainGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(360px, 1.3fr) minmax(340px, 0.9fr)',
+  gap: '18px',
+  padding: '18px 24px 24px'
+};
+
+const dockMainGridStyle: React.CSSProperties = {
+  gridTemplateColumns: '1fr',
+  gap: '10px',
+  padding: '10px',
+  overflow: 'auto',
+  minHeight: 0
+};
+
+const chatPanelStyle: React.CSSProperties = {
+  minHeight: '650px',
+  display: 'grid',
+  gridTemplateRows: '1fr auto',
+  border: '1px solid rgba(148, 163, 184, 0.12)',
+  background: 'rgba(15, 23, 42, 0.48)',
+  borderRadius: '8px',
+  overflow: 'hidden'
+};
+
+const dockChatPanelStyle: React.CSSProperties = {
+  minHeight: '560px'
+};
+
+const messageListStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  padding: '18px',
+  overflow: 'auto'
+};
+
+const dockMessageListStyle: React.CSSProperties = {
+  padding: '12px',
+  maxHeight: '34vh'
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  margin: 'auto',
+  maxWidth: '420px',
+  display: 'grid',
+  gap: '12px',
+  justifyItems: 'center',
+  color: '#94a3b8',
+  fontSize: '13px',
+  lineHeight: 1.5,
+  textAlign: 'center'
+};
+
+const dockEmptyStateStyle: React.CSSProperties = {
+  fontSize: '12px',
+  maxWidth: '260px'
+};
+
+const messageStyle: React.CSSProperties = {
+  maxWidth: '78%',
+  border: '1px solid',
+  borderRadius: '8px',
+  padding: '11px 12px'
+};
+
+const messageMetaStyle: React.CSSProperties = {
+  color: '#64748b',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  marginBottom: '6px'
+};
+
+const messageContentStyle: React.CSSProperties = {
+  whiteSpace: 'pre-wrap',
+  color: '#e5e7eb',
+  fontSize: '13px',
+  lineHeight: 1.5
+};
+
+const composerStyle: React.CSSProperties = {
+  borderTop: '1px solid rgba(148, 163, 184, 0.12)',
+  padding: '12px',
+  display: 'grid',
+  gap: '10px',
+  background: 'rgba(2, 6, 23, 0.76)'
+};
+
+const dockComposerStyle: React.CSSProperties = {
+  padding: '10px'
+};
+
+const dockPrimaryVoiceButtonStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: '58px',
+  border: '1px solid rgba(255, 255, 255, 0.16)',
+  borderRadius: '8px',
+  color: '#ffffff',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '10px',
+  cursor: 'pointer',
+  fontSize: '13px',
+  fontWeight: 900,
+  textTransform: 'uppercase',
+  letterSpacing: '0.08em',
+  boxShadow: '0 14px 34px rgba(255, 255, 255, 0.06)'
+};
+
+const textareaStyle: React.CSSProperties = {
+  width: '100%',
+  resize: 'vertical',
+  minHeight: '96px',
+  borderRadius: '8px',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  background: 'rgba(15, 23, 42, 0.88)',
+  color: '#f8fafc',
+  padding: '12px',
+  fontSize: '13px',
+  lineHeight: 1.5,
+  outline: 'none',
+  boxSizing: 'border-box'
+};
+
+const dockTextareaStyle: React.CSSProperties = {
+  minHeight: '78px',
+  fontSize: '12px'
+};
+
+const composerActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '8px',
+  flexWrap: 'wrap',
+  justifyContent: 'flex-end'
+};
+
+const voiceButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '7px',
+  padding: '9px 11px',
+  borderRadius: '8px',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  cursor: 'pointer',
+  fontSize: '12px',
+  fontWeight: 800
+};
+
+const ghostButtonStyle: React.CSSProperties = {
+  padding: '9px 11px',
+  borderRadius: '8px',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  background: 'rgba(15, 23, 42, 0.65)',
+  color: '#cbd5e1',
+  cursor: 'pointer',
+  fontSize: '12px',
+  fontWeight: 800
+};
+
+const sendButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '7px',
+  padding: '9px 12px',
+  borderRadius: '8px',
+  border: '1px solid rgba(56, 189, 248, 0.28)',
+  background: 'rgba(56, 189, 248, 0.16)',
+  color: '#bae6fd',
+  cursor: 'pointer',
+  fontSize: '12px',
+  fontWeight: 800
+};
+
+const errorStyle: React.CSSProperties = {
+  color: '#fca5a5',
+  fontSize: '11px'
+};
+
+const hintStyle: React.CSSProperties = {
+  color: '#93c5fd',
+  fontSize: '11px'
+};
+
+const draftPanelStyle: React.CSSProperties = {
+  minHeight: '650px',
+  display: 'grid',
+  gridTemplateRows: 'auto 1fr',
+  gap: '12px'
+};
+
+const dockDraftPanelStyle: React.CSSProperties = {
+  minHeight: 'unset',
+  gap: '10px'
+};
+
+const panelHeaderStyle: React.CSSProperties = {
+  padding: '14px',
+  border: '1px solid rgba(148, 163, 184, 0.12)',
+  background: 'rgba(15, 23, 42, 0.58)',
+  borderRadius: '8px'
+};
+
+const panelLabelStyle: React.CSSProperties = {
+  color: '#f8fafc',
+  fontSize: '14px',
+  fontWeight: 800
+};
+
+const panelCopyStyle: React.CSSProperties = {
+  color: '#64748b',
+  fontSize: '12px',
+  marginTop: '4px'
+};
+
+const draftListStyle: React.CSSProperties = {
+  display: 'grid',
+  alignContent: 'start',
+  gap: '12px',
+  overflow: 'auto'
+};
+
+const dockDraftListStyle: React.CSSProperties = {
+  maxHeight: '42vh'
+};
+
+const emptyDraftStyle: React.CSSProperties = {
+  padding: '18px',
+  borderRadius: '8px',
+  border: '1px dashed rgba(148, 163, 184, 0.16)',
+  color: '#64748b',
+  fontSize: '12px'
+};
+
+const draftCardStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: '12px',
+  padding: '14px',
+  borderRadius: '8px',
+  border: '1px solid rgba(148, 163, 184, 0.12)',
+  background: 'rgba(15, 23, 42, 0.72)'
+};
+
+const draftHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '10px',
+  alignItems: 'flex-start'
+};
+
+const draftTitleStyle: React.CSSProperties = {
+  color: '#f8fafc',
+  fontSize: '13px',
+  fontWeight: 800,
+  lineHeight: 1.35
+};
+
+const draftModeStyle: React.CSSProperties = {
+  color: '#38bdf8',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  marginTop: '5px'
+};
+
+const draftStatusStyle: React.CSSProperties = {
+  padding: '5px 8px',
+  borderRadius: '8px',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  whiteSpace: 'nowrap'
+};
+
+const draftGoalStyle: React.CSSProperties = {
+  color: '#cbd5e1',
+  fontSize: '12px',
+  lineHeight: 1.5
+};
+
+const chipRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '6px',
+  flexWrap: 'wrap'
+};
+
+const chipStyle: React.CSSProperties = {
+  padding: '5px 8px',
+  borderRadius: '8px',
+  background: 'rgba(56, 189, 248, 0.1)',
+  color: '#7dd3fc',
+  fontSize: '10px',
+  fontWeight: 800
+};
+
+const miniSectionStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: '6px'
+};
+
+const miniLabelStyle: React.CSSProperties = {
+  color: '#64748b',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase'
+};
+
+const commandStyle: React.CSSProperties = {
+  display: 'block',
+  padding: '6px 8px',
+  borderRadius: '6px',
+  background: 'rgba(2, 6, 23, 0.72)',
+  color: '#e0f2fe',
+  fontSize: '11px',
+  whiteSpace: 'pre-wrap'
+};
+
+const riskStyle: React.CSSProperties = {
+  color: '#fbbf24',
+  fontSize: '11px',
+  lineHeight: 1.4
+};
+
+const excerptStyle: React.CSSProperties = {
+  maxHeight: '130px',
+  overflow: 'auto',
+  margin: 0,
+  padding: '8px',
+  borderRadius: '6px',
+  background: 'rgba(2, 6, 23, 0.86)',
+  color: '#cbd5e1',
+  fontSize: '10px',
+  whiteSpace: 'pre-wrap'
+};
+
+const draftActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '8px',
+  flexWrap: 'wrap'
+};
+
+const approveButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 10px',
+  borderRadius: '8px',
+  border: '1px solid rgba(34, 197, 94, 0.28)',
+  background: 'rgba(34, 197, 94, 0.14)',
+  color: '#bbf7d0',
+  cursor: 'pointer',
+  fontSize: '11px',
+  fontWeight: 800
+};
+
+const draftGhostButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 10px',
+  borderRadius: '8px',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  background: 'rgba(15, 23, 42, 0.66)',
+  color: '#cbd5e1',
+  cursor: 'pointer',
+  fontSize: '11px',
+  fontWeight: 800
+};
+
+const stopButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 10px',
+  borderRadius: '8px',
+  border: '1px solid rgba(248, 113, 113, 0.24)',
+  background: 'rgba(127, 29, 29, 0.22)',
+  color: '#fecaca',
+  cursor: 'pointer',
+  fontSize: '11px',
+  fontWeight: 800
+};
+
+const providerStripStyle: React.CSSProperties = {
+  paddingTop: '4px',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase'
+};

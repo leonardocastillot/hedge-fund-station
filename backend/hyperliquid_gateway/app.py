@@ -6,15 +6,74 @@ import os
 import sqlite3
 import time
 from collections import defaultdict, deque
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from polymarket_api import init_polymarket_db, router as polymarket_router
+try:
+    from .backtesting.engine import BacktestConfig
+    from .backtesting.registry import available_strategies
+    from .backtesting.workflow import (
+        build_paper_workflow,
+        build_status_snapshot,
+        latest_json,
+        run_backtest_workflow,
+        validate_strategy_workflow,
+    )
+    from .agents import (
+        agent_runtime_status,
+        latest_agent_run_payload,
+        list_agent_runs,
+        load_agent_run,
+        run_agent_audit,
+        run_agent_research,
+    )
+except ImportError:
+    from backtesting.engine import BacktestConfig
+    from backtesting.registry import available_strategies
+    from backtesting.workflow import (
+        build_paper_workflow,
+        build_status_snapshot,
+        latest_json,
+        run_backtest_workflow,
+        validate_strategy_workflow,
+    )
+    from agents import (
+        agent_runtime_status,
+        latest_agent_run_payload,
+        list_agent_runs,
+        load_agent_run,
+        run_agent_audit,
+        run_agent_research,
+    )
+
+try:
+    from .ai_provider import provider_status
+    from .macro_intelligence import (
+        get_bank_holidays,
+        get_calendar_analysis,
+        get_calendar_week,
+        get_macro_news,
+        get_weekly_brief,
+        test_ai_provider,
+    )
+    from .polymarket_api import init_polymarket_db, router as polymarket_router
+except ImportError:
+    from ai_provider import provider_status
+    from macro_intelligence import (
+        get_bank_holidays,
+        get_calendar_analysis,
+        get_calendar_week,
+        get_macro_news,
+        get_weekly_brief,
+        test_ai_provider,
+    )
+    from polymarket_api import init_polymarket_db, router as polymarket_router
 
 HYPERLIQUID_API = os.getenv("HYPERLIQUID_API_URL", "https://api.hyperliquid.xyz/info")
 TIMEOUT_SECONDS = float(os.getenv("HYPERLIQUID_TIMEOUT", "12"))
@@ -23,6 +82,17 @@ REFRESH_LOOP_SECONDS = float(os.getenv("HYPERLIQUID_REFRESH_LOOP_SECONDS", "8"))
 MAX_HISTORY_POINTS = int(os.getenv("HYPERLIQUID_MAX_HISTORY_POINTS", "120"))
 MAX_ALERTS = int(os.getenv("HYPERLIQUID_MAX_ALERTS", "160"))
 DB_PATH = os.getenv("HYPERLIQUID_DB_PATH", "/data/hyperliquid.db")
+BACKEND_ROOT = Path(__file__).resolve().parent
+if BACKEND_ROOT.name == "hyperliquid_gateway" and BACKEND_ROOT.parent.name == "backend":
+    REPO_ROOT = BACKEND_ROOT.parents[1]
+else:
+    REPO_ROOT = BACKEND_ROOT
+DATA_ROOT = Path(os.getenv("HYPERLIQUID_DATA_ROOT", str(BACKEND_ROOT / "data"))).expanduser()
+REPORTS_ROOT = DATA_ROOT / "backtests"
+VALIDATIONS_ROOT = DATA_ROOT / "validations"
+PAPER_ROOT = DATA_ROOT / "paper"
+DOCS_STRATEGIES_ROOT = REPO_ROOT / "docs" / "strategies"
+STRATEGIES_ROOT = BACKEND_ROOT / "strategies"
 
 app = FastAPI(title="Hyperliquid Gateway", version="1.0.0")
 app.add_middleware(
@@ -54,11 +124,11 @@ class PaperSignalCreate(BaseModel):
     direction: str
     confidence: int = Field(ge=0, le=100)
     thesis: str
-    entry_price: float | None = None
-    invalidation: str | None = None
-    decision_label: str | None = None
-    trigger_plan: str | None = None
-    execution_quality: int | None = None
+    entry_price: Optional[float] = None
+    invalidation: Optional[str] = None
+    decision_label: Optional[str] = None
+    trigger_plan: Optional[str] = None
+    execution_quality: Optional[int] = None
 
 
 class PaperTradeCreate(BaseModel):
@@ -68,19 +138,58 @@ class PaperTradeCreate(BaseModel):
     thesis: str
     entry_price: float
     size_usd: float = Field(gt=0)
-    stop_loss_pct: float | None = None
-    take_profit_pct: float | None = None
-    decision_label: str | None = None
-    trigger_plan: str | None = None
-    invalidation_plan: str | None = None
-    execution_quality: int | None = None
+    stop_loss_pct: Optional[float] = None
+    take_profit_pct: Optional[float] = None
+    decision_label: Optional[str] = None
+    trigger_plan: Optional[str] = None
+    invalidation_plan: Optional[str] = None
+    execution_quality: Optional[int] = None
 
 
 class PaperTradeReviewCreate(BaseModel):
     close_reason: str
     outcome_tag: str
     execution_score: int = Field(ge=1, le=10)
-    notes: str | None = None
+    notes: Optional[str] = None
+
+
+class BacktestRunCreate(BaseModel):
+    strategy_id: str
+    dataset_path: Optional[str] = None
+    initial_equity: float = 100_000.0
+    risk_fraction: float = 0.10
+    fee_rate: float = 0.00055
+    run_validation: bool = True
+    build_paper_candidate: bool = False
+
+
+class AgentRunCreate(BaseModel):
+    strategy_id: str
+    runtime: str = "auto"
+    model: Optional[str] = None
+    codex_profile: Optional[str] = None
+    provider_order: Optional[str] = None
+    mission_id: Optional[str] = None
+
+
+def latest_backtest_payload(normalized_strategy_id: str, *, created: bool | None = None) -> dict[str, Any]:
+    report_path = latest_json(REPORTS_ROOT, f"{normalized_strategy_id}-")
+    validation_path = latest_json(VALIDATIONS_ROOT, f"{normalized_strategy_id}-")
+    paper_path = latest_json(PAPER_ROOT, f"{normalized_strategy_id}-")
+    if report_path is None:
+        raise HTTPException(status_code=404, detail=f"No backtest artifact found for {normalized_strategy_id}.")
+    payload = {
+        "strategyId": normalized_strategy_id,
+        "reportPath": str(report_path),
+        "validationPath": str(validation_path) if validation_path else None,
+        "paperPath": str(paper_path) if paper_path else None,
+        "report": safe_load_json(report_path),
+        "validation": safe_load_json(validation_path) if validation_path else None,
+        "paper": safe_load_json(paper_path) if paper_path else None,
+    }
+    if created is not None:
+        payload["created"] = created
+    return payload
 
 
 def db_connection() -> sqlite3.Connection:
@@ -178,7 +287,11 @@ def init_db() -> None:
             );
 
             CREATE INDEX IF NOT EXISTS idx_paper_signals_time ON paper_signals(created_at_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_paper_signals_symbol_setup_time ON paper_signals(symbol, setup_tag, created_at_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_paper_signals_status_time ON paper_signals(status, created_at_ms DESC);
             CREATE INDEX IF NOT EXISTS idx_paper_trades_time ON paper_trades(created_at_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_paper_trades_symbol_setup_time ON paper_trades(symbol, setup_tag, created_at_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_paper_trades_status_time ON paper_trades(status, created_at_ms DESC);
 
             CREATE TABLE IF NOT EXISTS paper_trade_reviews (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -192,6 +305,7 @@ def init_db() -> None:
             );
 
             CREATE INDEX IF NOT EXISTS idx_paper_trade_reviews_time ON paper_trade_reviews(reviewed_at_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_paper_trade_reviews_trade_id ON paper_trade_reviews(trade_id);
 
             """
         )
@@ -260,6 +374,54 @@ def persist_aggregate_snapshot(snapshot: dict[str, Any]) -> None:
             ),
         )
         connection.commit()
+
+
+def aggregate_chart_rows(hours: int) -> list[sqlite3.Row]:
+    now_ms = int(time.time() * 1000)
+    since_ms = now_ms - (hours * 3_600_000)
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT timestamp_ms, total_usd, longs_usd, shorts_usd
+            FROM aggregate_snapshots
+            WHERE timestamp_ms >= ?
+            ORDER BY timestamp_ms ASC
+            """,
+            (since_ms,),
+        ).fetchall()
+    return rows
+
+
+def chart_coverage_label(point_count: int, oldest_ms: int | None, newest_ms: int | None, hours: int) -> str:
+    if point_count < 2 or oldest_ms is None or newest_ms is None:
+        return "insufficient"
+    requested_ms = hours * 3_600_000
+    covered_ms = max(0, newest_ms - oldest_ms)
+    coverage_ratio = covered_ms / requested_ms if requested_ms > 0 else 0
+    if point_count >= 8 and coverage_ratio >= 0.75:
+        return "good"
+    return "thin"
+
+
+def aggregate_chart_payload(hours: int) -> dict[str, Any]:
+    rows = aggregate_chart_rows(hours)
+    oldest_ms = int(rows[0]["timestamp_ms"]) if rows else None
+    newest_ms = int(rows[-1]["timestamp_ms"]) if rows else None
+    return {
+        "timestamps": [iso_timestamp(row["timestamp_ms"]) for row in rows],
+        "longs": [row["longs_usd"] for row in rows],
+        "shorts": [row["shorts_usd"] for row in rows],
+        "total": [row["total_usd"] for row in rows],
+        "metadata": {
+            "windowHours": hours,
+            "pointCount": len(rows),
+            "oldestTimestamp": iso_timestamp(oldest_ms) if oldest_ms is not None else None,
+            "newestTimestamp": iso_timestamp(newest_ms) if newest_ms is not None else None,
+            "source": "sqlite_aggregate_snapshots",
+            "isEstimate": True,
+            "coverageLabel": chart_coverage_label(len(rows), oldest_ms, newest_ms, hours),
+        },
+    }
 
 
 def persist_alert(alert: dict[str, Any]) -> None:
@@ -422,6 +584,641 @@ def review_map() -> dict[int, dict[str, Any]]:
             "notes": row["notes"],
         }
         for row in rows
+    }
+
+
+def paper_trade_rows(limit: int = 100, status: str = "all") -> list[sqlite3.Row]:
+    query = "SELECT * FROM paper_trades"
+    params: list[Any] = []
+    if status in {"open", "closed"}:
+        query += " WHERE status = ?"
+        params.append(status)
+    query += " ORDER BY created_at_ms DESC LIMIT ?"
+    params.append(limit)
+    with db_connection() as connection:
+        return connection.execute(query, tuple(params)).fetchall()
+
+
+async def paper_trade_payloads(limit: int = 100, status: str = "all") -> list[dict[str, Any]]:
+    await ensure_overview_data()
+    prices = current_price_map()
+    reviews = review_map()
+    trades_payload = []
+    for row in paper_trade_rows(limit=limit, status=status):
+        payload = trade_mark_to_market(row, prices)
+        payload["review"] = reviews.get(payload["id"])
+        trades_payload.append(payload)
+    return trades_payload
+
+
+def paper_signal_payloads(limit: int = 500) -> list[dict[str, Any]]:
+    with db_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT * FROM paper_signals
+            ORDER BY created_at_ms DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "createdAt": row["created_at_ms"],
+            "symbol": row["symbol"],
+            "setupTag": row["setup_tag"],
+            "direction": row["direction"],
+            "confidence": row["confidence"],
+            "thesis": row["thesis"],
+            "entryPrice": row["entry_price"],
+            "invalidation": row["invalidation"],
+            "decisionLabel": row["decision_label"],
+            "triggerPlan": row["trigger_plan"],
+            "executionQuality": row["execution_quality"],
+            "status": row["status"],
+        }
+        for row in rows
+    ]
+
+
+def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def polymarket_trade_payloads(limit: int = 500) -> list[dict[str, Any]]:
+    with db_connection() as connection:
+        if not table_exists(connection, "polymarket_btc_5m_trades"):
+            return []
+        rows = connection.execute(
+            """
+            SELECT *
+            FROM polymarket_btc_5m_trades
+            ORDER BY created_at_ms DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "createdAt": row["created_at_ms"],
+            "mode": row["mode"],
+            "slug": row["slug"],
+            "eventId": row["event_id"],
+            "side": row["side"],
+            "status": row["status"],
+            "confidence": row["signal_confidence"],
+            "entryPrice": row["entry_price"],
+            "exitPrice": row["exit_price"],
+            "sizeUsd": row["size_usd"],
+            "shares": row["shares"],
+            "grossPnlUsd": row["gross_pnl_usd"],
+            "netPnlUsd": row["net_pnl_usd"],
+            "roiPct": row["roi_pct"],
+            "notes": row["notes"],
+        }
+        for row in rows
+    ]
+
+
+def strategy_key(strategy_id: str) -> str:
+    return f"strategy:{normalize_strategy_id(strategy_id)}"
+
+
+def runtime_key(symbol: str, setup_tag: str) -> str:
+    return f"runtime:{symbol.upper()}::{normalize_strategy_id(setup_tag)}"
+
+
+def normalize_strategy_id(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def docs_id_to_strategy_id(path: Path) -> str:
+    return normalize_strategy_id(path.stem)
+
+
+def make_strategy_row(strategy_id: str, *, display_name: str | None = None) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    return {
+        "strategyKey": strategy_key(normalized),
+        "strategyId": normalized,
+        "displayName": display_name or normalized.replace("_", " ").title(),
+        "symbol": None,
+        "setupTag": normalized,
+        "side": "n/a",
+        "stage": "research",
+        "sourceTypes": [],
+        "latestArtifactPaths": {
+            "docs": None,
+            "spec": None,
+            "backtest": None,
+            "validation": None,
+            "paper": None,
+        },
+        "validationStatus": None,
+        "evidenceCounts": {
+            "backtestTrades": 0,
+            "paperCandidates": 0,
+            "paperSignals": 0,
+            "paperTrades": 0,
+            "polymarketTrades": 0,
+            "runtimeSetups": 0,
+        },
+        "tradeCount": 0,
+        "openTrades": 0,
+        "closedTrades": 0,
+        "reviewableClosedTrades": 0,
+        "reviewedTrades": 0,
+        "wins": 0,
+        "notionalUsd": 0.0,
+        "realizedPnlUsd": 0.0,
+        "unrealizedPnlUsd": 0.0,
+        "totalPnlUsd": 0.0,
+        "openRiskUsd": 0.0,
+        "winRate": 0.0,
+        "reviewCoverage": 0.0,
+        "avgExecutionQuality": None,
+        "lastActivityAt": None,
+        "lastActivityLabel": None,
+        "decisionLabels": {},
+        "checklist": {
+            "docsExists": False,
+            "specExists": False,
+            "backendModuleExists": False,
+            "backtestExists": False,
+            "validationExists": False,
+            "paperCandidateExists": False,
+            "paperLedgerExists": False,
+            "reviewsComplete": False,
+        },
+        "missingAuditItems": [],
+        "trades": [],
+        "timeline": [],
+        "_executionQualityTotal": 0.0,
+        "_executionQualityCount": 0,
+    }
+
+
+def touch_strategy(row: dict[str, Any], timestamp_ms: int | None, label: str) -> None:
+    if timestamp_ms is None:
+        return
+    if row["lastActivityAt"] is None or timestamp_ms > row["lastActivityAt"]:
+        row["lastActivityAt"] = timestamp_ms
+        row["lastActivityLabel"] = label
+
+
+def add_source(row: dict[str, Any], source: str) -> None:
+    if source not in row["sourceTypes"]:
+        row["sourceTypes"].append(source)
+
+
+def add_timeline(row: dict[str, Any], item: dict[str, Any]) -> None:
+    row["timeline"].append(item)
+    touch_strategy(row, item.get("timestampMs"), item.get("title", item["type"]))
+
+
+def parse_time_ms(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        numeric = int(value)
+        return numeric if numeric > 10_000_000_000 else numeric * 1000
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    if cleaned.isdigit():
+        return parse_time_ms(int(cleaned))
+    try:
+        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return int(parsed.timestamp() * 1000)
+
+
+def safe_load_json(path: Path) -> dict[str, Any] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def latest_artifacts(root: Path) -> dict[str, tuple[Path, dict[str, Any]]]:
+    latest: dict[str, tuple[Path, dict[str, Any]]] = {}
+    if not root.exists():
+        return latest
+    for path in root.glob("*.json"):
+        payload = safe_load_json(path)
+        if not payload:
+            continue
+        strategy_id = normalize_strategy_id(str(payload.get("strategy_id") or path.stem.split("-")[0]))
+        current = latest.get(strategy_id)
+        if current is None or path.stat().st_mtime > current[0].stat().st_mtime:
+            latest[strategy_id] = (path, payload)
+    return latest
+
+
+def first_markdown_heading(path: Path) -> str | None:
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("# "):
+                return line[2:].strip()
+    except OSError:
+        return None
+    return None
+
+
+def summarize_db() -> dict[str, Any]:
+    db_file = Path(DB_PATH)
+    summary = {
+        "path": str(db_file),
+        "exists": db_file.exists(),
+        "sizeBytes": db_file.stat().st_size if db_file.exists() else 0,
+        "journalMode": None,
+        "tables": {},
+        "indexes": {
+            "paperTradesSymbolSetupTime": False,
+            "paperTradesStatusTime": False,
+            "paperReviewsTradeId": False,
+        },
+        "recommendation": "sqlite_wal_current_phase",
+        "migrationTrigger": "Move to Postgres/Timescale when continuous multi-worker writes, long retention analytics, or query latency becomes the bottleneck.",
+    }
+    with db_connection() as connection:
+        summary["journalMode"] = connection.execute("PRAGMA journal_mode").fetchone()[0]
+        for table_name in [
+            "market_snapshots",
+            "aggregate_snapshots",
+            "alerts",
+            "paper_signals",
+            "paper_trades",
+            "paper_trade_reviews",
+            "polymarket_btc_5m_trades",
+        ]:
+            if not table_exists(connection, table_name):
+                summary["tables"][table_name] = None
+                continue
+            summary["tables"][table_name] = connection.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+        index_names = {
+            row["name"]
+            for table_name in ["paper_trades", "paper_trade_reviews"]
+            for row in connection.execute(f"PRAGMA index_list({table_name})").fetchall()
+        }
+        summary["indexes"] = {
+            "paperTradesSymbolSetupTime": "idx_paper_trades_symbol_setup_time" in index_names,
+            "paperTradesStatusTime": "idx_paper_trades_status_time" in index_names,
+            "paperReviewsTradeId": "idx_paper_trade_reviews_trade_id" in index_names,
+        }
+    return summary
+
+
+def status_from_artifacts(row: dict[str, Any]) -> None:
+    checklist = row["checklist"]
+    if row["openTrades"] > 0 or row["evidenceCounts"]["paperTrades"] > 0:
+        row["stage"] = "paper_runtime"
+    elif row["evidenceCounts"]["runtimeSetups"] > 0:
+        row["stage"] = "runtime_setup"
+    elif checklist["paperCandidateExists"]:
+        row["stage"] = "paper_candidate"
+    elif row["validationStatus"] == "ready-for-paper":
+        row["stage"] = "validated"
+    elif checklist["validationExists"]:
+        row["stage"] = "validation_blocked"
+    elif checklist["backtestExists"]:
+        row["stage"] = "backtested"
+    elif checklist["backendModuleExists"] or checklist["docsExists"]:
+        row["stage"] = "research"
+    else:
+        row["stage"] = "unknown"
+
+    missing = []
+    if not checklist["docsExists"]:
+        missing.append("strategy_doc")
+    if not checklist["backendModuleExists"]:
+        missing.append("backend_module")
+    if not checklist["backtestExists"]:
+        missing.append("backtest_artifact")
+    if not checklist["validationExists"]:
+        missing.append("validation_artifact")
+    if not checklist["paperCandidateExists"]:
+        missing.append("paper_candidate")
+    if not checklist["paperLedgerExists"]:
+        missing.append("paper_runtime_ledger")
+    if row["reviewableClosedTrades"] > 0 and row["reviewCoverage"] < 80:
+        missing.append("post_trade_reviews")
+    row["missingAuditItems"] = missing
+
+
+def finalize_strategy_row(row: dict[str, Any]) -> dict[str, Any]:
+    closed = row["closedTrades"]
+    reviewable = row["reviewableClosedTrades"]
+    row["winRate"] = (row["wins"] / closed) * 100 if closed else 0.0
+    row["reviewCoverage"] = (row["reviewedTrades"] / reviewable) * 100 if reviewable else 0.0
+    row["checklist"]["paperLedgerExists"] = row["evidenceCounts"]["paperTrades"] > 0
+    row["checklist"]["reviewsComplete"] = row["reviewableClosedTrades"] == 0 or row["reviewCoverage"] >= 80
+    quality_count = row.pop("_executionQualityCount", 0)
+    quality_total = row.pop("_executionQualityTotal", 0.0)
+    row["avgExecutionQuality"] = round(quality_total / quality_count, 1) if quality_count else None
+    row["sourceTypes"].sort()
+    row["timeline"].sort(key=lambda item: item.get("timestampMs") or 0, reverse=True)
+    row["timeline"] = row["timeline"][:50]
+    row["trades"] = row["trades"][:25]
+    status_from_artifacts(row)
+    return row
+
+
+async def build_strategy_evidence(limit: int = 500, runtime_limit: int = 60) -> dict[str, Any]:
+    rows: dict[str, dict[str, Any]] = {}
+
+    def get_row(strategy_id: str, display_name: str | None = None) -> dict[str, Any]:
+        key = strategy_key(strategy_id)
+        if key not in rows:
+            rows[key] = make_strategy_row(strategy_id, display_name=display_name)
+        elif display_name and rows[key]["displayName"] == rows[key]["strategyId"].replace("_", " ").title():
+            rows[key]["displayName"] = display_name
+        return rows[key]
+
+    if DOCS_STRATEGIES_ROOT.exists():
+        for path in DOCS_STRATEGIES_ROOT.glob("*.md"):
+            strategy_id = docs_id_to_strategy_id(path)
+            row = get_row(strategy_id, first_markdown_heading(path))
+            add_source(row, "docs")
+            row["latestArtifactPaths"]["docs"] = str(path)
+            row["checklist"]["docsExists"] = True
+
+    if STRATEGIES_ROOT.exists():
+        for path in STRATEGIES_ROOT.iterdir():
+            if not path.is_dir() or path.name.startswith("__"):
+                continue
+            strategy_id = normalize_strategy_id(path.name)
+            row = get_row(strategy_id)
+            add_source(row, "backend_module")
+            row["checklist"]["backendModuleExists"] = (path / "logic.py").exists()
+            row["checklist"]["specExists"] = (path / "spec.md").exists()
+            row["latestArtifactPaths"]["spec"] = str(path / "spec.md") if (path / "spec.md").exists() else None
+
+    for artifact_type, root, source in [
+        ("backtest", REPORTS_ROOT, "backtest_artifact"),
+        ("validation", VALIDATIONS_ROOT, "validation_artifact"),
+        ("paper", PAPER_ROOT, "paper_candidate_artifact"),
+    ]:
+        for strategy_id, (path, payload) in latest_artifacts(root).items():
+            row = get_row(strategy_id)
+            add_source(row, source)
+            row["latestArtifactPaths"][artifact_type] = str(path)
+            generated_at = parse_time_ms(payload.get("generated_at")) or int(path.stat().st_mtime * 1000)
+            summary = payload.get("summary") or {}
+            if artifact_type == "backtest":
+                trades = payload.get("trades") or []
+                row["checklist"]["backtestExists"] = True
+                row["evidenceCounts"]["backtestTrades"] = len(trades)
+                row["tradeCount"] += len(trades)
+                row["closedTrades"] += len(trades)
+                row["wins"] += int(summary.get("wins") or sum(1 for trade in trades if (trade.get("net_pnl") or 0) > 0))
+                row["notionalUsd"] += sum(float(trade.get("size_usd") or 0.0) for trade in trades)
+                row["realizedPnlUsd"] += float(summary.get("net_profit") or sum(float(trade.get("net_pnl") or 0.0) for trade in trades))
+                row["totalPnlUsd"] += float(summary.get("net_profit") or 0.0)
+                for trade in trades[:12]:
+                    add_timeline(
+                        row,
+                        {
+                            "id": f"backtest:{strategy_id}:{trade.get('entry_timestamp')}",
+                            "type": "backtest_trade",
+                            "source": "json_artifact",
+                            "timestampMs": parse_time_ms(trade.get("entry_timestamp")),
+                            "title": f"Backtest {str(trade.get('side') or '').upper()}",
+                            "subtitle": trade.get("exit_reason") or "historical sample",
+                            "status": "closed",
+                            "pnlUsd": trade.get("net_pnl"),
+                            "entryPrice": trade.get("entry_price"),
+                            "exitPrice": trade.get("exit_price"),
+                            "path": str(path),
+                        },
+                    )
+            elif artifact_type == "validation":
+                row["checklist"]["validationExists"] = True
+                row["validationStatus"] = payload.get("status")
+                add_timeline(
+                    row,
+                    {
+                        "id": f"validation:{strategy_id}:{generated_at}",
+                        "type": "validation_report",
+                        "source": "json_artifact",
+                        "timestampMs": generated_at,
+                        "title": f"Validation {payload.get('status') or 'unknown'}",
+                        "subtitle": ", ".join(payload.get("blocking_reasons") or []) or "validation gates recorded",
+                        "status": payload.get("status") or "unknown",
+                        "path": str(path),
+                    },
+                )
+            else:
+                row["checklist"]["paperCandidateExists"] = True
+                row["evidenceCounts"]["paperCandidates"] += 1
+                candidate = payload.get("paper_candidate") or {}
+                add_timeline(
+                    row,
+                    {
+                        "id": f"paper-candidate:{strategy_id}:{generated_at}",
+                        "type": "paper_candidate",
+                        "source": "json_artifact",
+                        "timestampMs": generated_at,
+                        "title": f"Paper candidate {candidate.get('status') or 'created'}",
+                        "subtitle": candidate.get("trigger_plan") or candidate.get("promotion_gate") or "candidate evidence",
+                        "status": candidate.get("status") or "candidate",
+                        "path": str(path),
+                    },
+                )
+
+    paper_signals = paper_signal_payloads(limit=limit)
+    for signal in paper_signals:
+        key = runtime_key(signal["symbol"], signal["setupTag"])
+        row = rows.setdefault(key, make_strategy_row(key, display_name=f"{signal['symbol']} {signal['setupTag']}"))
+        row["strategyKey"] = key
+        row["strategyId"] = key
+        row["symbol"] = signal["symbol"]
+        row["setupTag"] = signal["setupTag"]
+        row["side"] = signal["direction"]
+        add_source(row, "sqlite_paper_signal")
+        row["evidenceCounts"]["paperSignals"] += 1
+        touch_strategy(row, signal["createdAt"], "paper signal")
+        add_timeline(
+            row,
+            {
+                "id": f"paper-signal:{signal['id']}",
+                "type": "paper_signal",
+                "source": "sqlite",
+                "timestampMs": signal["createdAt"],
+                "title": f"Signal {signal['direction'].upper()} {signal['symbol']}",
+                "subtitle": signal.get("triggerPlan") or signal.get("thesis"),
+                "status": signal["status"],
+                "entryPrice": signal.get("entryPrice"),
+            },
+        )
+
+    trades = await paper_trade_payloads(limit=limit)
+    for trade in trades:
+        key = runtime_key(trade["symbol"], trade["setupTag"])
+        row = rows.setdefault(key, make_strategy_row(key, display_name=f"{trade['symbol']} {trade['setupTag']}"))
+        row["strategyKey"] = key
+        row["strategyId"] = key
+        row["symbol"] = trade["symbol"]
+        row["setupTag"] = trade["setupTag"]
+        row["side"] = trade["side"]
+        add_source(row, "sqlite_paper_trade")
+        row["evidenceCounts"]["paperTrades"] += 1
+        row["tradeCount"] += 1
+        row["notionalUsd"] += float(trade.get("sizeUsd") or 0.0)
+        pnl = trade.get("realizedPnlUsd") if trade["status"] == "closed" else trade.get("unrealizedPnlUsd")
+        pnl = float(pnl or 0.0)
+        row["totalPnlUsd"] += pnl
+        label = trade.get("decisionLabel") or "unlabeled"
+        row["decisionLabels"][label] = row["decisionLabels"].get(label, 0) + 1
+        if trade.get("executionQuality") is not None:
+            row["_executionQualityTotal"] += float(trade["executionQuality"])
+            row["_executionQualityCount"] += 1
+        if trade["status"] == "open":
+            row["openTrades"] += 1
+            row["unrealizedPnlUsd"] += pnl
+            row["openRiskUsd"] += float(trade.get("sizeUsd") or 0.0)
+        else:
+            row["closedTrades"] += 1
+            row["reviewableClosedTrades"] += 1
+            row["realizedPnlUsd"] += pnl
+            if pnl > 0:
+                row["wins"] += 1
+            if trade.get("review"):
+                row["reviewedTrades"] += 1
+        row["trades"].append(trade)
+        add_timeline(
+            row,
+            {
+                "id": f"paper-trade:{trade['id']}",
+                "type": "paper_trade",
+                "source": "sqlite",
+                "timestampMs": trade["createdAt"],
+                "title": f"Paper {trade['side'].upper()} {trade['symbol']}",
+                "subtitle": trade.get("triggerPlan") or trade.get("thesis"),
+                "status": trade["status"],
+                "pnlUsd": pnl,
+                "entryPrice": trade.get("entryPrice"),
+                "exitPrice": trade.get("exitPrice"),
+                "review": trade.get("review"),
+            },
+        )
+
+    polymarket_trades = polymarket_trade_payloads(limit=limit)
+    if polymarket_trades:
+        row = get_row("polymarket_btc_5m_runtime", "Polymarket BTC 5m Runtime")
+        row["symbol"] = "BTC"
+        row["setupTag"] = "polymarket-btc-5m"
+        row["side"] = "binary"
+        add_source(row, "sqlite_polymarket_trade")
+        for trade in polymarket_trades:
+            row["evidenceCounts"]["polymarketTrades"] += 1
+            row["tradeCount"] += 1
+            row["notionalUsd"] += float(trade.get("sizeUsd") or 0.0)
+            pnl = float(trade.get("netPnlUsd") or 0.0)
+            row["totalPnlUsd"] += pnl
+            row["realizedPnlUsd"] += pnl
+            row["closedTrades"] += 1 if trade.get("status") in {"closed", "settled"} else 0
+            row["openTrades"] += 1 if trade.get("status") not in {"closed", "settled"} else 0
+            if pnl > 0:
+                row["wins"] += 1
+            add_timeline(
+                row,
+                {
+                    "id": f"polymarket-trade:{trade['id']}",
+                    "type": "polymarket_trade",
+                    "source": "sqlite",
+                    "timestampMs": trade["createdAt"],
+                    "title": f"Polymarket {str(trade.get('side') or '').upper()}",
+                    "subtitle": trade.get("slug") or trade.get("notes") or "BTC 5m runtime trade",
+                    "status": trade.get("status"),
+                    "pnlUsd": pnl,
+                    "entryPrice": trade.get("entryPrice"),
+                    "exitPrice": trade.get("exitPrice"),
+                },
+            )
+
+    runtime_error = None
+    try:
+        overview_payload = await ensure_overview_data()
+        runtime_markets = [
+            item for item in overview_payload.get("markets", [])
+            if item.get("primarySetup") and item.get("primarySetup") != "no-trade"
+        ][:runtime_limit]
+        for market in runtime_markets:
+            key = runtime_key(market["symbol"], market.get("primarySetup", "runtime-setup"))
+            row = rows.setdefault(key, make_strategy_row(key, display_name=f"{market['symbol']} {market.get('primarySetup')}"))
+            row["strategyKey"] = key
+            row["strategyId"] = key
+            row["symbol"] = market["symbol"]
+            row["setupTag"] = market.get("primarySetup")
+            row["side"] = setup_direction(market.get("primarySetup", "no-trade"), market)
+            add_source(row, "gateway_runtime")
+            row["evidenceCounts"]["runtimeSetups"] += 1
+            row["stage"] = "runtime_setup"
+            if market.get("executionQuality") is not None:
+                row["_executionQualityTotal"] += float(market["executionQuality"])
+                row["_executionQualityCount"] += 1
+            add_timeline(
+                row,
+                {
+                    "id": f"runtime-setup:{market['symbol']}:{market.get('primarySetup')}",
+                    "type": "runtime_setup",
+                    "source": "gateway_live",
+                    "timestampMs": overview_payload.get("updatedAt"),
+                    "title": f"{market['symbol']} {market.get('primarySetup')}",
+                    "subtitle": market.get("triggerPlan"),
+                    "status": market.get("decisionLabel"),
+                    "entryPrice": market.get("price"),
+                    "executionQuality": market.get("executionQuality"),
+                },
+            )
+    except Exception as exc:  # keep artifact audit usable when upstream is flaky
+        runtime_error = str(exc)
+
+    finalized = [finalize_strategy_row(row) for row in rows.values()]
+    finalized.sort(
+        key=lambda item: (
+            item["stage"] in {"paper_runtime", "runtime_setup"},
+            item["tradeCount"],
+            item["lastActivityAt"] or 0,
+            item["displayName"],
+        ),
+        reverse=True,
+    )
+    closed_trades = sum(item["closedTrades"] for item in finalized)
+    reviewable_closed_trades = sum(item["reviewableClosedTrades"] for item in finalized)
+    reviewed_trades = sum(item["reviewedTrades"] for item in finalized)
+    return {
+        "updatedAt": int(time.time() * 1000),
+        "summary": {
+            "strategyCount": len(finalized),
+            "tradeCount": sum(item["tradeCount"] for item in finalized),
+            "backtestTrades": sum(item["evidenceCounts"]["backtestTrades"] for item in finalized),
+            "paperSignals": sum(item["evidenceCounts"]["paperSignals"] for item in finalized),
+            "paperTrades": sum(item["evidenceCounts"]["paperTrades"] for item in finalized),
+            "polymarketTrades": sum(item["evidenceCounts"]["polymarketTrades"] for item in finalized),
+            "runtimeSetups": sum(item["evidenceCounts"]["runtimeSetups"] for item in finalized),
+            "openTrades": sum(item["openTrades"] for item in finalized),
+            "closedTrades": closed_trades,
+            "reviewableClosedTrades": reviewable_closed_trades,
+            "reviewedTrades": reviewed_trades,
+            "reviewCoverage": (reviewed_trades / reviewable_closed_trades) * 100 if reviewable_closed_trades else 0.0,
+            "totalPnlUsd": sum(item["totalPnlUsd"] for item in finalized),
+            "openRiskUsd": sum(item["openRiskUsd"] for item in finalized),
+        },
+        "database": summarize_db(),
+        "runtimeError": runtime_error,
+        "strategies": finalized,
     }
 
 
@@ -1163,6 +1960,65 @@ async def health() -> dict[str, Any]:
     }
 
 
+@app.get("/api/ai/status")
+async def ai_status() -> dict[str, Any]:
+    return provider_status()
+
+
+@app.post("/api/ai/test")
+async def ai_test() -> dict[str, Any]:
+    return await test_ai_provider()
+
+
+@app.get("/calendar/this-week")
+async def calendar_this_week(days: int = Query(default=7, ge=1, le=21), refresh: bool = Query(default=False)) -> dict[str, Any]:
+    return await get_calendar_week(days=days, force=refresh)
+
+
+@app.get("/calendar/analysis")
+async def calendar_analysis(days: int = Query(default=7, ge=1, le=21), refresh: bool = Query(default=False)) -> dict[str, Any]:
+    return await get_calendar_analysis(days=days, force=refresh)
+
+
+@app.get("/calendar/news")
+async def calendar_news(days: int = Query(default=7, ge=1, le=21), refresh: bool = Query(default=False)) -> dict[str, Any]:
+    return await get_macro_news(days=days, force=refresh)
+
+
+@app.get("/calendar/holidays")
+async def calendar_holidays(
+    countries: str = Query(default="US,CL,GB,JP,DE"),
+    days: int = Query(default=14, ge=1, le=60),
+    refresh: bool = Query(default=False),
+) -> dict[str, Any]:
+    country_list = [item.strip().upper() for item in countries.split(",") if item.strip()]
+    return await get_bank_holidays(countries=country_list, days=days, force=refresh)
+
+
+@app.get("/calendar/weekly-brief")
+async def calendar_weekly_brief(days: int = Query(default=7, ge=1, le=21), refresh: bool = Query(default=False)) -> dict[str, Any]:
+    return await get_weekly_brief(days=days, force=refresh)
+
+
+@app.post("/calendar/refresh")
+async def calendar_refresh(days: int = Query(default=7, ge=1, le=21)) -> dict[str, Any]:
+    calendar, analysis, news, holidays, brief = await asyncio.gather(
+        get_calendar_week(days=days, force=True),
+        get_calendar_analysis(days=days, force=True),
+        get_macro_news(days=days, force=True),
+        get_bank_holidays(days=days, force=True),
+        get_weekly_brief(days=days, force=True),
+    )
+    return {
+        "success": True,
+        "calendar": calendar,
+        "analysis": analysis,
+        "news": news,
+        "holidays": holidays,
+        "brief": brief,
+    }
+
+
 @app.get("/api/hyperliquid/overview")
 async def overview(limit: int = Query(default=40, ge=5, le=150)) -> dict[str, Any]:
     payload = await ensure_overview_data()
@@ -1190,6 +2046,257 @@ async def watchlist(limit: int = Query(default=18, ge=6, le=60)) -> dict[str, An
         "squeezeWatch": [item for item in ranked if item.get("primarySetup") in {"short-squeeze", "long-flush"}][:limit],
         "breakoutWatch": [item for item in ranked if item.get("primarySetup") == "breakout-continuation"][:limit],
         "fadeWatch": [item for item in ranked if item.get("primarySetup") == "fade"][:limit],
+    }
+
+
+@app.get("/api/hyperliquid/backtests/status")
+async def backtests_status() -> dict[str, Any]:
+    return build_status_snapshot()
+
+
+@app.get("/api/hyperliquid/agent-runs")
+async def agent_runs(strategy: Optional[str] = None, limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
+    runs = list_agent_runs(strategy_id=strategy, limit=limit)
+    return {
+        "updatedAt": int(time.time() * 1000),
+        "strategyId": normalize_strategy_id(strategy) if strategy else None,
+        "count": len(runs),
+        "runs": runs,
+    }
+
+
+@app.get("/api/hyperliquid/agent-runtime/status")
+async def agent_runtime() -> dict[str, Any]:
+    return agent_runtime_status()
+
+
+def agent_run_response(result: dict[str, Any], *, mission_id: str | None = None, created: bool = True) -> dict[str, Any]:
+    payload = result["payload"]
+    decision = payload.get("decision") or {}
+    return {
+        "created": created,
+        "missionId": mission_id,
+        "runPath": str(result["run_path"]),
+        "runId": payload.get("run_id"),
+        "strategyId": payload.get("strategy_id"),
+        "mode": payload.get("mode"),
+        "runtimeMode": (payload.get("ai") or {}).get("runtime_mode"),
+        "runtimeProvider": (payload.get("ai") or {}).get("provider", "deterministic"),
+        "recommendation": decision.get("recommendation"),
+        "promotionAllowed": decision.get("promotion_allowed", False),
+        "blockerCount": len(decision.get("blockers") or []),
+        "recommendedCommands": decision.get("recommended_commands") or [],
+        "agentRun": payload,
+    }
+
+
+@app.post("/api/hyperliquid/agent-runs/research")
+async def create_agent_research(request: AgentRunCreate) -> dict[str, Any]:
+    normalized = normalize_strategy_id(request.strategy_id)
+    try:
+        result = await asyncio.to_thread(
+            run_agent_research,
+            normalized,
+            provider_order=request.provider_order,
+            model=request.model,
+            runtime=request.runtime,
+            codex_profile=request.codex_profile,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return agent_run_response(result, mission_id=request.mission_id)
+
+
+@app.post("/api/hyperliquid/agent-runs/audit")
+async def create_agent_audit(request: AgentRunCreate) -> dict[str, Any]:
+    normalized = normalize_strategy_id(request.strategy_id)
+    try:
+        result = await asyncio.to_thread(
+            run_agent_audit,
+            normalized,
+            provider_order=request.provider_order,
+            model=request.model,
+            runtime=request.runtime,
+            codex_profile=request.codex_profile,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return agent_run_response(result, mission_id=request.mission_id)
+
+
+@app.get("/api/hyperliquid/agent-runs/{run_id}")
+async def agent_run_detail(run_id: str) -> dict[str, Any]:
+    try:
+        payload = load_agent_run(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"No agent run found for {run_id}.")
+    return payload
+
+
+@app.get("/api/hyperliquid/agent-runs/strategy/{strategy_id}/latest")
+async def latest_agent_run(strategy_id: str) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    payload = latest_agent_run_payload(normalized)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"No agent run found for {normalized}.")
+    status = build_status_snapshot()
+    strategy_status_row = next(
+        (row for row in status.get("strategy_status", []) if row.get("strategy_id") == normalized),
+        None,
+    )
+    return {
+        "strategyId": normalized,
+        "agentRun": payload,
+        "strategyStatus": strategy_status_row,
+        "comparison": {
+            "agentRecommendation": payload.get("decision", {}).get("recommendation"),
+            "agentPromotionAllowed": payload.get("decision", {}).get("promotion_allowed", False),
+            "backendPromotionStage": strategy_status_row.get("promotion_stage") if strategy_status_row else "unknown",
+            "recommendedCommands": payload.get("decision", {}).get("recommended_commands") or [],
+            "validationGaps": payload.get("decision", {}).get("validation_gaps") or [],
+        },
+    }
+
+
+@app.get("/api/hyperliquid/backtests/{strategy_id}/latest")
+async def latest_backtest(strategy_id: str) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    return latest_backtest_payload(normalized)
+
+
+@app.post("/api/hyperliquid/backtests/{strategy_id}/ensure")
+async def ensure_strategy_backtest(
+    strategy_id: str,
+    run_validation: bool = Query(default=True),
+    build_paper_candidate: bool = Query(default=True),
+) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    if latest_json(REPORTS_ROOT, f"{normalized}-") is not None:
+        return latest_backtest_payload(normalized, created=False)
+    if normalized not in available_strategies():
+        raise HTTPException(status_code=400, detail=f"Strategy {normalized} is not registered for backend backtesting.")
+
+    try:
+        result = await asyncio.to_thread(
+            run_backtest_workflow,
+            strategy_id=normalized,
+            dataset_path=None,
+            config=BacktestConfig(),
+        )
+        validation_result = None
+        if run_validation:
+            validation_result = await asyncio.to_thread(
+                validate_strategy_workflow,
+                strategy_id=normalized,
+                report_path=result["report_path"],
+            )
+        if build_paper_candidate:
+            await asyncio.to_thread(
+                build_paper_workflow,
+                strategy_id=normalized,
+                report_path=result["report_path"],
+                validation_path=validation_result["validation_path"] if validation_result else None,
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return latest_backtest_payload(normalized, created=True)
+
+
+@app.post("/api/hyperliquid/backtests/run")
+async def run_strategy_backtest(payload: BacktestRunCreate) -> dict[str, Any]:
+    normalized = normalize_strategy_id(payload.strategy_id)
+    if normalized not in available_strategies():
+        raise HTTPException(status_code=400, detail=f"Strategy {normalized} is not registered for backend backtesting.")
+
+    try:
+        result = await asyncio.to_thread(
+            run_backtest_workflow,
+            strategy_id=normalized,
+            dataset_path=Path(payload.dataset_path) if payload.dataset_path else None,
+            config=BacktestConfig(
+                initial_equity=payload.initial_equity,
+                fee_rate=payload.fee_rate,
+                risk_fraction=payload.risk_fraction,
+            ),
+        )
+        validation_result = None
+        paper_result = None
+        if payload.run_validation:
+            validation_result = await asyncio.to_thread(
+                validate_strategy_workflow,
+                strategy_id=normalized,
+                report_path=result["report_path"],
+            )
+        if payload.build_paper_candidate:
+            paper_result = await asyncio.to_thread(
+                build_paper_workflow,
+                strategy_id=normalized,
+                report_path=result["report_path"],
+                validation_path=validation_result["validation_path"] if validation_result else None,
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "strategyId": normalized,
+        "reportPath": str(result["report_path"]),
+        "validationPath": str(validation_result["validation_path"]) if validation_result else None,
+        "paperPath": str(paper_result["paper_path"]) if paper_result else None,
+        "summary": result["payload"].get("summary"),
+        "validation": validation_result["payload"] if validation_result else None,
+        "paper": paper_result["payload"] if paper_result else None,
+    }
+
+
+@app.post("/api/hyperliquid/backtests/run-all")
+async def run_all_strategy_backtests(
+    run_validation: bool = Query(default=True),
+    build_paper_candidate: bool = Query(default=False),
+) -> dict[str, Any]:
+    results = []
+    for strategy_id in available_strategies():
+        item: dict[str, Any] = {"strategyId": strategy_id, "success": False}
+        try:
+            result = await asyncio.to_thread(
+                run_backtest_workflow,
+                strategy_id=strategy_id,
+                dataset_path=None,
+                config=BacktestConfig(),
+            )
+            item.update(
+                {
+                    "success": True,
+                    "reportPath": str(result["report_path"]),
+                    "summary": result["payload"].get("summary"),
+                }
+            )
+            validation_result = None
+            if run_validation:
+                validation_result = await asyncio.to_thread(
+                    validate_strategy_workflow,
+                    strategy_id=strategy_id,
+                    report_path=result["report_path"],
+                )
+                item["validationPath"] = str(validation_result["validation_path"])
+                item["validationStatus"] = validation_result["payload"].get("status")
+            if build_paper_candidate:
+                paper_result = await asyncio.to_thread(
+                    build_paper_workflow,
+                    strategy_id=strategy_id,
+                    report_path=result["report_path"],
+                    validation_path=validation_result["validation_path"] if validation_result else None,
+                )
+                item["paperPath"] = str(paper_result["paper_path"])
+        except Exception as exc:
+            item["error"] = str(exc)
+        results.append(item)
+    return {
+        "success": all(item.get("success") for item in results),
+        "results": results,
     }
 
 
@@ -1305,23 +2412,12 @@ async def seed_paper_signals(limit: int = Query(default=6, ge=3, le=12)) -> dict
 
 @app.get("/api/hyperliquid/paper/trades")
 async def paper_trades(status: str = Query(default="all")) -> dict[str, Any]:
-    await ensure_overview_data()
-    prices = current_price_map()
-    reviews = review_map()
-    query = "SELECT * FROM paper_trades"
-    params: tuple[Any, ...] = ()
-    if status in {"open", "closed"}:
-        query += " WHERE status = ?"
-        params = (status,)
-    query += " ORDER BY created_at_ms DESC LIMIT 100"
-    with db_connection() as connection:
-        rows = connection.execute(query, params).fetchall()
-    trades_payload = []
-    for row in rows:
-        payload = trade_mark_to_market(row, prices)
-        payload["review"] = reviews.get(payload["id"])
-        trades_payload.append(payload)
-    return {"trades": trades_payload}
+    return {"trades": await paper_trade_payloads(status=status)}
+
+
+@app.get("/api/hyperliquid/strategy-audit")
+async def strategy_audit(limit: int = Query(default=200, ge=20, le=500)) -> dict[str, Any]:
+    return await build_strategy_evidence(limit=limit)
 
 
 @app.post("/api/hyperliquid/paper/trades")
@@ -1701,17 +2797,7 @@ async def liquidations_alerts(limit: int = Query(default=20, ge=5, le=100)) -> d
 async def liquidations_chart_data(hours: int = Query(default=24, ge=1, le=72)) -> dict[str, Any]:
     if not aggregate_history:
         await ensure_overview_data()
-    max_points = max(8, min(MAX_HISTORY_POINTS, hours * 5))
-    entries = list(aggregate_history)[-max_points:]
-    return {
-        "success": True,
-        "data": {
-            "timestamps": [iso_timestamp(item["timestamp"]) for item in entries],
-            "longs": [item["longs_usd"] for item in entries],
-            "shorts": [item["shorts_usd"] for item in entries],
-            "total": [item["total_usd"] for item in entries],
-        },
-    }
+    return {"success": True, "data": aggregate_chart_payload(hours)}
 
 
 @app.get("/api/liquidations/insights")

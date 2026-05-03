@@ -1,6 +1,6 @@
 import type { AgentProfile } from '../types/agents';
 import type { Workspace } from '../types/electron';
-import type { CommanderTask, TaskRun } from '../types/tasks';
+import type { ApprovedMission, CommanderTask, TaskRun } from '../types/tasks';
 import { getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from './agentRuntime';
 import { formatRoleLabel, getRoleOperatingBrief } from './missionControl';
 import { launchProfileSequence } from './workspaceLaunch';
@@ -94,6 +94,7 @@ export function launchAgentRun(
   params: {
     task: CommanderTask;
     agent: AgentProfile;
+    approvedMission?: ApprovedMission;
     summaryPrefix?: string;
     forceDirectLaunch?: boolean;
     stageIndex?: number;
@@ -101,11 +102,11 @@ export function launchAgentRun(
   }
 ): TaskRun {
   const { workspace, createTerminal, createRun, updateRun } = dependencies;
-  const { task, agent, summaryPrefix, forceDirectLaunch = false, stageIndex, stageLabel } = params;
+  const { task, agent, approvedMission, summaryPrefix, forceDirectLaunch = false, stageIndex, stageLabel } = params;
   const providerMeta = getProviderMeta(agent.provider);
   const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
   const runtimeCommand = resolveAgentRuntimeCommand(agent.provider, runtimeShell);
-  const missionPrompt = buildMissionPrompt(task, agent, workspace);
+  const missionPrompt = approvedMission?.finalPrompt || buildMissionPrompt(task, agent, workspace);
 
   const run = createRun({
     taskId: task.id,
@@ -121,7 +122,9 @@ export function launchAgentRun(
     launchState: 'launching',
     summary: summaryPrefix
       ? `${summaryPrefix} ${providerMeta.label} for ${agent.name}`
-      : `${providerMeta.label} selected for ${agent.name}`,
+      : approvedMission
+        ? `${providerMeta.label} approved for ${approvedMission.title}`
+        : `${providerMeta.label} selected for ${agent.name}`,
     terminalIds: []
   });
 

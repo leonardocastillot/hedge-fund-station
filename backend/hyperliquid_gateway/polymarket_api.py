@@ -8,26 +8,42 @@ import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from strategies.polymarket_btc_updown_5m_oracle_lag import (
-    apply_signal_confirmation,
-    calculate_position_size,
-    calculate_realized_pnl,
-    check_session_killswitch,
-    entry_allowed,
-    estimate_fee_pct,
-    evaluate_signal,
-    session_roi,
-    side_entry_price,
-)
-from logger import logger, log_trade_event, log_signal_evaluation, log_risk_event
-from retry import retry_async
-from circuit_breaker import clob_circuit, CircuitState
+try:
+    from .strategies.polymarket_btc_updown_5m_oracle_lag import (
+        apply_signal_confirmation,
+        calculate_position_size,
+        calculate_realized_pnl,
+        check_session_killswitch,
+        entry_allowed,
+        estimate_fee_pct,
+        evaluate_signal,
+        session_roi,
+        side_entry_price,
+    )
+    from .logger import logger, log_trade_event, log_signal_evaluation, log_risk_event
+    from .retry import retry_async
+    from .circuit_breaker import clob_circuit, CircuitState
+except ImportError:
+    from strategies.polymarket_btc_updown_5m_oracle_lag import (
+        apply_signal_confirmation,
+        calculate_position_size,
+        calculate_realized_pnl,
+        check_session_killswitch,
+        entry_allowed,
+        estimate_fee_pct,
+        evaluate_signal,
+        session_roi,
+        side_entry_price,
+    )
+    from logger import logger, log_trade_event, log_signal_evaluation, log_risk_event
+    from retry import retry_async
+    from circuit_breaker import clob_circuit, CircuitState
 
 
 TIMEOUT_SECONDS = float(os.getenv("HYPERLIQUID_TIMEOUT", "12"))
@@ -90,8 +106,8 @@ BTC_5M_LIVE_PILOT_CONFIG: dict[str, Any] = {
 class PolymarketBtc5mRunRequest(BaseModel):
     slug: str = "btc-updown-5m-1773548700"
     mode: str = Field(default="dry-run", pattern="^(dry-run|live)$")
-    basis_bps: float | None = None
-    balance_usd: float | None = Field(default=None)
+    basis_bps: Optional[float] = None
+    balance_usd: Optional[float] = Field(default=None)
     stake_pct: float = Field(default=100.0, gt=0, le=100)
     max_notional_usd: float = Field(default=12.0, gt=0)
     safety_margin_pct: float = Field(default=0.10, ge=0)
@@ -103,7 +119,7 @@ class PolymarketBtc5mRunRequest(BaseModel):
 
 class PolymarketBtc5mAutoRequest(BaseModel):
     mode: str = Field(default="dry-run", pattern="^(dry-run|live)$")
-    balance_usd: float | None = Field(default=None)
+    balance_usd: Optional[float] = Field(default=None)
     stake_pct: float = Field(default=100.0, gt=0, le=100)
     max_notional_usd: float = Field(default=1.0, gt=0)
     safety_margin_pct: float = Field(default=0.10, ge=0)
@@ -115,7 +131,7 @@ class PolymarketBtc5mAutoRequest(BaseModel):
 
 
 class PolymarketBtc5mCloseRequest(BaseModel):
-    settlement_price: float | None = Field(default=None, ge=0, le=1)
+    settlement_price: Optional[float] = Field(default=None, ge=0, le=1)
 
 
 def db_connection() -> sqlite3.Connection:
@@ -1554,7 +1570,7 @@ async def resolve_effective_balance_usd(balance_usd: float | None, allow_zero: b
 
 
 @router.get("/api/polymarket/btc-5m/status")
-async def polymarket_btc_5m_status(balance_usd: float | None = Query(default=None)) -> dict[str, Any]:
+async def polymarket_btc_5m_status(balance_usd: Optional[float] = Query(default=None)) -> dict[str, Any]:
     effective_balance_usd = await resolve_effective_balance_usd(balance_usd, allow_zero=True)
     resolved_market_slug = DEFAULT_POLYMARKET_MARKET_SLUG
     resolved_market_snapshot = None

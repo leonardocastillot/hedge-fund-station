@@ -5,10 +5,11 @@
 This app currently depends on two backend services with different responsibilities:
 
 - `backend/hyperliquid_gateway/`
-  - host URL: `http://127.0.0.1:18001`
-  - Docker map: host `18001` -> container `18400`
-  - owns live market overview, liquidations, polymarket, paper signals, paper trades, session analytics
-- `C:\Users\leonard\Documents\trading\backend`
+  - app-facing URL: `http://127.0.0.1:18500`
+  - Docker direct map: host `18001` -> container `18400`
+  - tunnel/process tooling may bridge `18500` to the active gateway runtime
+  - owns live market overview, liquidations, polymarket, paper signals, paper trades, session analytics, macro calendar, macro news, bank holidays, and weekly macro briefs
+- legacy trading backend
   - host URL: `http://127.0.0.1:18000`
   - Docker map: host `18000` -> container `8000`
   - owns economic calendar scraping, legacy strategy cache, backtest history, portfolio deployments
@@ -18,7 +19,9 @@ This app currently depends on two backend services with different responsibiliti
 - Dashboard / Hyperliquid views / liquidations:
   - primary service: Hyperliquid gateway
 - Economic calendar:
-  - primary service: legacy trading backend
+  - primary service: Hyperliquid gateway / alpha engine at `http://127.0.0.1:18500`
+  - source: Forex Factory weekly JSON when available
+  - fallback: deterministic macro risk markers with an explicit warning when Forex Factory is rate-limited or unavailable
 - Strategy library:
   - primary service: legacy trading backend
   - fallback: Hyperliquid gateway market overview
@@ -36,12 +39,18 @@ This app currently depends on two backend services with different responsibiliti
 - Hyperliquid implementation: `backend/hyperliquid_gateway/app.py`
 - legacy runtime bootstrap: `electron/main/index.ts`
 - backend status indicator: `src/components/electron/BackendStatus.tsx`
+- port and environment convention: `docs/project-architecture.md`
+- macro intelligence provider logic: `backend/hyperliquid_gateway/macro_intelligence.py`
 
 ## Rules for agents
 
 - Do not collapse both backends into one mental model.
-- Do not point every page at `18001` just because it is the backend inside this repo.
-- Do not point new UI at `localhost:8000`; use the explicit host ports `18000` and `18001`.
+- Do not point every page at `18001` just because Docker exposes the gateway there.
+- Do not point new UI at `localhost:8000`; use the explicit app-facing ports
+  `18500` for the Hyperliquid gateway and `18000` for the legacy backend.
+- Do not treat an empty macro calendar as low risk when the payload includes a
+  provider warning. Forex Factory can rate-limit VM traffic; the fallback is a
+  risk marker, not scheduled release data.
 - If a feature still belongs to the legacy backend, either:
   1. keep the contract explicit, or
   2. migrate the capability into `backend/hyperliquid_gateway/` and then switch the UI.

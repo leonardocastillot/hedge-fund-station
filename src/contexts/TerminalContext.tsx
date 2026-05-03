@@ -88,12 +88,7 @@ function loadPersistedSessions(): TerminalSession[] {
                 : session.currentCommand === 'gemini.cmd'
                   ? 'gemini'
                   : session.currentCommand,
-            runtimeState:
-              session.runtimeState === 'pending'
-                ? 'launching'
-                : session.runtimeState === 'booted'
-                  ? 'ready'
-                  : session.runtimeState,
+            runtimeState: normalizeRuntimeState(session.runtimeState),
             runtimeDetail: session.runtimeDetail && /launching (codex\.cmd|claude\.exe|gemini\.cmd)/i.test(session.runtimeDetail)
               ? 'Reattached terminal session'
               : session.runtimeDetail,
@@ -106,6 +101,16 @@ function loadPersistedSessions(): TerminalSession[] {
     console.error('Failed to load persisted terminal sessions:', error);
   }
   return [];
+}
+
+function normalizeRuntimeState(state: TerminalSession['runtimeState'] | 'pending' | 'booted'): TerminalSession['runtimeState'] {
+  if (state === 'pending') {
+    return 'launching';
+  }
+  if (state === 'booted') {
+    return 'ready';
+  }
+  return state;
 }
 
 function saveSessionsToStorage(sessions: TerminalSession[]): void {

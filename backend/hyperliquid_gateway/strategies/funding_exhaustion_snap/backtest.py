@@ -7,8 +7,12 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ...backtesting.engine import BacktestConfig
-from ...backtesting.metrics import build_summary
+try:
+    from ...backtesting.engine import BacktestConfig
+    from ...backtesting.metrics import build_summary
+except ImportError:
+    from backtesting.engine import BacktestConfig
+    from backtesting.metrics import build_summary
 from .logic import calculate_funding_percentile, evaluate_signal
 from .paper import generate_invalidation_plan, generate_paper_trade_thesis, generate_trigger_plan
 from .risk import calculate_position_size

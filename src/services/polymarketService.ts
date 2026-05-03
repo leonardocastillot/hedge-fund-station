@@ -2,7 +2,7 @@
  * Polymarket Service - API client para Polymarket arbitrage
  */
 
-import { GATEWAY_HTTP_URL } from './backendConfig';
+import { ALPHA_ENGINE_HTTP_URL } from './backendConfig';
 
 const DEFAULT_POLYMARKET_BACKEND_URL = 'http://127.0.0.1:18500';
 
@@ -20,9 +20,9 @@ const POLYMARKET_PRIMARY_API_URL = normalizeApiBaseUrl(
   import.meta.env.VITE_POLYMARKET_BACKEND_URL ||
   DEFAULT_POLYMARKET_BACKEND_URL
 );
-const POLYMARKET_FALLBACK_API_URL = normalizeApiBaseUrl(GATEWAY_HTTP_URL);
+const POLYMARKET_FALLBACK_API_URL = normalizeApiBaseUrl(ALPHA_ENGINE_HTTP_URL);
 const POLYMARKET_API_URLS = Array.from(new Set([POLYMARKET_PRIMARY_API_URL, POLYMARKET_FALLBACK_API_URL]));
-const API_URL = trimTrailingSlash(GATEWAY_HTTP_URL);
+const API_URL = trimTrailingSlash(ALPHA_ENGINE_HTTP_URL);
 
 async function fetchJsonWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs: number = 20_000) {
   const controller = new AbortController();
@@ -47,6 +47,12 @@ async function fetchPolymarketJson(path: string, init?: RequestInit, timeoutMs =
     lastError = new Error(`HTTP error! status: ${response.status}`);
   }
   throw lastError || new Error('Unable to reach a Polymarket backend');
+}
+
+function blockedAuditMutation(operation: string): never {
+  const message = `${operation} is blocked by the desktop read-only audit guard. Use the backend/VM directly after security review.`;
+  console.warn(`[Audit Guard] ${message}`);
+  throw new Error(message);
 }
 
 export interface PolymarketStats {
@@ -406,6 +412,8 @@ class PolymarketService {
   private shouldReconnect = false;
 
   async startValidation(durationHours: number = 24): Promise<any> {
+    void durationHours;
+    blockedAuditMutation('Polymarket validation start');
     const response = await fetch(`${API_URL}/api/polymarket/start?duration_hours=${durationHours}`, {
       method: 'POST'
     });
@@ -413,6 +421,7 @@ class PolymarketService {
   }
 
   async stopValidation(): Promise<any> {
+    blockedAuditMutation('Polymarket validation stop');
     const response = await fetch(`${API_URL}/api/polymarket/stop`, {
       method: 'POST'
     });
@@ -566,6 +575,8 @@ class PolymarketService {
     max_seconds_to_expiry: number;
     require_full_fill?: boolean;
   }): Promise<PolymarketBtc5mRunResult> {
+    void payload;
+    blockedAuditMutation('Polymarket BTC 5m run-once');
     const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/run-once`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -579,6 +590,9 @@ class PolymarketService {
   }
 
   async closeBtc5mTrade(tradeId: number, settlementPrice?: number | null): Promise<any> {
+    void tradeId;
+    void settlementPrice;
+    blockedAuditMutation('Polymarket BTC 5m trade close');
     const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/trades/${tradeId}/close`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -649,6 +663,8 @@ class PolymarketService {
     interval_seconds: number;
     require_full_fill?: boolean;
   }): Promise<PolymarketBtc5mAutoStatus> {
+    void payload;
+    blockedAuditMutation('Polymarket BTC 5m auto-start');
     const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/auto/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -662,6 +678,7 @@ class PolymarketService {
   }
 
   async stopBtc5mAuto(): Promise<PolymarketBtc5mAutoStatus> {
+    blockedAuditMutation('Polymarket BTC 5m auto-stop');
     const { response } = await fetchPolymarketJson(`/api/polymarket/btc-5m/auto/stop`, {
       method: 'POST',
     }, 15_000);

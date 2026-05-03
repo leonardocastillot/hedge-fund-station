@@ -1,4 +1,5 @@
 import legacyApi from './legacyTradingApi';
+import { alphaEngineApi, type EvaluationItem } from './alphaEngineApi';
 import { hyperliquidService, type HyperliquidMarketRow, type HyperliquidPaperTrade } from './hyperliquidService';
 
 export const DEFAULT_BACKTEST_INITIAL_CAPITAL = 500;
@@ -24,7 +25,7 @@ export interface Strategy {
   trigger_plan?: string;
   invalidation_plan?: string;
   market?: HyperliquidMarketRow | null;
-  source: 'legacy' | 'gateway';
+  source: 'alpha' | 'legacy' | 'gateway';
 }
 
 export interface DeployedStrategy {
@@ -78,6 +79,58 @@ function mapLegacyStrategy(item: any): Strategy {
     invalidation_plan: `Invalidate if freshness becomes stale or score degrades materially from ${item.score ?? 0}.`,
     market: null,
     source: 'legacy'
+  };
+}
+
+function scoreEvaluation(item: EvaluationItem): number {
+  const profitFactorScore = Math.max(0, Math.min(35, ((item.profit_factor ?? 0) / 2) * 35));
+  const winRateScore = Math.max(0, Math.min(25, ((item.win_rate_pct ?? 0) / 70) * 25));
+  const returnScore = Math.max(0, Math.min(25, ((item.return_pct ?? 0) + 5) * 2.5));
+  const drawdownPenalty = Math.max(0, Math.min(20, item.max_drawdown_pct ?? 0));
+  const statusBonus = item.status === 'ok' ? 15 : 0;
+  return Number(Math.max(0, Math.min(100, profitFactorScore + winRateScore + returnScore + statusBonus - drawdownPenalty)).toFixed(1));
+}
+
+function evaluationDirection(item: EvaluationItem): string {
+  const text = `${item.archetype} ${item.proxy_model} ${item.title}`.toLowerCase();
+  if (text.includes('short squeeze') || text.includes('breakout') || text.includes('continuation')) return 'LONG';
+  if (text.includes('flush') || text.includes('fade')) return 'SHORT';
+  return 'BOTH';
+}
+
+function evaluationDecisionLabel(item: EvaluationItem, score: number): string {
+  const promotion = item.promotion_state.toLowerCase();
+  if (promotion.includes('paper') || promotion.includes('candidate')) return 'watch-now';
+  if (promotion.includes('reject') || item.status !== 'ok' || score < 35) return 'avoid';
+  return score >= 65 ? 'watch-now' : 'wait-trigger';
+}
+
+function mapAlphaEvaluation(item: EvaluationItem): Strategy {
+  const score = scoreEvaluation(item);
+  const decisionLabel = evaluationDecisionLabel(item, score);
+  const notes = item.notes.length > 0 ? item.notes.join(' ') : `${item.title} evaluated by the alpha engine.`;
+  return {
+    strategy_name: item.title,
+    symbol: item.strategy_id,
+    score,
+    direction: evaluationDirection(item),
+    timeframe: item.dataset_mode || 'evaluation',
+    last_evaluated: item.last_run_at || new Date().toISOString(),
+    total_return_pct: item.return_pct ?? 0,
+    win_rate: item.win_rate_pct ?? 0,
+    sharpe_ratio: Number(((item.profit_factor ?? 0) / 1.5).toFixed(2)),
+    max_drawdown_pct: item.max_drawdown_pct ?? 0,
+    total_trades: item.total_trades ?? 0,
+    deployment_status: decisionLabel === 'watch-now' ? 'PAPER' : null,
+    deployment_id: null,
+    is_stale: item.status !== 'ok',
+    setup_tag: item.archetype || item.proxy_model || 'evaluation',
+    decision_label: decisionLabel,
+    execution_quality: score,
+    trigger_plan: notes,
+    invalidation_plan: `Promotion state is ${item.promotion_state}; reject or demote if validation remains weak, stale, or drawdown expands beyond current ${item.max_drawdown_pct ?? 0}%.`,
+    market: null,
+    source: 'alpha'
   };
 }
 
@@ -149,43 +202,54 @@ async function getLegacyLibrary(filter: 'all' | 'long' | 'bidirectional' | 'depl
   return (response.data?.strategies ?? []).map(mapLegacyStrategy) as Strategy[];
 }
 
+async function getAlphaLibrary() {
+  const snapshot = await alphaEngineApi.evaluations();
+  return snapshot.strategies.map(mapAlphaEvaluation);
+}
+
+function applyStrategyFilter(strategies: Strategy[], filter: 'all' | 'long' | 'bidirectional' | 'deployed') {
+  if (filter === 'deployed') return strategies.filter((strategy) => strategy.total_trades > 0 || Boolean(strategy.deployment_status));
+  if (filter === 'long') return strategies.filter((strategy) => strategy.direction === 'LONG');
+  if (filter === 'bidirectional') return strategies.filter((strategy) => strategy.direction === 'BOTH');
+  return strategies;
+}
+
+function sortStrategies(strategies: Strategy[], sortBy: 'score' | 'return' | 'sharpe' | 'win_rate') {
+  strategies.sort((a, b) => {
+    if (sortBy === 'return') return b.total_return_pct - a.total_return_pct;
+    if (sortBy === 'sharpe') return b.sharpe_ratio - a.sharpe_ratio;
+    if (sortBy === 'win_rate') return b.win_rate - a.win_rate;
+    return b.score - a.score;
+  });
+  return strategies;
+}
+
 export const strategyService = {
   async getLibrary(
     filter: 'all' | 'long' | 'bidirectional' | 'deployed' = 'all',
     sortBy: 'score' | 'return' | 'sharpe' | 'win_rate' = 'score'
   ) {
     try {
-      let strategies = await getLegacyLibrary(filter);
-      strategies.sort((a, b) => {
-        if (sortBy === 'return') return b.total_return_pct - a.total_return_pct;
-        if (sortBy === 'sharpe') return b.sharpe_ratio - a.sharpe_ratio;
-        if (sortBy === 'win_rate') return b.win_rate - a.win_rate;
-        return b.score - a.score;
-      });
-      return { success: true, strategies };
+      return { success: true, strategies: sortStrategies(applyStrategyFilter(await getAlphaLibrary(), filter), sortBy) };
     } catch {
-      const overview = await hyperliquidService.getOverview(36);
-      const trades = await hyperliquidService.getPaperTrades('all');
-      const tradeCountBySymbol = new Map<string, number>();
-      for (const trade of trades.trades) {
-        tradeCountBySymbol.set(trade.symbol, (tradeCountBySymbol.get(trade.symbol) ?? 0) + 1);
+      try {
+        let strategies = await getLegacyLibrary(filter);
+        return { success: true, strategies: sortStrategies(strategies, sortBy) };
+      } catch {
+        const overview = await hyperliquidService.getOverview(36);
+        const trades = await hyperliquidService.getPaperTrades('all');
+        const tradeCountBySymbol = new Map<string, number>();
+        for (const trade of trades.trades) {
+          tradeCountBySymbol.set(trade.symbol, (tradeCountBySymbol.get(trade.symbol) ?? 0) + 1);
+        }
+        const strategies = overview.markets.map((market) => {
+          const strategy = mapGatewayStrategy(market, overview.updatedAt);
+          strategy.total_trades = tradeCountBySymbol.get(market.symbol) ?? 0;
+          if (strategy.total_trades > 0) strategy.deployment_status = 'PAPER';
+          return strategy;
+        });
+        return { success: true, strategies: sortStrategies(applyStrategyFilter(strategies, filter), sortBy) };
       }
-      let strategies = overview.markets.map((market) => {
-        const strategy = mapGatewayStrategy(market, overview.updatedAt);
-        strategy.total_trades = tradeCountBySymbol.get(market.symbol) ?? 0;
-        if (strategy.total_trades > 0) strategy.deployment_status = 'PAPER';
-        return strategy;
-      });
-      if (filter === 'deployed') strategies = strategies.filter((strategy) => strategy.total_trades > 0);
-      else if (filter === 'long') strategies = strategies.filter((strategy) => strategy.direction === 'LONG');
-      else if (filter === 'bidirectional') strategies = strategies.filter((strategy) => strategy.direction === 'BOTH');
-      strategies.sort((a, b) => {
-        if (sortBy === 'return') return b.total_return_pct - a.total_return_pct;
-        if (sortBy === 'sharpe') return b.sharpe_ratio - a.sharpe_ratio;
-        if (sortBy === 'win_rate') return b.win_rate - a.win_rate;
-        return b.score - a.score;
-      });
-      return { success: true, strategies };
     }
   },
 

@@ -1,14 +1,28 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { CommanderTask, MissionActionRecord, MissionReview, MissionStageReview, MissionTaskMetadata, TaskRun, TaskStatus } from '../types/tasks';
+import type {
+  CommanderTask,
+  MissionActionRecord,
+  MissionChatMessage,
+  MissionDraft,
+  MissionReview,
+  MissionStageReview,
+  MissionTaskMetadata,
+  TaskRun,
+  TaskStatus
+} from '../types/tasks';
 import { isAgentProvider } from '../utils/agentRuntime';
 
 const TASKS_STORAGE_KEY = 'hedge-station:commander-tasks';
 const RUNS_STORAGE_KEY = 'hedge-station:commander-runs';
+const CHAT_STORAGE_KEY = 'hedge-station:mission-chat';
+const DRAFTS_STORAGE_KEY = 'hedge-station:mission-drafts';
 
 interface CommanderTasksContextValue {
   tasks: CommanderTask[];
   runs: TaskRun[];
+  missionMessages: MissionChatMessage[];
+  missionDrafts: MissionDraft[];
   createTask: (goal: string, workspaceId: string, title?: string, mission?: MissionTaskMetadata) => CommanderTask;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateTask: (taskId: string, updates: Partial<CommanderTask>) => void;
@@ -17,6 +31,9 @@ interface CommanderTasksContextValue {
   updateTaskAction: (taskId: string, actionId: string, updates: Partial<MissionActionRecord>) => void;
   createRun: (params: Omit<TaskRun, 'id' | 'startedAt' | 'updatedAt'> & { startedAt?: number }) => TaskRun;
   updateRun: (runId: string, updates: Partial<TaskRun>) => void;
+  addMissionMessage: (message: Omit<MissionChatMessage, 'id' | 'createdAt'> & { createdAt?: number }) => MissionChatMessage;
+  createMissionDraft: (draft: Omit<MissionDraft, 'id' | 'createdAt' | 'updatedAt'> & { createdAt?: number }) => MissionDraft;
+  updateMissionDraft: (draftId: string, updates: Partial<MissionDraft>) => void;
 }
 
 const CommanderTasksContext = createContext<CommanderTasksContextValue | undefined>(undefined);
@@ -62,6 +79,45 @@ function loadRuns(): TaskRun[] {
     updatedAt: typeof run.updatedAt === 'number' ? run.updatedAt : Date.now(),
     endedAt: typeof run.endedAt === 'number' ? run.endedAt : undefined
   }));
+}
+
+function loadMessages(): MissionChatMessage[] {
+  return loadArray<Partial<MissionChatMessage>>(CHAT_STORAGE_KEY)
+    .filter((message) => typeof message.workspaceId === 'string' && typeof message.content === 'string')
+    .map((message) => ({
+      id: message.id || `msg-${uuidv4()}`,
+      workspaceId: message.workspaceId || '',
+      taskId: typeof message.taskId === 'string' ? message.taskId : undefined,
+      draftId: typeof message.draftId === 'string' ? message.draftId : undefined,
+      role: message.role === 'user' || message.role === 'system' ? message.role : 'assistant',
+      content: message.content || '',
+      createdAt: typeof message.createdAt === 'number' ? message.createdAt : Date.now()
+    }));
+}
+
+function loadDrafts(): MissionDraft[] {
+  return loadArray<Partial<MissionDraft>>(DRAFTS_STORAGE_KEY)
+    .filter((draft) => typeof draft.workspaceId === 'string' && typeof draft.goal === 'string')
+    .map((draft) => ({
+      id: draft.id || `draft-${uuidv4()}`,
+      workspaceId: draft.workspaceId || '',
+      taskId: typeof draft.taskId === 'string' ? draft.taskId : undefined,
+      title: draft.title || (draft.goal || 'Mission draft').slice(0, 72),
+      goal: draft.goal || '',
+      mode: draft.mode || 'market-scan',
+      suggestedRoles: Array.isArray(draft.suggestedRoles) ? draft.suggestedRoles : [],
+      proposedCommands: Array.isArray(draft.proposedCommands) ? draft.proposedCommands : [],
+      risks: Array.isArray(draft.risks) ? draft.risks : [],
+      finalPrompt: draft.finalPrompt || draft.goal || '',
+      missionPacket: draft.missionPacket,
+      approvalStatus: draft.approvalStatus || 'draft',
+      createdAt: typeof draft.createdAt === 'number' ? draft.createdAt : Date.now(),
+      updatedAt: typeof draft.updatedAt === 'number' ? draft.updatedAt : Date.now(),
+      approvedAt: typeof draft.approvedAt === 'number' ? draft.approvedAt : undefined,
+      runId: typeof draft.runId === 'string' ? draft.runId : undefined,
+      terminalIds: Array.isArray(draft.terminalIds) ? draft.terminalIds : undefined,
+      error: typeof draft.error === 'string' ? draft.error : undefined
+    }));
 }
 
 function buildInitialStageReviews(mission?: MissionTaskMetadata): MissionStageReview[] | undefined {
@@ -174,6 +230,8 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
     actions: Array.isArray(task.actions) ? task.actions : buildInitialActions(normalizeMissionMetadata(task.mission))
   })));
   const [runs, setRuns] = useState<TaskRun[]>(() => loadRuns());
+  const [missionMessages, setMissionMessages] = useState<MissionChatMessage[]>(() => loadMessages());
+  const [missionDrafts, setMissionDrafts] = useState<MissionDraft[]>(() => loadDrafts());
 
   useEffect(() => {
     localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
@@ -183,9 +241,19 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
     localStorage.setItem(RUNS_STORAGE_KEY, JSON.stringify(runs));
   }, [runs]);
 
+  useEffect(() => {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(missionMessages.slice(0, 240)));
+  }, [missionMessages]);
+
+  useEffect(() => {
+    localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(missionDrafts.slice(0, 80)));
+  }, [missionDrafts]);
+
   const value = useMemo<CommanderTasksContextValue>(() => ({
     tasks,
     runs,
+    missionMessages,
+    missionDrafts,
     createTask: (goal, workspaceId, title, mission) => {
       const task: CommanderTask = {
         id: `task-${uuidv4()}`,
@@ -193,6 +261,7 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
         goal,
         workspaceId,
         status: 'queued',
+        approvalStatus: mission ? 'awaiting-approval' : undefined,
         createdAt: Date.now(),
         mission,
         stageReviews: buildInitialStageReviews(mission),
@@ -293,8 +362,39 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
             }
           : run
       )));
+    },
+    addMissionMessage: (message) => {
+      const nextMessage: MissionChatMessage = {
+        id: `msg-${uuidv4()}`,
+        createdAt: message.createdAt || Date.now(),
+        ...message
+      };
+      setMissionMessages((prev) => [nextMessage, ...prev].slice(0, 240));
+      return nextMessage;
+    },
+    createMissionDraft: (draft) => {
+      const timestamp = draft.createdAt || Date.now();
+      const nextDraft: MissionDraft = {
+        id: `draft-${uuidv4()}`,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...draft
+      };
+      setMissionDrafts((prev) => [nextDraft, ...prev].slice(0, 80));
+      return nextDraft;
+    },
+    updateMissionDraft: (draftId, updates) => {
+      setMissionDrafts((prev) => prev.map((draft) => (
+        draft.id === draftId
+          ? {
+              ...draft,
+              ...updates,
+              updatedAt: Date.now()
+            }
+          : draft
+      )));
     }
-  }), [runs, tasks]);
+  }), [missionDrafts, missionMessages, runs, tasks]);
 
   return (
     <CommanderTasksContext.Provider value={value}>

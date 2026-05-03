@@ -3,6 +3,7 @@ import { TerminalPane } from './TerminalPane';
 import { VoiceCommandBar } from './VoiceCommandBar';
 import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useCommanderTasksContext } from '../../contexts/CommanderTasksContext';
+import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { loadAppSettings } from '../../utils/appSettings';
 import type { TaskStatus } from '../../types/tasks';
 import type { TerminalSession } from '../../contexts/TerminalContext';
@@ -26,6 +27,7 @@ export const TerminalGrid: React.FC = () => {
     onLayoutUpdateNeeded
   } = useTerminalContext();
   const { runs, tasks, updateRun, updateTaskStatus } = useCommanderTasksContext();
+  const { activeWorkspace } = useWorkspaceContext();
   const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>('grid');
 
   React.useEffect(() => {
@@ -141,8 +143,8 @@ export const TerminalGrid: React.FC = () => {
       return;
     }
 
-    const defaultCwd = 'C:\\Users\\leonard\\Documents\\trading';
-    const shell = loadAppSettings().defaultShell || 'powershell.exe';
+    const defaultCwd = activeWorkspace?.path || '/Users/optimus/Documents/New project 9';
+    const shell = loadAppSettings().defaultShell || activeWorkspace?.shell || '/bin/zsh';
 
     let label = 'Terminal';
     let autoCommand: string | undefined;
@@ -166,7 +168,7 @@ export const TerminalGrid: React.FC = () => {
         break;
       case 'cmd':
       default:
-        label = 'CMD';
+        label = 'Shell';
         autoCommand = undefined;
         break;
     }
@@ -201,52 +203,52 @@ export const TerminalGrid: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(10, 10, 10, 0.95) 100%)',
-        color: '#9ca3af',
+        background: 'var(--app-terminal-bg)',
+        color: 'var(--app-muted)',
         padding: '40px'
       }}>
         <div style={{
-          background: 'rgba(0, 0, 0, 0.7)',
+          background: 'var(--app-panel)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           padding: '40px 60px',
           borderRadius: '16px',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+          border: '1px solid var(--app-terminal-border)',
+          boxShadow: '0 8px 32px var(--app-glow)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: '24px'
         }}>
           <div style={{ fontSize: '48px', marginBottom: '8px' }}>T</div>
-          <div style={{ fontSize: '20px', color: '#ffffff', fontWeight: '600', marginBottom: '8px' }}>
+          <div style={{ fontSize: '20px', color: 'var(--app-text)', fontWeight: '600', marginBottom: '8px' }}>
             No terminals open
           </div>
-          <div style={{ fontSize: '14px', color: '#9ca3af', textAlign: 'center', maxWidth: '300px', lineHeight: '1.6' }}>
+          <div style={{ fontSize: '14px', color: 'var(--app-muted)', textAlign: 'center', maxWidth: '300px', lineHeight: '1.6' }}>
             Create a new terminal to start working on your projects
           </div>
           <button
             onClick={() => handleNewTerminal()}
             style={{
               padding: '14px 32px',
-              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              background: 'linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-2) 100%)',
               color: '#fff',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              border: '1px solid var(--app-border-strong)',
               borderRadius: '10px',
               cursor: 'pointer',
               fontSize: '16px',
               fontWeight: '600',
-              boxShadow: '0 4px 16px rgba(239, 68, 68, 0.4)',
+              boxShadow: '0 4px 16px var(--app-glow)',
               transition: 'all 0.2s ease',
               marginTop: '8px'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.5)';
+              e.currentTarget.style.boxShadow = '0 6px 20px var(--app-glow)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 16px rgba(239, 68, 68, 0.4)';
+              e.currentTarget.style.boxShadow = '0 4px 16px var(--app-glow)';
             }}
           >
             + New Terminal
@@ -260,7 +262,7 @@ export const TerminalGrid: React.FC = () => {
     <div style={{
       width: '100%',
       height: '100%',
-      background: 'transparent',
+      background: 'var(--app-bg)',
       padding: '8px',
       display: 'flex',
       flexDirection: 'column',
@@ -271,12 +273,12 @@ export const TerminalGrid: React.FC = () => {
         alignItems: 'flex-start',
         justifyContent: 'space-between',
         padding: '6px 12px',
-        background: 'rgba(0, 0, 0, 0.6)',
+        background: 'var(--app-panel)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderRadius: '8px',
-        border: '1px solid rgba(239, 68, 68, 0.15)',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.03)',
+        border: '1px solid var(--app-border)',
+        boxShadow: '0 2px 12px var(--app-glow), inset 0 1px 1px rgba(255, 255, 255, 0.03)',
         gap: '12px'
       }}>
         <div style={{
@@ -287,15 +289,15 @@ export const TerminalGrid: React.FC = () => {
           minWidth: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: '600' }}>Voice</span>
+            <span style={{ color: 'var(--app-accent)', fontSize: '13px', fontWeight: '600' }}>Voice</span>
             <div style={{
-              background: terminals.length >= MAX_TERMINALS ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+              background: terminals.length >= MAX_TERMINALS ? 'var(--app-negative-soft)' : 'var(--app-accent-soft)',
               padding: '2px 8px',
               borderRadius: '10px',
               fontSize: '10px',
-              color: terminals.length >= MAX_TERMINALS ? '#fca5a5' : '#ef4444',
+              color: terminals.length >= MAX_TERMINALS ? 'var(--app-negative)' : 'var(--app-accent)',
               fontWeight: '600',
-              border: `1px solid ${terminals.length >= MAX_TERMINALS ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`
+              border: `1px solid ${terminals.length >= MAX_TERMINALS ? 'var(--app-negative)' : 'var(--app-border-strong)'}`
             }}>
               {terminals.length}/{MAX_TERMINALS}
             </div>
@@ -305,10 +307,10 @@ export const TerminalGrid: React.FC = () => {
               title={layoutMode === 'grid' ? 'Switch to vertical layout' : 'Switch to grid layout'}
               style={{
                 padding: '2px 6px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
+                background: 'var(--app-accent-soft)',
+                border: '1px solid var(--app-border-strong)',
                 borderRadius: '4px',
-                color: '#ef4444',
+                color: 'var(--app-accent)',
                 fontSize: '10px',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -318,12 +320,12 @@ export const TerminalGrid: React.FC = () => {
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                e.currentTarget.style.background = 'var(--app-focus)';
+                e.currentTarget.style.borderColor = 'var(--app-border-strong)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                e.currentTarget.style.background = 'var(--app-accent-soft)';
+                e.currentTarget.style.borderColor = 'var(--app-border-strong)';
               }}
             >
               {layoutMode === 'grid' ? 'Grid' : 'Vertical'}
@@ -339,28 +341,28 @@ export const TerminalGrid: React.FC = () => {
           style={{
             padding: '4px 10px',
             background: terminals.length >= MAX_TERMINALS
-              ? 'rgba(75, 85, 99, 0.4)'
-              : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            color: terminals.length >= MAX_TERMINALS ? '#6b7280' : '#fff',
-            border: `1px solid ${terminals.length >= MAX_TERMINALS ? 'rgba(107, 114, 128, 0.3)' : 'rgba(52, 211, 153, 0.3)'}`,
+              ? 'var(--app-panel-muted)'
+              : 'linear-gradient(135deg, var(--app-positive) 0%, var(--app-accent) 100%)',
+            color: terminals.length >= MAX_TERMINALS ? 'var(--app-subtle)' : '#fff',
+            border: `1px solid ${terminals.length >= MAX_TERMINALS ? 'var(--app-border)' : 'var(--app-terminal-border)'}`,
             borderRadius: '6px',
             cursor: terminals.length >= MAX_TERMINALS ? 'not-allowed' : 'pointer',
             fontSize: '10px',
             fontWeight: '600',
-            boxShadow: terminals.length >= MAX_TERMINALS ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.3)',
+            boxShadow: terminals.length >= MAX_TERMINALS ? 'none' : '0 2px 8px var(--app-glow)',
             transition: 'all 0.15s ease',
             opacity: terminals.length >= MAX_TERMINALS ? 0.5 : 1
           }}
           onMouseEnter={(e) => {
             if (terminals.length < MAX_TERMINALS) {
               e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+              e.currentTarget.style.boxShadow = '0 4px 12px var(--app-glow)';
             }
           }}
           onMouseLeave={(e) => {
             if (terminals.length < MAX_TERMINALS) {
               e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
+              e.currentTarget.style.boxShadow = '0 2px 8px var(--app-glow)';
             }
           }}
           title={terminals.length >= MAX_TERMINALS ? `Terminal limit ${MAX_TERMINALS} reached` : 'Add terminal'}

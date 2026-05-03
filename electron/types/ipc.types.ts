@@ -119,6 +119,26 @@ export interface VoiceTranscriptionResult {
   model: string;
 }
 
+export interface GeminiLiveStatus {
+  isConfigured: boolean;
+  model: string;
+  fallbackModel: string;
+  keyPreview: string | null;
+}
+
+export interface GeminiLiveTokenRequest {
+  model?: string;
+}
+
+export interface GeminiLiveTokenResponse {
+  token: string;
+  model: string;
+  fallbackModel: string;
+  expiresAt: string;
+  newSessionExpiresAt: string;
+  voiceName: string;
+}
+
 export interface ObsidianVaultStatus {
   isAvailable: boolean;
   vaultPath: string | null;

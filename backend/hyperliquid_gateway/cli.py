@@ -24,6 +24,7 @@ from .backtesting.workflow import (
     validate_strategy_workflow,
     write_json,
 )
+from .agents import agent_runtime_status, list_agent_runs, run_agent_audit, run_agent_research
 
 
 DONOR_ROOT = Path(r"C:\Users\leonard\Documents\trading-harvard\Harvard-Algorithmic-Trading-with-AI")
@@ -74,7 +75,36 @@ def build_parser() -> argparse.ArgumentParser:
 
     status_parser = subparsers.add_parser("status", help="Summarize research/backtest/validation/paper artifacts.")
     status_parser.set_defaults(func=command_status)
+
+    agent_parser = subparsers.add_parser("agent", help="Agentic Research OS helpers.")
+    agent_subparsers = agent_parser.add_subparsers(dest="agent_command", required=True)
+
+    agent_research = agent_subparsers.add_parser("research", help="Run agentic research debate for a strategy.")
+    agent_research.add_argument("--strategy", required=True)
+    add_agent_ai_args(agent_research)
+    agent_research.set_defaults(func=command_agent_research)
+
+    agent_audit = agent_subparsers.add_parser("audit", help="Run agentic validation audit for a strategy.")
+    agent_audit.add_argument("--strategy", required=True)
+    add_agent_ai_args(agent_audit)
+    agent_audit.set_defaults(func=command_agent_audit)
+
+    agent_status = agent_subparsers.add_parser("status", help="List recent agentic research runs.")
+    agent_status.add_argument("--strategy", default=None)
+    agent_status.add_argument("--limit", type=int, default=20)
+    agent_status.set_defaults(func=command_agent_status)
+
+    agent_runtime = agent_subparsers.add_parser("runtime", help="Show Agentic Research OS runtime status.")
+    agent_runtime.set_defaults(func=command_agent_runtime)
     return parser
+
+
+def add_agent_ai_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--runtime", default="auto", choices=["auto", "codex-local", "api-provider", "deterministic"])
+    parser.add_argument("--ai", action="store_true", help="Legacy alias for --runtime api-provider when --runtime is auto.")
+    parser.add_argument("--provider-order", default=None, help="Override AI_PROVIDER_ORDER, e.g. deepseek,openai.")
+    parser.add_argument("--model", default=None, help="Override Codex/API model, e.g. gpt-5.5 or deepseek-v4-pro.")
+    parser.add_argument("--codex-profile", default=None, help="Codex config profile to use with --runtime codex-local.")
 
 
 def command_doctor(_: argparse.Namespace) -> int:
@@ -186,6 +216,75 @@ def command_paper(args: argparse.Namespace) -> int:
 
 def command_status(_: argparse.Namespace) -> int:
     print(json.dumps(build_status_snapshot(), indent=2))
+    return 0
+
+
+def command_agent_research(args: argparse.Namespace) -> int:
+    result = run_agent_research(
+        args.strategy,
+        use_ai=args.ai,
+        provider_order=args.provider_order,
+        model=args.model,
+        runtime=args.runtime,
+        codex_profile=args.codex_profile,
+    )
+    payload = result["payload"]
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "run_path": str(result["run_path"]),
+                "run_id": payload["run_id"],
+                "strategy_id": payload["strategy_id"],
+                "recommendation": payload["decision"]["recommendation"],
+                "promotion_allowed": payload["decision"]["promotion_allowed"],
+                "runtime_mode": payload.get("ai", {}).get("runtime_mode"),
+                "ai": payload.get("ai"),
+                "recommended_commands": payload["decision"]["recommended_commands"],
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def command_agent_audit(args: argparse.Namespace) -> int:
+    result = run_agent_audit(
+        args.strategy,
+        use_ai=args.ai,
+        provider_order=args.provider_order,
+        model=args.model,
+        runtime=args.runtime,
+        codex_profile=args.codex_profile,
+    )
+    payload = result["payload"]
+    blocker_count = len(payload["decision"].get("blockers") or [])
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "run_path": str(result["run_path"]),
+                "run_id": payload["run_id"],
+                "strategy_id": payload["strategy_id"],
+                "recommendation": payload["decision"]["recommendation"],
+                "blocker_count": blocker_count,
+                "runtime_mode": payload.get("ai", {}).get("runtime_mode"),
+                "ai": payload.get("ai"),
+                "recommended_commands": payload["decision"]["recommended_commands"],
+            },
+            indent=2,
+        )
+    )
+    return 0 if blocker_count == 0 else 1
+
+
+def command_agent_status(args: argparse.Namespace) -> int:
+    print(json.dumps({"ok": True, "runs": list_agent_runs(strategy_id=args.strategy, limit=args.limit)}, indent=2))
+    return 0
+
+
+def command_agent_runtime(_: argparse.Namespace) -> int:
+    print(json.dumps({"ok": True, "runtime": agent_runtime_status()}, indent=2))
     return 0
 
 

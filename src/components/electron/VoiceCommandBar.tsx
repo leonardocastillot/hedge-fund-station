@@ -1,5 +1,5 @@
 import React from 'react';
-import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
+import { useGeminiLiveVoice } from '../../hooks/useGeminiLiveVoice';
 
 interface VoiceCommandBarProps {
   activeTerminalId: string | null;
@@ -10,6 +10,7 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
   const [lastSentText, setLastSentText] = React.useState('');
   const pointerRecordingRef = React.useRef(false);
   const shortcutRecordingRef = React.useRef(false);
+  const resetVoiceRef = React.useRef<() => void>(() => undefined);
 
   const sendTranscriptToTerminal = React.useCallback((text: string) => {
     const trimmed = text.trim();
@@ -19,7 +20,7 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
 
     window.electronAPI.terminal.write(activeTerminalId, `${trimmed}\r`);
     setLastSentText(trimmed);
-    reset();
+    resetVoiceRef.current();
     return true;
   }, [activeTerminalId]);
 
@@ -29,16 +30,17 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
     setTranscript,
     error,
     durationSeconds,
-    startRecording,
-    stopRecording,
+    start: startRecording,
+    stop: stopRecording,
     reset
-  } = useVoiceRecorder({
-    onTranscript: (nextTranscript) => {
+  } = useGeminiLiveVoice({
+    onConversationReady: (conversation) => {
       if (autoSend) {
-        sendTranscriptToTerminal(nextTranscript);
+        sendTranscriptToTerminal(conversation.inputTranscript);
       }
     }
   });
+  resetVoiceRef.current = reset;
 
   const handleSendToTerminal = React.useCallback(() => {
     sendTranscriptToTerminal(transcript);
@@ -59,7 +61,14 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
         return;
       }
 
-      if (event.altKey && event.key.toLowerCase() === 'm' && !shortcutRecordingRef.current && status !== 'transcribing') {
+      if (
+        event.altKey
+        && event.key.toLowerCase() === 'm'
+        && !shortcutRecordingRef.current
+        && status !== 'connecting'
+        && status !== 'waiting-response'
+        && status !== 'responding'
+      ) {
         event.preventDefault();
         shortcutRecordingRef.current = true;
         void startRecording();
@@ -87,8 +96,14 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
     switch (status) {
       case 'recording':
         return `Recording ${durationSeconds}s`;
-      case 'transcribing':
-        return 'Transcribing...';
+      case 'connecting':
+        return 'Connecting Gemini...';
+      case 'waiting-response':
+        return 'Waiting for Gemini...';
+      case 'responding':
+        return 'Gemini responding...';
+      case 'missing-key':
+        return 'Gemini key missing';
       case 'ready':
         return autoSend ? 'Ready' : 'Ready to send';
       case 'error':
@@ -100,11 +115,12 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
   })();
 
   const handlePressStart = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (status === 'transcribing') {
+    if (status === 'connecting' || status === 'recording' || status === 'waiting-response' || status === 'responding') {
       return;
     }
 
     event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
     pointerRecordingRef.current = true;
     void startRecording();
   }, [startRecording, status]);
@@ -115,6 +131,9 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
     }
 
     event.preventDefault();
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     pointerRecordingRef.current = false;
     stopRecording();
   }, [stopRecording]);
@@ -130,9 +149,8 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
       <button
         onPointerDown={handlePressStart}
         onPointerUp={handlePressEnd}
-        onPointerLeave={handlePressEnd}
         onPointerCancel={handlePressEnd}
-        disabled={status === 'transcribing'}
+        disabled={status === 'connecting' || status === 'waiting-response' || status === 'responding'}
         style={{
           padding: '4px 10px',
           minWidth: '88px',
@@ -142,10 +160,10 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
           color: '#fff',
           border: '1px solid rgba(255, 255, 255, 0.12)',
           borderRadius: '6px',
-          cursor: status === 'transcribing' ? 'not-allowed' : 'pointer',
+          cursor: status === 'connecting' || status === 'waiting-response' || status === 'responding' ? 'not-allowed' : 'pointer',
           fontSize: '10px',
           fontWeight: '700',
-          opacity: status === 'transcribing' ? 0.6 : 1,
+          opacity: status === 'connecting' || status === 'waiting-response' || status === 'responding' ? 0.6 : 1,
           boxShadow: status === 'recording'
             ? '0 2px 10px rgba(239, 68, 68, 0.35)'
             : '0 2px 10px rgba(37, 99, 235, 0.3)'
@@ -245,16 +263,16 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
             </label>
             <button
               onClick={handleSendToTerminal}
-              disabled={!activeTerminalId || !transcript.trim() || status === 'transcribing'}
+              disabled={!activeTerminalId || !transcript.trim() || status === 'connecting' || status === 'waiting-response' || status === 'responding'}
               style={{
                 padding: '4px 10px',
-                background: !activeTerminalId || !transcript.trim() || status === 'transcribing'
+                background: !activeTerminalId || !transcript.trim() || status === 'connecting' || status === 'waiting-response' || status === 'responding'
                   ? 'rgba(75, 85, 99, 0.4)'
                   : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: !activeTerminalId || !transcript.trim() || status === 'transcribing' ? '#9ca3af' : '#fff',
+                color: !activeTerminalId || !transcript.trim() || status === 'connecting' || status === 'waiting-response' || status === 'responding' ? '#9ca3af' : '#fff',
                 border: '1px solid rgba(255, 255, 255, 0.12)',
                 borderRadius: '6px',
-                cursor: !activeTerminalId || !transcript.trim() || status === 'transcribing' ? 'not-allowed' : 'pointer',
+                cursor: !activeTerminalId || !transcript.trim() || status === 'connecting' || status === 'waiting-response' || status === 'responding' ? 'not-allowed' : 'pointer',
                 fontSize: '10px',
                 fontWeight: '700'
               }}
@@ -263,17 +281,17 @@ export const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ activeTerminal
             </button>
             <button
               onClick={reset}
-              disabled={status === 'recording' || status === 'transcribing'}
+              disabled={status === 'recording' || status === 'connecting' || status === 'waiting-response' || status === 'responding'}
               style={{
                 padding: '4px 10px',
                 background: 'rgba(15, 23, 42, 0.8)',
                 color: '#cbd5e1',
                 border: '1px solid rgba(148, 163, 184, 0.18)',
                 borderRadius: '6px',
-                cursor: status === 'recording' || status === 'transcribing' ? 'not-allowed' : 'pointer',
+                cursor: status === 'recording' || status === 'connecting' || status === 'waiting-response' || status === 'responding' ? 'not-allowed' : 'pointer',
                 fontSize: '10px',
                 fontWeight: '700',
-                opacity: status === 'recording' || status === 'transcribing' ? 0.5 : 1
+                opacity: status === 'recording' || status === 'connecting' || status === 'waiting-response' || status === 'responding' ? 0.5 : 1
               }}
             >
               Clear

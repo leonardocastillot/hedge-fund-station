@@ -28,6 +28,11 @@ export const PreloadApiNotice: React.FC = () => {
 
   const checkApi = React.useCallback(() => {
     const electronAPI = (window as any).electronAPI;
+    if (!electronAPI) {
+      setMissingPaths([]);
+      return;
+    }
+
     const missing = REQUIRED_API_PATHS.filter((path) => !hasApiPath(electronAPI, path));
     setMissingPaths(missing);
   }, []);

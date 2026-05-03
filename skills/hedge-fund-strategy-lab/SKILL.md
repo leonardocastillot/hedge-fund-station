@@ -13,10 +13,11 @@ Use this skill when the task is:
 ## Read First
 
 1. `AGENTS.md`
-2. `docs/hedge-fund-agent-operating-model.md`
-3. `docs/hyperliquid-strategy-roadmap.md`
-4. `docs/strategies/README.md`
-5. `backend/hyperliquid_gateway/strategies/README.md`
+2. `docs/project-architecture.md`
+3. `docs/hedge-fund-agent-operating-model.md`
+4. `docs/hyperliquid-strategy-roadmap.md`
+5. `docs/strategies/README.md`
+6. `backend/hyperliquid_gateway/strategies/README.md`
 
 ## Output Standard
 
@@ -26,6 +27,15 @@ Produce these when relevant:
 2. Backend module in `backend/hyperliquid_gateway/strategies/<strategy-id>/`
 3. API contract or integration notes for the Electron app
 4. Validation plan covering replay and paper trading
+
+## Allowed Target Areas
+
+- `docs/strategies/`
+- `backend/hyperliquid_gateway/strategies/`
+- `backend/hyperliquid_gateway/backtesting/`
+- `backend/hyperliquid_gateway/app.py` when an inspectable API is required
+- `src/services/`, `src/pages/`, and `src/components/` only after backend
+  outputs are defined
 
 ## Workflow
 
@@ -45,3 +55,5 @@ Produce these when relevant:
 - No strategy logic only in React.
 - No live automation before replay and paper evidence.
 - Every strategy must include failure modes.
+- Use `npm run hf:*` commands for milestone backtest, validation, paper, and
+  status workflows.

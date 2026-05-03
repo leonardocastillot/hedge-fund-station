@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
 package-lock.json
+node_modules/.vite/
 
 # Build outputs
+build/
 dist/
 dist-electron/
 release/
@@ -41,6 +43,12 @@ coverage/
 .cache/
 .temp/
 .tmp/
+*.pyc
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # User config (should be in .hedge-station)
 workspaces.json
@@ -49,3 +57,19 @@ workspaces.json
 backend/hyperliquid_gateway/data/hyperliquid.db
 backend/hyperliquid_gateway/data/hyperliquid.db-shm
 backend/hyperliquid_gateway/data/hyperliquid.db-wal
+backend/hyperliquid_gateway/data/*.db
+backend/hyperliquid_gateway/data/*.db-shm
+backend/hyperliquid_gateway/data/*.db-wal
+backend/hyperliquid_gateway/data/agent_runs/
+backend/hyperliquid_gateway/data/tmp-*.json
+
+# Keep curated research artifacts intentionally; do not commit large/private
+# runtime exports without review.
+backend/hyperliquid_gateway/data/audits/doctor-*.json
+backend/hyperliquid_gateway/data/backtests/*-[0-9][0-9][0-9][0-9][0-9][0-9]*.json
+backend/hyperliquid_gateway/data/paper/*-[0-9][0-9][0-9][0-9][0-9][0-9]*.json
+backend/hyperliquid_gateway/data/validations/*-[0-9][0-9][0-9][0-9][0-9][0-9]*.json
+!backend/hyperliquid_gateway/data/README.md
+!backend/hyperliquid_gateway/data/backtests/*-smoke.json
+!backend/hyperliquid_gateway/data/paper/*-smoke.json
+!backend/hyperliquid_gateway/data/validations/*-smoke.json

@@ -5,6 +5,8 @@ Setup scoring logic for watchlist prioritization.
 Ranks symbols by signal strength and execution quality.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 

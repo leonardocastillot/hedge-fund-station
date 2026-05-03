@@ -5,6 +5,8 @@ Entry signal evaluation with all filter conditions.
 Deterministic, inspectable, testable.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 

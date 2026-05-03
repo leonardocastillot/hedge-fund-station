@@ -13,8 +13,12 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
   const [transcript, setTranscript] = React.useState('');
   const [error, setError] = React.useState('');
   const [durationSeconds, setDurationSeconds] = React.useState(0);
+  const [audioLevel, setAudioLevel] = React.useState(0);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const mediaStreamRef = React.useRef<MediaStream | null>(null);
+  const audioContextRef = React.useRef<AudioContext | null>(null);
+  const analyserRef = React.useRef<AnalyserNode | null>(null);
+  const audioFrameRef = React.useRef<number | null>(null);
   const chunksRef = React.useRef<Blob[]>([]);
   const timerRef = React.useRef<number | null>(null);
 
@@ -27,6 +31,11 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
 
   const cleanupMedia = React.useCallback(() => {
     stopTimer();
+    if (audioFrameRef.current !== null) {
+      window.cancelAnimationFrame(audioFrameRef.current);
+      audioFrameRef.current = null;
+    }
+    analyserRef.current = null;
 
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.ondataavailable = null;
@@ -39,6 +48,13 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
+
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
+
+    setAudioLevel(0);
   }, [stopTimer]);
 
   React.useEffect(() => () => cleanupMedia(), [cleanupMedia]);
@@ -47,7 +63,38 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
     setTranscript('');
     setError('');
     setDurationSeconds(0);
+    setAudioLevel(0);
     setStatus('idle');
+  }, []);
+
+  const startAudioMeter = React.useCallback((stream: MediaStream) => {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.72;
+    source.connect(analyser);
+    audioContextRef.current = audioContext;
+    analyserRef.current = analyser;
+
+    const samples = new Uint8Array(analyser.frequencyBinCount);
+    const tick = () => {
+      analyser.getByteTimeDomainData(samples);
+      let sum = 0;
+      for (let index = 0; index < samples.length; index += 1) {
+        const normalized = (samples[index] - 128) / 128;
+        sum += normalized * normalized;
+      }
+      const rms = Math.sqrt(sum / samples.length);
+      setAudioLevel(Math.min(1, Math.max(0, rms * 5.2)));
+      audioFrameRef.current = window.requestAnimationFrame(tick);
+    };
+    tick();
   }, []);
 
   const transcribeBlob = React.useCallback(async (audioBlob: Blob) => {
@@ -101,6 +148,7 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
       setStatus('recording');
       mediaStreamRef.current = stream;
       mediaRecorderRef.current = recorder;
+      startAudioMeter(stream);
       timerRef.current = window.setInterval(() => {
         setDurationSeconds((current) => current + 1);
       }, 1000);
@@ -139,7 +187,7 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
       setError(message);
       setStatus('error');
     }
-  }, [cleanupMedia, status, transcribeBlob]);
+  }, [cleanupMedia, startAudioMeter, status, transcribeBlob]);
 
   const stopRecording = React.useCallback(() => {
     const recorder = mediaRecorderRef.current;
@@ -156,6 +204,7 @@ export function useVoiceRecorder(options: UseVoiceRecorderOptions = {}) {
     setTranscript,
     error,
     durationSeconds,
+    audioLevel,
     startRecording,
     stopRecording,
     reset

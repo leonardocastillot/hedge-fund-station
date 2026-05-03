@@ -33,6 +33,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Load workspaces on mount
   const refreshWorkspaces = useCallback(async () => {
     try {
+      if (!window.electronAPI?.workspace) {
+        setWorkspaces([]);
+        setActiveWorkspaceState(null);
+        ensureWorkspaceAgents([]);
+        return;
+      }
+
       const [allWorkspaces, active] = await Promise.all([
         window.electronAPI.workspace.getAll(),
         window.electronAPI.workspace.getActive()
@@ -59,6 +66,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const setActiveWorkspace = useCallback(async (id: string) => {
     try {
+      if (!window.electronAPI?.workspace) {
+        return;
+      }
+
       const workspace = workspaces.find(w => w.id === id);
       if (!workspace) {
         throw new Error(`Workspace not found: ${id}`);
@@ -75,6 +86,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const createWorkspace = useCallback(async (workspace: Workspace) => {
     try {
+      if (!window.electronAPI?.workspace) {
+        return;
+      }
+
       await window.electronAPI.workspace.create(workspace);
       await refreshWorkspaces();
     } catch (error) {
@@ -85,6 +100,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateWorkspace = useCallback(async (id: string, updates: Partial<Workspace>) => {
     try {
+      if (!window.electronAPI?.workspace) {
+        return;
+      }
+
       await window.electronAPI.workspace.update(id, updates);
       await refreshWorkspaces();
     } catch (error) {
@@ -95,6 +114,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteWorkspace = useCallback(async (id: string) => {
     try {
+      if (!window.electronAPI?.workspace) {
+        return;
+      }
+
       await window.electronAPI.workspace.delete(id);
       await refreshWorkspaces();
     } catch (error) {

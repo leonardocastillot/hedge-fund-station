@@ -2,7 +2,6 @@
 Polymarket BTC Up/Down 5m Maker Basis Skew Strategy
 """
 
-from .backtest import run_backtest
 from .logic import evaluate_maker_setup, passive_quote_price
 from .paper import calculate_realized_pnl, estimate_maker_rebate_pct, paper_candidate
 from .risk import allow_maker_entry
@@ -15,7 +14,6 @@ __all__ = [
     "evaluate_maker_setup",
     "paper_candidate",
     "passive_quote_price",
-    "run_backtest",
     "score_maker_setup",
 ]
 
