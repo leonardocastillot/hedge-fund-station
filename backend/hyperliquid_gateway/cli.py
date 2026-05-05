@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .backtesting.engine import BacktestConfig
+from .backtesting.engine import BacktestConfig, normalize_symbols
 from .backtesting.io import list_csv_files
 from .backtesting.registry import available_strategies
 from .backtesting.workflow import (
@@ -56,7 +56,17 @@ def build_parser() -> argparse.ArgumentParser:
     backtest_parser.add_argument("--dataset", default=None)
     backtest_parser.add_argument("--equity", type=float, default=100_000.0)
     backtest_parser.add_argument("--risk-fraction", type=float, default=0.10)
-    backtest_parser.add_argument("--fee-rate", type=float, default=0.00055)
+    backtest_parser.add_argument("--fee-rate", type=float, default=None, help="Legacy one-way fee alias; maps to taker fee if --taker-fee-rate is omitted.")
+    backtest_parser.add_argument("--taker-fee-rate", type=float, default=None, help="One-way taker fee as a decimal. Hyperliquid Tier 0 default is 0.00045.")
+    backtest_parser.add_argument("--maker-fee-rate", type=float, default=None, help="One-way maker fee as a decimal. Hyperliquid Tier 0 default is 0.00015.")
+    backtest_parser.add_argument("--fee-model", choices=["taker", "maker", "mixed"], default="taker", help="Default liquidity role used when a trade does not declare one.")
+    backtest_parser.add_argument("--maker-ratio", type=float, default=0.0, help="Maker fill ratio for --fee-model mixed, from 0.0 to 1.0.")
+    backtest_parser.add_argument("--symbol", action="append", default=None, help="Limit Hyperliquid replay to one symbol. Can be repeated.")
+    backtest_parser.add_argument("--symbols", default=None, help="Comma-separated Hyperliquid replay symbols, e.g. BTC,ETH,SOL.")
+    backtest_parser.add_argument("--universe", default="default", help="Use 'all' to ignore symbol filters and replay the full universe.")
+    backtest_parser.add_argument("--start", default=None, help="Optional inclusive replay start timestamp, ISO or epoch.")
+    backtest_parser.add_argument("--end", default=None, help="Optional inclusive replay end timestamp, ISO or epoch.")
+    backtest_parser.add_argument("--lookback-days", type=int, default=None, help="Replay only the trailing N days from --end or the dataset max timestamp.")
     backtest_parser.add_argument("--output", default=None)
     backtest_parser.set_defaults(func=command_backtest)
 
@@ -175,16 +185,45 @@ def command_backtest(args: argparse.Namespace) -> int:
     result = run_backtest_workflow(
         strategy_id=args.strategy,
         dataset_path=Path(args.dataset) if args.dataset else None,
-        config=BacktestConfig(
-            initial_equity=args.equity,
-            fee_rate=args.fee_rate,
-            risk_fraction=args.risk_fraction,
-        ),
+        config=build_backtest_config(args),
         output_path=Path(args.output) if args.output else None,
     )
     payload = result["payload"]
-    print(json.dumps({"ok": True, "report_path": str(result["report_path"]), "summary": payload["summary"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "report_path": str(result["report_path"]),
+                "summary": payload["summary"],
+                "robust_assessment": payload.get("robust_assessment"),
+                "symbol_leaderboard": (payload.get("symbol_leaderboard") or [])[:10],
+            },
+            indent=2,
+        )
+    )
     return 0
+
+
+def build_backtest_config(args: argparse.Namespace) -> BacktestConfig:
+    symbol_items: list[str] = []
+    if args.symbol:
+        symbol_items.extend(args.symbol)
+    if args.symbols:
+        symbol_items.append(args.symbols)
+    return BacktestConfig(
+        initial_equity=args.equity,
+        fee_rate=args.fee_rate,
+        taker_fee_rate=args.taker_fee_rate,
+        maker_fee_rate=args.maker_fee_rate,
+        fee_model=args.fee_model,
+        maker_ratio=args.maker_ratio,
+        risk_fraction=args.risk_fraction,
+        symbols=normalize_symbols(symbol_items),
+        universe=args.universe,
+        start=args.start,
+        end=args.end,
+        lookback_days=args.lookback_days,
+    )
 
 
 def command_validate(args: argparse.Namespace) -> int:

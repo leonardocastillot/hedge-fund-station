@@ -14,6 +14,8 @@ try:
     from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
     from ..strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
     from ..strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+    from ..strategies.oi_expansion_failure_fade.backtest import run_backtest as oi_expansion_failure_fade_run_backtest
+    from ..strategies.oi_expansion_failure_fade.paper import paper_candidate as oi_expansion_failure_fade_paper_candidate
     from ..strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
     from ..strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
     from ..strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
@@ -26,6 +28,8 @@ except ImportError:
     from strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
     from strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
     from strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+    from strategies.oi_expansion_failure_fade.backtest import run_backtest as oi_expansion_failure_fade_run_backtest
+    from strategies.oi_expansion_failure_fade.paper import paper_candidate as oi_expansion_failure_fade_paper_candidate
     from strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
     from strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
     from strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
@@ -105,6 +109,20 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_profit_factor=1.1,
             min_win_rate_pct=35.0,
             max_drawdown_pct=8.0,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "oi_expansion_failure_fade": StrategyDefinition(
+        strategy_id="oi_expansion_failure_fade",
+        backtest_runner=oi_expansion_failure_fade_run_backtest,
+        paper_candidate_builder=oi_expansion_failure_fade_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=30,
+            min_return_pct=0.10,
+            min_profit_factor=1.20,
+            min_win_rate_pct=42.0,
+            max_drawdown_pct=5.0,
         ),
         default_dataset=str(DEFAULT_GATEWAY_DB),
         dataset_label="gateway_snapshot_db",
