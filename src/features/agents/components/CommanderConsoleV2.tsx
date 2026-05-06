@@ -41,7 +41,6 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
   const [runtimeMode, setRuntimeMode] = React.useState<'direct-loop' | 'terminal'>('direct-loop');
   const [loopMaxIterations, setLoopMaxIterations] = React.useState(3);
   const [directLoopReady, setDirectLoopReady] = React.useState(false);
-  const pointerRecordingRef = React.useRef(false);
 
   const workspace = React.useMemo(
     () => workspaces.find((item) => item.id === workspaceId) || activeWorkspace || null,
@@ -735,6 +734,10 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
       setMissionMode(inferMissionMode(nextGoal));
     }
   });
+  const canCancelVoice = voiceStatus === 'connecting'
+    || voiceStatus === 'token'
+    || voiceStatus === 'listening'
+    || voiceStatus === 'responding';
 
   const previewAgents = suggestedAgents.length > 0
     ? suggestedAgents
@@ -774,27 +777,16 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
     }));
   }, [memoryNotes, pinnedNotes]);
 
-  const handleVoicePressStart = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (voiceStatus === 'connecting' || voiceStatus === 'recording' || voiceStatus === 'waiting-response' || voiceStatus === 'responding') {
+  const handleVoiceClick = React.useCallback(() => {
+    if (voiceStatus === 'listening') {
+      stopRecording();
       return;
     }
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointerRecordingRef.current = true;
+    if (voiceStatus === 'token' || voiceStatus === 'connecting' || voiceStatus === 'responding') {
+      return;
+    }
     void startRecording();
-  }, [startRecording, voiceStatus]);
-
-  const handleVoicePressEnd = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pointerRecordingRef.current) {
-      return;
-    }
-    event.preventDefault();
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    pointerRecordingRef.current = false;
-    stopRecording();
-  }, [stopRecording]);
+  }, [startRecording, stopRecording, voiceStatus]);
 
   return (
     <div style={containerStyle}>
@@ -925,35 +917,40 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
           <div style={voiceDockStyle}>
               <button
                 type="button"
-                onPointerDown={handleVoicePressStart}
-              onPointerUp={handleVoicePressEnd}
-              onPointerCancel={handleVoicePressEnd}
+                onClick={handleVoiceClick}
+                disabled={voiceStatus === 'token' || voiceStatus === 'connecting' || voiceStatus === 'responding'}
               style={{
                 ...voiceButtonStyle,
-                background: voiceStatus === 'recording'
+                background: voiceStatus === 'listening'
                   ? 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)'
                   : 'linear-gradient(135deg, #334155 0%, #1e293b 100%)'
               }}
               >
-              {voiceStatus === 'recording'
-                ? `Listening ${durationSeconds}s`
+              {voiceStatus === 'listening'
+                ? `Stop Turn ${durationSeconds}s`
+                : voiceStatus === 'token'
+                  ? 'Getting Token'
                 : voiceStatus === 'connecting'
-                  ? 'Connecting Gemini'
-                  : voiceStatus === 'waiting-response'
-                    ? 'Waiting For Gemini'
+                  ? 'Connecting'
                   : voiceStatus === 'responding'
                     ? 'Gemini Responding'
-                    : 'Hold To Speak'}
+                  : voiceStatus === 'live'
+                    ? 'Talk'
+                    : 'Start Live'}
             </button>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ color: voiceError ? '#fca5a5' : '#94a3b8', fontSize: '11px' }}>
-                {voiceError || (voiceStatus === 'connecting'
-                  ? 'Opening Gemini Live session...'
-                  : voiceStatus === 'waiting-response'
-                    ? 'Waiting for Gemini response...'
+                {voiceError || (voiceStatus === 'token'
+                  ? 'Requesting short-lived Gemini Live token...'
+                  : voiceStatus === 'connecting'
+                    ? 'Opening Gemini Live session...'
+                  : voiceStatus === 'listening'
+                    ? 'Listening live. Tap Stop Turn when done.'
                   : voiceStatus === 'responding'
-                    ? 'Gemini is answering and preparing the mission...'
-                    : 'Voice talks with Gemini Live and fills the mission box')}
+                    ? 'Gemini is answering live...'
+                  : voiceStatus === 'live'
+                    ? 'Gemini Live is open. Tap Talk for another turn.'
+                    : 'Voice talks with Gemini Live. Actions stay pending approval.')}
               </div>
               {transcript ? (
                 <div style={{ color: '#e2e8f0', fontSize: '12px', marginTop: '4px', lineHeight: 1.4 }}>
@@ -967,7 +964,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
               ) : null}
             </div>
             <button type="button" onClick={resetVoice} style={ghostButtonStyle}>
-              Clear
+              {canCancelVoice ? 'Cancel Voice' : 'Clear'}
             </button>
           </div>
           <div style={{ display: 'flex', gap: '10px', marginTop: '12px', flexWrap: 'wrap' }}>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, Database, RefreshCcw } from 'lucide-react';
 import { hyperliquidService } from '@/services/hyperliquidService';
+import { useMarketPolling } from '@/hooks/useMarketPolling';
 
 type PresetId =
   | 'overview'
@@ -376,9 +377,21 @@ export default function HyperliquidDataPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedRowIndex, setSelectedRowIndex] = useState(0);
   const [showRawJson, setShowRawJson] = useState(false);
+  const [renderRowLimit, setRenderRowLimit] = useState(120);
 
   const path = useMemo(() => buildPath({ preset, symbol, interval, limit, customPath }), [preset, symbol, interval, limit, customPath]);
   const datasets = useMemo(() => collectDatasets(data), [data]);
+  const datasetProfiles = useMemo(() => {
+    const profiles = new Map<string, { columns: string[]; insights: DatasetInsight }>();
+    for (const dataset of datasets) {
+      const datasetColumns = inferColumns(dataset.rows);
+      profiles.set(dataset.id, {
+        columns: datasetColumns,
+        insights: buildDatasetInsight(dataset.rows, datasetColumns, buildColumnInsights(dataset.rows, datasetColumns))
+      });
+    }
+    return profiles;
+  }, [datasets]);
 
   useEffect(() => {
     if (datasets.length === 0) {
@@ -419,36 +432,26 @@ export default function HyperliquidDataPage() {
   }, [columns, sortKey]);
 
   const selectedRow = filteredRows[selectedRowIndex] || filteredRows[0] || null;
+  const visibleRows = useMemo(() => filteredRows.slice(0, renderRowLimit), [filteredRows, renderRowLimit]);
   const summaryCards = useMemo(() => buildSummaryCards(data, datasets, selectedDataset, datasetInsight), [data, datasetInsight, datasets, selectedDataset]);
 
+  const rawPoll = useMarketPolling(
+    `hyperliquid:data:${path}`,
+    () => hyperliquidService.getRaw(path),
+    { intervalMs: 30_000, staleAfterMs: 90_000, runImmediately: true }
+  );
+
   useEffect(() => {
-    let mounted = true;
-
-    const load = async () => {
-      setLoading(true);
-      try {
-        const next = await hyperliquidService.getRaw(path);
-        if (mounted) {
-          setData(next);
-          setError(null);
-        }
-      } catch (err: any) {
-        if (mounted) {
-          setError(err.message || 'No se pudo cargar el endpoint.');
-          setData(null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      mounted = false;
-    };
-  }, [path]);
+    setLoading(rawPoll.status === 'loading' || rawPoll.isRefreshing);
+    if (rawPoll.data !== null) {
+      setData(rawPoll.data);
+      setError(rawPoll.status === 'stale' ? rawPoll.error : null);
+      return;
+    }
+    if (rawPoll.status === 'error') {
+      setError(rawPoll.error || 'No se pudo cargar el endpoint.');
+    }
+  }, [rawPoll.data, rawPoll.error, rawPoll.isRefreshing, rawPoll.status]);
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.12),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.08),_transparent_24%),linear-gradient(180deg,#020617_0%,#07111d_100%)] p-4">
@@ -507,11 +510,14 @@ export default function HyperliquidDataPage() {
             />
             <button
               type="button"
-              onClick={() => setCustomPath(path)}
+              onClick={() => {
+                setCustomPath(path);
+                void rawPoll.refresh();
+              }}
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100"
             >
               <RefreshCcw className="h-4 w-4" />
-              Sync Path
+              {rawPoll.status === 'stale' ? 'Refresh Stale' : 'Sync Path'}
             </button>
           </div>
 
@@ -540,8 +546,9 @@ export default function HyperliquidDataPage() {
                 <div className="grid gap-3">
                   {datasets.map((dataset) => {
                     const active = selectedDataset?.id === dataset.id;
-                    const datasetColumns = inferColumns(dataset.rows);
-                    const insights = buildDatasetInsight(dataset.rows, datasetColumns, buildColumnInsights(dataset.rows, datasetColumns));
+                    const profile = datasetProfiles.get(dataset.id);
+                    const datasetColumns = profile?.columns || [];
+                    const insights = profile?.insights || buildDatasetInsight(dataset.rows, datasetColumns, []);
                     return (
                       <button
                         key={dataset.id}
@@ -644,8 +651,20 @@ export default function HyperliquidDataPage() {
                   className="min-w-[240px] flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
                 />
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/65">
-                  {filteredRows.length} filas visibles
+                  {Math.min(filteredRows.length, renderRowLimit)} de {filteredRows.length} filas visibles
                 </div>
+                <label className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/65">
+                  Cap
+                  <select
+                    value={renderRowLimit}
+                    onChange={(event) => setRenderRowLimit(Number(event.target.value))}
+                    className="bg-transparent text-white outline-none"
+                  >
+                    {[60, 120, 240, 500].map((value) => (
+                      <option key={value} value={value} className="bg-[#08111c] text-white">{value}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
               {filteredRows.length === 0 || columns.length === 0 ? (
@@ -682,7 +701,7 @@ export default function HyperliquidDataPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRows.slice(0, 120).map((row, index) => {
+                      {visibleRows.map((row, index) => {
                         const active = filteredRows[selectedRowIndex] === row;
                         return (
                           <tr

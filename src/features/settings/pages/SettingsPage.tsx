@@ -117,7 +117,7 @@ export default function SettingsPage() {
       const nextStatus = await window.electronAPI.voice.getLiveStatus();
       setGeminiStatus(nextStatus);
       setGeminiKey('');
-      setGeminiMessage('Gemini Live key saved. Hold To Speak can now create voice sessions.');
+      setGeminiMessage('Gemini Live key saved. Start Live can now create voice sessions.');
     } catch (error) {
       setGeminiError(error instanceof Error ? error.message : 'Unable to save Gemini API key.');
     } finally {
@@ -333,7 +333,7 @@ export default function SettingsPage() {
             <SectionTitle icon={<KeyRound size={18} />} title="Gemini Live Voice" />
             <div style={metricGridStyle}>
               <AiMetric label="Voice Status" value={geminiStatus?.isConfigured ? 'configured' : 'missing'} />
-              <AiMetric label="Live Model" value={geminiStatus?.model || 'gemini-2.5-flash-native-audio-preview-12-2025'} />
+              <AiMetric label="Live Model" value={geminiStatus?.model || 'gemini-3.1-flash-live-preview'} />
               <AiMetric label="Key" value={geminiStatus?.keyPreview || 'not saved'} />
             </div>
 

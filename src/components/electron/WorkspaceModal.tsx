@@ -43,10 +43,11 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [path, setPath] = useState('');
   const [icon, setIcon] = useState('briefcase');
   const [color, setColor] = useState('#ef4444');
-  const [shell, setShell] = useState('powershell.exe');
+  const [shell, setShell] = useState('/bin/zsh');
   const [obsidianVaultPath, setObsidianVaultPath] = useState('');
   const [defaultCommands, setDefaultCommands] = useState('');
   const [launchProfiles, setLaunchProfiles] = useState('');
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -65,11 +66,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setPath('');
       setIcon('briefcase');
       setColor('#ef4444');
-      setShell('powershell.exe');
+      setShell('/bin/zsh');
       setObsidianVaultPath('');
       setDefaultCommands('');
       setLaunchProfiles(formatLaunchProfiles(createDefaultLaunchProfiles('')));
     }
+    setIsAdvancedOpen(false);
     setError('');
   }, [existingWorkspace, isOpen]);
 
@@ -181,7 +183,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
               {existingWorkspace ? 'Edit Workspace' : 'Create Workspace'}
             </h2>
             <p style={{ margin: 0, color: '#9ca3af', fontSize: '12px', lineHeight: 1.55, maxWidth: '560px' }}>
-              Keep only the essentials: identity, shell, saved commands and desk profiles.
+              Edit the desk essentials. Commands, colors and launch profiles are tucked away under Advanced.
             </p>
           </div>
 
@@ -220,7 +222,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
                 <Field label="Project Path *">
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <Input value={path} onChange={setPath} placeholder="C:\\Users\\leonard\\Documents\\project" mono />
+                    <Input value={path} onChange={setPath} placeholder="/Users/optimus/Documents/project" mono />
                     <ActionButton type="button" onClick={handleBrowsePath}>
                       Browse
                     </ActionButton>
@@ -228,15 +230,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 </Field>
 
                 <Field label="Default Shell">
-                  <select
-                    value={shell}
-                    onChange={(event) => setShell(event.target.value)}
-                    style={inputStyle}
-                  >
-                    <option value="powershell.exe">PowerShell</option>
-                    <option value="cmd.exe">Command Prompt</option>
-                    <option value="bash">Bash (WSL)</option>
-                  </select>
+                  <Input value={shell} onChange={setShell} placeholder="/bin/zsh" mono />
                 </Field>
 
                 <Field label="Obsidian Vault Path">
@@ -249,7 +243,31 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 </Field>
               </SectionCard>
 
-            <SectionCard title="Appearance" subtitle="Compact identity for the sidebar.">
+            <button
+              type="button"
+              onClick={() => setIsAdvancedOpen((current) => !current)}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'rgba(255, 255, 255, 0.03)',
+                color: '#e5e7eb',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span>Advanced</span>
+              <span style={{ color: '#9ca3af', fontSize: '12px' }}>{isAdvancedOpen ? 'Hide' : 'Show'}</span>
+            </button>
+
+            {isAdvancedOpen && (
+              <>
+              <SectionCard title="Appearance" subtitle="Compact identity for the sidebar.">
                 <Field label="Icon">
                   <div style={iconGridStyle}>
                     {ICONS.map((iconOption) => {
@@ -294,9 +312,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     ))}
                   </div>
                 </Field>
-            </SectionCard>
+              </SectionCard>
 
-            <SectionCard title="Saved Commands" subtitle="One command per line for quick launch.">
+              <SectionCard title="Saved Commands" subtitle="One command per line for quick launch.">
                 <textarea
                   value={defaultCommands}
                   onChange={(event) => setDefaultCommands(event.target.value)}
@@ -306,10 +324,10 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 />
               </SectionCard>
 
-            <SectionCard
-              title="Launch Profiles"
-              subtitle="One line per desk. Format: Name | 0>agent-runtime ::: 300>cmd2"
-            >
+              <SectionCard
+                title="Launch Profiles"
+                subtitle="Optional desk launch presets. Use one line per desk."
+              >
                 <textarea
                   value={launchProfiles}
                   onChange={(event) => setLaunchProfiles(event.target.value)}
@@ -320,22 +338,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   rows={7}
                   style={textareaStyle}
                 />
-                <div
-                  style={{
-                    marginTop: '8px',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                    color: '#9ca3af',
-                    fontSize: '11px',
-                    lineHeight: 1.55
-                  }}
-                >
-                  `agent-runtime` follows the agent provider (`Claude`, `Codex`, `Gemini`). Example:
-                  `0&gt;agent-runtime ::: 400&gt;git status ::: 900&gt;npm run dev`
-                </div>
-            </SectionCard>
+              </SectionCard>
+              </>
+            )}
           </div>
 
           {error && (

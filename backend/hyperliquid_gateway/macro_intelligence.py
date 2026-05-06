@@ -274,13 +274,15 @@ def group_events(events: list[dict[str, Any]], *, source: str, warning: str | No
         day_events.sort(key=lambda item: item.get("date_time") or "")
 
     count = sum(len(items) for items in events_by_day.values())
+    updated_at = datetime.now(timezone.utc).isoformat()
     return {
         "source": source,
         "timezone": TIMEZONE_LABEL,
         "events_by_day": events_by_day,
         "count": count,
         "warning": warning,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": updated_at,
+        "source_updated_at": updated_at,
     }
 
 
@@ -306,6 +308,7 @@ def calendar_payload_with_warning(payload: dict[str, Any], warning: str) -> dict
     return {
         **payload,
         "warning": warning,
+        "source_updated_at": payload.get("source_updated_at") or payload.get("updated_at"),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -539,6 +542,446 @@ async def get_calendar_analysis(days: int = 7, force: bool = False) -> dict[str,
         "ai": {"provider": "deterministic", "model": None, "fallbackUsed": False, "errors": []},
         "warning": calendar.get("warning"),
     }
+
+
+async def get_calendar_intelligence(days: int = 7, force: bool = False) -> dict[str, Any]:
+    calendar, news, holidays = await asyncio.gather(
+        get_calendar_week(days=days, force=force),
+        get_macro_news(days=days, force=force),
+        get_bank_holidays(days=days, force=force),
+    )
+    deterministic = deterministic_analysis(calendar, news, holidays)
+    quality = build_calendar_quality(calendar)
+    canonical_events = canonicalize_calendar_events(calendar)
+    today_desk = build_today_macro_desk(calendar, canonical_events, deterministic, quality)
+    stand_aside_windows = build_stand_aside_windows(canonical_events)
+    post_event_notes = build_post_event_notes(canonical_events)
+    model_payload = await build_model_macro_read(
+        calendar=calendar,
+        news=news,
+        holidays=holidays,
+        quality=quality,
+        deterministic=deterministic,
+        canonical_events=canonical_events,
+        stand_aside_windows=stand_aside_windows,
+    )
+
+    return {
+        "quality": quality,
+        "today_desk": today_desk,
+        "canonical_events": canonical_events,
+        "stand_aside_windows": stand_aside_windows,
+        "post_event_notes": post_event_notes,
+        "deterministic": deterministic,
+        "model": model_payload["model"],
+        "ai": model_payload["ai"],
+        "calendar": calendar,
+        "news": news,
+        "holidays": holidays,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def build_calendar_quality(calendar: dict[str, Any]) -> dict[str, Any]:
+    source = str(calendar.get("source") or "unknown")
+    warning = str(calendar.get("warning") or "")
+    source_updated_at = str(calendar.get("source_updated_at") or calendar.get("updated_at") or "")
+    age_minutes = minutes_since_iso(source_updated_at)
+    source_lower = source.lower()
+    warning_lower = warning.lower()
+    uses_fallback = "fallback" in source_lower or "fallback" in warning_lower
+    uses_saved_snapshot = "saved" in warning_lower or "snapshot" in warning_lower
+    provider = "Forex Factory" if "forex factory" in source_lower or uses_saved_snapshot else source
+
+    if uses_fallback:
+        status = "fallback"
+        confidence = 25
+    elif uses_saved_snapshot:
+        status = "cached"
+        confidence = 70
+    elif age_minutes is None:
+        status = "unknown"
+        confidence = 50
+    elif age_minutes <= 30:
+        status = "fresh"
+        confidence = 95
+    elif age_minutes <= 6 * 60:
+        status = "fresh"
+        confidence = 85
+    elif age_minutes <= 24 * 60:
+        status = "stale"
+        confidence = 60
+    else:
+        status = "stale"
+        confidence = 40
+
+    warnings: list[str] = []
+    if warning:
+        warnings.append(warning)
+    if status in {"cached", "stale"}:
+        warnings.append("Treat missing or changed events as possible; confirm before sizing up.")
+    if uses_fallback:
+        warnings.append("Fallback markers are not scheduled release data.")
+
+    return {
+        "provider": provider,
+        "status": status,
+        "confidence": confidence,
+        "age_minutes": age_minutes,
+        "source": source,
+        "source_updated_at": source_updated_at or None,
+        "served_at": calendar.get("updated_at"),
+        "event_count": calendar.get("count", 0),
+        "uses_saved_snapshot": uses_saved_snapshot,
+        "uses_fallback": uses_fallback,
+        "warnings": dedupe_strings(warnings),
+    }
+
+
+def minutes_since_iso(value: str) -> int | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return max(0, int((datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds() // 60))
+
+
+def canonicalize_calendar_events(calendar: dict[str, Any]) -> list[dict[str, Any]]:
+    canonical: list[dict[str, Any]] = []
+    for day, events in sorted(calendar.get("events_by_day", {}).items()):
+        for event in events:
+            event_id = f"{day}-{event.get('id')}"
+            category = classify_event_category(str(event.get("event_name") or ""))
+            crypto_importance = classify_crypto_importance(event, category)
+            surprise = build_event_surprise(event)
+            canonical.append(
+                {
+                    "event_id": event_id,
+                    "date": day,
+                    "time": event.get("time"),
+                    "date_time": event.get("date_time"),
+                    "currency": event.get("currency"),
+                    "impact": event.get("impact"),
+                    "event_name": event.get("event_name"),
+                    "category": category,
+                    "crypto_importance": crypto_importance,
+                    "forecast": event.get("forecast"),
+                    "previous": event.get("previous"),
+                    "actual": event.get("actual"),
+                    "surprise": surprise,
+                    "source": calendar.get("source"),
+                    "confidence": 25 if event.get("is_fallback") else None,
+                    "is_fallback": bool(event.get("is_fallback")),
+                }
+            )
+    return canonical
+
+
+def classify_event_category(name: str) -> str:
+    text = name.lower()
+    categories = {
+        "central_bank": ["fomc", "fed", "powell", "rate statement", "interest rate", "monetary policy", "ecb", "boe", "boj"],
+        "inflation": ["cpi", "ppi", "inflation", "pce", "prices"],
+        "labor": ["payroll", "unemployment", "jobless", "claims", "employment", "earnings", "jobs"],
+        "growth": ["gdp", "retail sales", "pmi", "ism", "manufacturing", "services", "industrial production"],
+        "liquidity": ["treasury", "auction", "budget", "bank holiday", "holiday", "bond"],
+        "sentiment": ["confidence", "sentiment", "expectations"],
+    }
+    for category, terms in categories.items():
+        if any(term in text for term in terms):
+            return category
+    return "macro"
+
+
+def classify_crypto_importance(event: dict[str, Any], category: str) -> str:
+    currency = str(event.get("currency") or "").upper()
+    impact = str(event.get("impact") or "").upper()
+    if event.get("is_fallback"):
+        return "medium" if impact == "HIGH" else "low"
+    if currency == "USD" and impact == "HIGH":
+        return "high"
+    if category in {"central_bank", "inflation", "labor"} and impact in {"HIGH", "MEDIUM"}:
+        return "high" if currency in {"USD", "GLOBAL"} else "medium"
+    if category in {"liquidity", "growth"} and impact == "HIGH":
+        return "medium"
+    if impact == "HIGH":
+        return "medium"
+    return "low"
+
+
+def build_event_surprise(event: dict[str, Any]) -> dict[str, Any] | None:
+    actual = parse_number(event.get("actual"))
+    forecast = parse_number(event.get("forecast"))
+    if actual is None or forecast is None:
+        return None
+    delta = actual - forecast
+    direction = "above_forecast" if delta > 0 else "below_forecast" if delta < 0 else "in_line"
+    return {
+        "actual": actual,
+        "forecast": forecast,
+        "delta": round(delta, 4),
+        "direction": direction,
+    }
+
+
+def parse_number(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip().replace(",", "")
+    if not text:
+        return None
+    multiplier = 1.0
+    if text.endswith("%"):
+        text = text[:-1]
+    elif text[-1:].upper() == "K":
+        text = text[:-1]
+        multiplier = 1_000.0
+    elif text[-1:].upper() == "M":
+        text = text[:-1]
+        multiplier = 1_000_000.0
+    elif text[-1:].upper() == "B":
+        text = text[:-1]
+        multiplier = 1_000_000_000.0
+    try:
+        return float(text) * multiplier
+    except ValueError:
+        return None
+
+
+def build_today_macro_desk(
+    calendar: dict[str, Any],
+    canonical_events: list[dict[str, Any]],
+    deterministic: dict[str, Any],
+    quality: dict[str, Any],
+) -> dict[str, Any]:
+    today = local_today().isoformat()
+    tomorrow = (local_today() + timedelta(days=1)).isoformat()
+    today_events = [event for event in canonical_events if event.get("date") == today]
+    tomorrow_events = [event for event in canonical_events if event.get("date") == tomorrow]
+    high_events = [event for event in canonical_events if event.get("impact") == "HIGH"]
+    high_today = [event for event in today_events if event.get("impact") == "HIGH"]
+    posture = "normal"
+    if quality.get("status") in {"fallback", "stale"}:
+        posture = "verify_calendar_first"
+    elif high_today:
+        posture = "reduce_size_until_post_event"
+    elif deterministic.get("overall_risk") == "HIGH":
+        posture = "selective_risk_only"
+
+    next_event = next((event for event in canonical_events if not is_past_event(event)), canonical_events[0] if canonical_events else None)
+    return {
+        "date": today,
+        "posture": posture,
+        "overall_risk": deterministic.get("overall_risk"),
+        "source_status": quality.get("status"),
+        "headline": build_macro_headline(quality, deterministic, high_today, next_event),
+        "next_event": next_event,
+        "today_event_count": len(today_events),
+        "today_high_impact_count": len(high_today),
+        "tomorrow_event_count": len(tomorrow_events),
+        "week_high_impact_count": len(high_events),
+        "what_to_watch": build_watch_list(canonical_events),
+    }
+
+
+def is_past_event(event: dict[str, Any]) -> bool:
+    try:
+        parsed = datetime.fromisoformat(str(event.get("date_time")).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=LOCAL_TZ)
+    return parsed.astimezone(LOCAL_TZ) < datetime.now(LOCAL_TZ)
+
+
+def build_macro_headline(
+    quality: dict[str, Any],
+    deterministic: dict[str, Any],
+    high_today: list[dict[str, Any]],
+    next_event: dict[str, Any] | None,
+) -> str:
+    if quality.get("status") == "fallback":
+        return "Calendar source is degraded; verify scheduled releases before trusting a quiet tape."
+    if quality.get("status") in {"cached", "stale"}:
+        return "Calendar is from a saved snapshot; use it as awareness, not certainty."
+    if high_today:
+        names = ", ".join(str(event.get("event_name")) for event in high_today[:2])
+        return f"High-impact macro risk today: {names}."
+    if next_event:
+        return f"Next macro checkpoint: {next_event.get('time')} {next_event.get('currency')} {next_event.get('event_name')}."
+    return f"Macro baseline risk is {deterministic.get('overall_risk', 'UNKNOWN')} with no scheduled high-impact event visible."
+
+
+def build_watch_list(canonical_events: list[dict[str, Any]]) -> list[str]:
+    watch: list[str] = []
+    for event in canonical_events:
+        if event.get("crypto_importance") == "high":
+            watch.append(f"{event['event_id']}: {event.get('event_name')} can affect USD/rates/risk appetite.")
+        if len(watch) >= 6:
+            break
+    return watch
+
+
+def build_stand_aside_windows(canonical_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    windows: list[dict[str, Any]] = []
+    for event in canonical_events:
+        if event.get("crypto_importance") != "high":
+            continue
+        try:
+            event_time = datetime.fromisoformat(str(event.get("date_time")).replace("Z", "+00:00")).astimezone(LOCAL_TZ)
+        except ValueError:
+            continue
+        before = 45 if event.get("category") in {"central_bank", "inflation", "labor"} else 30
+        after = 45 if event.get("category") in {"central_bank", "inflation", "labor"} else 30
+        windows.append(
+            {
+                "event_id": event.get("event_id"),
+                "label": f"{event.get('currency')} {event.get('event_name')}",
+                "start": (event_time - timedelta(minutes=before)).isoformat(),
+                "end": (event_time + timedelta(minutes=after)).isoformat(),
+                "reason": "High crypto-relevant macro event; avoid opening fresh risk until liquidity stabilizes.",
+                "confidence": event.get("confidence") or 85,
+            }
+        )
+    return windows[:12]
+
+
+def build_post_event_notes(canonical_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    notes: list[dict[str, Any]] = []
+    for event in canonical_events:
+        surprise = event.get("surprise")
+        if not surprise:
+            continue
+        direction = surprise.get("direction")
+        notes.append(
+            {
+                "event_id": event.get("event_id"),
+                "event_name": event.get("event_name"),
+                "surprise": surprise,
+                "read": "Hotter/stronger than forecast; watch USD/yields tightening pressure." if direction == "above_forecast" else "Softer than forecast; watch risk appetite and rates relief." if direction == "below_forecast" else "In line with forecast; price reaction matters more than the print.",
+            }
+        )
+    return notes[:10]
+
+
+async def build_model_macro_read(
+    *,
+    calendar: dict[str, Any],
+    news: dict[str, Any],
+    holidays: dict[str, Any],
+    quality: dict[str, Any],
+    deterministic: dict[str, Any],
+    canonical_events: list[dict[str, Any]],
+    stand_aside_windows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    fallback = deterministic_model_read(quality, deterministic, canonical_events, stand_aside_windows)
+    system_prompt = (
+        "You are a hedge fund macro risk analyst for a crypto/derivatives desk. "
+        "Return strict JSON only. You must not invent events. Cite only event_id values from canonical_events. "
+        "If source quality is cached, stale, or fallback, explicitly say confidence is reduced. "
+        "Do not give direct buy/sell instructions; focus on risk windows, what to watch, and trading posture."
+    )
+    user_payload = {
+        "required_schema": {
+            "headline": "one sentence",
+            "confidence": 0,
+            "posture": "normal|selective_risk_only|reduce_size_until_post_event|verify_calendar_first",
+            "key_event_ids": ["event_id"],
+            "watch_before": ["string"],
+            "watch_during": ["string"],
+            "watch_after": ["string"],
+            "operator_notes": ["string"],
+        },
+        "quality": quality,
+        "deterministic": deterministic,
+        "canonical_events": canonical_events[:40],
+        "stand_aside_windows": stand_aside_windows[:12],
+        "news": {"items": news.get("items", [])[:12], "warnings": news.get("warnings", [])},
+        "holidays": {"holidays": holidays.get("holidays", [])[:12], "warnings": holidays.get("warnings", [])},
+    }
+    try:
+        model, ai_meta = await complete_json(system_prompt=system_prompt, user_payload=user_payload, max_tokens=900)
+        model = normalize_model_read(model, fallback, {str(event["event_id"]) for event in canonical_events})
+        return {"model": model, "ai": ai_meta}
+    except AIProviderError as exc:
+        return {
+            "model": fallback,
+            "ai": {
+                "provider": "deterministic",
+                "model": None,
+                "fallbackUsed": False,
+                "errors": [{"provider": exc.provider, "message": exc.message}],
+            },
+        }
+
+
+def deterministic_model_read(
+    quality: dict[str, Any],
+    deterministic: dict[str, Any],
+    canonical_events: list[dict[str, Any]],
+    stand_aside_windows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    key_events = [event for event in canonical_events if event.get("crypto_importance") == "high"][:5]
+    confidence = min(int(quality.get("confidence") or 50), 85)
+    if quality.get("status") in {"fallback", "stale"}:
+        posture = "verify_calendar_first"
+    elif stand_aside_windows:
+        posture = "reduce_size_until_post_event"
+    elif deterministic.get("overall_risk") == "HIGH":
+        posture = "selective_risk_only"
+    else:
+        posture = "normal"
+    return {
+        "headline": build_macro_headline(quality, deterministic, [event for event in key_events if event.get("date") == local_today().isoformat()], key_events[0] if key_events else None),
+        "confidence": confidence,
+        "posture": posture,
+        "key_event_ids": [event["event_id"] for event in key_events],
+        "watch_before": ["Confirm source status is fresh before sizing up.", "Mark high-impact event times on the intraday plan."],
+        "watch_during": ["Avoid opening fresh risk into high-impact release windows.", "Watch spread, liquidation pressure, and BTC reaction after the print."],
+        "watch_after": ["Wait for post-event liquidity clarity before treating the move as signal.", "Record surprise vs forecast when actual data is available."],
+        "operator_notes": deterministic.get("recommendations", []),
+    }
+
+
+def normalize_model_read(model: dict[str, Any], fallback: dict[str, Any], valid_event_ids: set[str]) -> dict[str, Any]:
+    key_event_ids = [
+        str(event_id)
+        for event_id in model.get("key_event_ids", [])
+        if str(event_id) in valid_event_ids
+    ]
+    confidence = model.get("confidence", fallback["confidence"])
+    try:
+        confidence_int = max(0, min(100, int(confidence)))
+    except (TypeError, ValueError):
+        confidence_int = fallback["confidence"]
+    posture = str(model.get("posture") or fallback["posture"])
+    if posture not in {"normal", "selective_risk_only", "reduce_size_until_post_event", "verify_calendar_first"}:
+        posture = fallback["posture"]
+    return {
+        "headline": str(model.get("headline") or fallback["headline"]),
+        "confidence": confidence_int,
+        "posture": posture,
+        "key_event_ids": key_event_ids or fallback["key_event_ids"],
+        "watch_before": model.get("watch_before") if isinstance(model.get("watch_before"), list) else fallback["watch_before"],
+        "watch_during": model.get("watch_during") if isinstance(model.get("watch_during"), list) else fallback["watch_during"],
+        "watch_after": model.get("watch_after") if isinstance(model.get("watch_after"), list) else fallback["watch_after"],
+        "operator_notes": model.get("operator_notes") if isinstance(model.get("operator_notes"), list) else fallback["operator_notes"],
+    }
+
+
+def dedupe_strings(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
 
 
 async def get_weekly_brief(days: int = 7, force: bool = False) -> dict[str, Any]:

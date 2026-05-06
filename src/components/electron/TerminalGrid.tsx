@@ -29,6 +29,11 @@ export const TerminalGrid: React.FC = () => {
   const { runs, tasks, updateRun, updateTaskStatus } = useCommanderTasksContext();
   const { activeWorkspace } = useWorkspaceContext();
   const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>('grid');
+  const [handoffNotice, setHandoffNotice] = React.useState<string | null>(null);
+  const missionTerminals = React.useMemo(
+    () => terminals.filter((terminal) => Boolean(terminal.missionTitle || terminal.terminalPurpose === 'mission-console')),
+    [terminals]
+  );
 
   React.useEffect(() => {
     runs.forEach((run) => {
@@ -117,6 +122,67 @@ export const TerminalGrid: React.FC = () => {
   }, [runs, updateRun]);
 
   React.useEffect(() => {
+    let cancelled = false;
+
+    const normalizeOutputExcerpt = (buffer?: string | null) => {
+      if (!buffer) {
+        return '';
+      }
+
+      return buffer
+        .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+        .replace(/\u001b\][^\u0007]*\u0007/g, '')
+        .replace(/\r/g, '')
+        .trim()
+        .slice(-3000);
+    };
+
+    const syncMissionSnapshots = async () => {
+      for (const terminal of terminals) {
+        const getSnapshot = window.electronAPI.terminal.getSnapshot;
+        if (
+          !terminal.runId
+          || !terminal.missionTitle
+          || typeof getSnapshot !== 'function'
+          || typeof window.electronAPI?.missionConsole?.appendSnapshot !== 'function'
+        ) {
+          continue;
+        }
+
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const snapshot = await getSnapshot(terminal.id);
+          if (cancelled || !snapshot) {
+            continue;
+          }
+
+          // eslint-disable-next-line no-await-in-loop
+          await window.electronAPI.missionConsole.appendSnapshot({
+            runId: terminal.runId,
+            terminalId: terminal.id,
+            status: terminal.runtimeState || (terminal.ptyState === 'failed' ? 'failed' : 'launching'),
+            outputExcerpt: normalizeOutputExcerpt(snapshot.buffer),
+            handoffSummary: terminal.handoffSummary || terminal.runtimeDetail,
+            evidenceRefs: terminal.evidenceRefs
+          });
+        } catch {
+          // Mission Console snapshots are opportunistic; terminal state remains visible even if persistence fails.
+        }
+      }
+    };
+
+    void syncMissionSnapshots();
+    const interval = window.setInterval(() => {
+      void syncMissionSnapshots();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [terminals]);
+
+  React.useEffect(() => {
     tasks.forEach((task) => {
       const taskRuns = runs.filter((run) => run.taskId === task.id);
       if (taskRuns.length === 0) {
@@ -181,6 +247,32 @@ export const TerminalGrid: React.FC = () => {
     closeTerminal(terminalId);
   };
 
+  const handleExportMissionHandoff = async (terminal: TerminalSession) => {
+    const getSnapshot = window.electronAPI.terminal.getSnapshot;
+    if (!terminal.runId || typeof getSnapshot !== 'function' || typeof window.electronAPI?.missionConsole?.exportHandoff !== 'function') {
+      return;
+    }
+
+    try {
+      const snapshot = await getSnapshot(terminal.id);
+      const outputExcerpt = snapshot?.buffer
+        ?.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+        .replace(/\u001b\][^\u0007]*\u0007/g, '')
+        .replace(/\r/g, '')
+        .trim()
+        .slice(-6000);
+      const result = await window.electronAPI.missionConsole.exportHandoff({
+        runId: terminal.runId,
+        workspacePath: terminal.cwd,
+        summary: terminal.handoffSummary || terminal.runtimeDetail || terminal.missionTitle,
+        outputExcerpt
+      });
+      setHandoffNotice(`Handoff exported: ${result.path}`);
+    } catch (error) {
+      setHandoffNotice(error instanceof Error ? error.message : 'Could not export Mission Console handoff.');
+    }
+  };
+
   const getGridLayout = (count: number) => {
     if (layoutMode === 'vertical') {
       return { cols: 1, rows: count };
@@ -220,12 +312,13 @@ export const TerminalGrid: React.FC = () => {
           alignItems: 'center',
           gap: '24px'
         }}>
-          <div style={{ fontSize: '48px', marginBottom: '8px' }}>T</div>
+          <div style={{ fontSize: '48px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>CLI</div>
           <div style={{ fontSize: '20px', color: 'var(--app-text)', fontWeight: '600', marginBottom: '8px' }}>
-            No terminals open
+            No terminal sessions running
           </div>
-          <div style={{ fontSize: '14px', color: 'var(--app-muted)', textAlign: 'center', maxWidth: '300px', lineHeight: '1.6' }}>
-            Create a new terminal to start working on your projects
+          <div style={{ fontSize: '14px', color: 'var(--app-muted)', textAlign: 'center', maxWidth: '340px', lineHeight: '1.6' }}>
+            This is the Hedge Fund Station command hub for your primary hedge fund desk and bot/dev/side project workspaces.
+            Launch saved commands and profiles here so output stays visible in the center panel.
           </div>
           <button
             onClick={() => handleNewTerminal()}
@@ -251,7 +344,7 @@ export const TerminalGrid: React.FC = () => {
               e.currentTarget.style.boxShadow = '0 4px 16px var(--app-glow)';
             }}
           >
-            + New Terminal
+            + New Console
           </button>
         </div>
       </div>
@@ -289,7 +382,7 @@ export const TerminalGrid: React.FC = () => {
           minWidth: 0
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: 'var(--app-accent)', fontSize: '13px', fontWeight: '600' }}>Voice</span>
+            <span style={{ color: 'var(--app-accent)', fontSize: '13px', fontWeight: '600' }}>Terminales / CLI</span>
             <div style={{
               background: terminals.length >= MAX_TERMINALS ? 'var(--app-negative-soft)' : 'var(--app-accent-soft)',
               padding: '2px 8px',
@@ -365,11 +458,62 @@ export const TerminalGrid: React.FC = () => {
               e.currentTarget.style.boxShadow = '0 2px 8px var(--app-glow)';
             }
           }}
-          title={terminals.length >= MAX_TERMINALS ? `Terminal limit ${MAX_TERMINALS} reached` : 'Add terminal'}
+          title={terminals.length >= MAX_TERMINALS ? `Terminal limit ${MAX_TERMINALS} reached` : 'Add CLI console'}
         >
-          + New
+          + New Shell
         </button>
       </div>
+
+      {missionTerminals.length > 0 ? (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '8px',
+          padding: '0 2px'
+        }}>
+          {missionTerminals.map((terminal) => (
+            <div key={`mission-${terminal.id}`} style={{
+              border: '1px solid rgba(56, 189, 248, 0.14)',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(8, 47, 73, 0.36), rgba(2, 6, 23, 0.82))',
+              padding: '10px',
+              display: 'grid',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'start' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: '#e0f2fe', fontSize: '12px', fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {terminal.missionTitle || terminal.label}
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>
+                    {terminal.runtimeProvider || 'shell'} / {terminal.missionKind || 'mission'} / {terminal.runtimeState || terminal.ptyState}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setActiveTerminal(terminal.id)} style={missionTinyButtonStyle}>Focus</button>
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: '10px', lineHeight: 1.4, minHeight: '28px' }}>
+                {terminal.runtimeDetail || terminal.ptyDetail || 'Mission terminal is active.'}
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => void handleExportMissionHandoff(terminal)} style={missionTinyButtonStyle}>Export handoff</button>
+                {terminal.lastOutputAt ? (
+                  <span style={{ color: '#64748b', fontSize: '10px', alignSelf: 'center' }}>
+                    output {Math.max(0, Math.round((Date.now() - terminal.lastOutputAt) / 1000))}s ago
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          {handoffNotice ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              color: handoffNotice.startsWith('Handoff exported') ? '#67e8f9' : '#fca5a5',
+              fontSize: '11px',
+              padding: '2px 4px'
+            }}>{handoffNotice}</div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div style={{
         flex: 1,
@@ -423,6 +567,17 @@ export const TerminalGrid: React.FC = () => {
       </div>
     </div>
   );
+};
+
+const missionTinyButtonStyle: React.CSSProperties = {
+  border: '1px solid rgba(125, 211, 252, 0.18)',
+  borderRadius: '8px',
+  background: 'rgba(8, 47, 73, 0.48)',
+  color: '#bae6fd',
+  padding: '5px 8px',
+  fontSize: '10px',
+  fontWeight: 800,
+  cursor: 'pointer'
 };
 
 function deriveRunState(

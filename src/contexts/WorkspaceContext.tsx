@@ -17,6 +17,7 @@ interface WorkspaceContextValue {
   isLoading: boolean;
   setActiveWorkspace: (id: string) => Promise<void>;
   createWorkspace: (workspace: Workspace) => Promise<void>;
+  inferWorkspaceFromPath: (workspacePath: string) => Promise<Workspace>;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
   refreshWorkspaces: () => Promise<void>;
@@ -98,6 +99,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [refreshWorkspaces]);
 
+  const inferWorkspaceFromPath = useCallback(async (workspacePath: string) => {
+    if (!window.electronAPI?.workspace) {
+      throw new Error('Workspace API is not available.');
+    }
+
+    return window.electronAPI.workspace.inferFromPath(workspacePath);
+  }, []);
+
   const updateWorkspace = useCallback(async (id: string, updates: Partial<Workspace>) => {
     try {
       if (!window.electronAPI?.workspace) {
@@ -132,6 +141,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     isLoading,
     setActiveWorkspace,
     createWorkspace,
+    inferWorkspaceFromPath,
     updateWorkspace,
     deleteWorkspace,
     refreshWorkspaces

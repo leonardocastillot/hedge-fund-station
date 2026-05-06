@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import {
   ALPHA_ENGINE_HTTP_URL,
   HYPERLIQUID_GATEWAY_HTTP_URL,
   LEGACY_TRADING_HTTP_URL
 } from '../../services/backendConfig';
 import { invalidateRequestCache, withRequestCache } from '../../services/requestCache';
-import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
+import { useMarketPolling } from '../../hooks/useMarketPolling';
 
 const BACKEND_HEALTH_TIMEOUT_MS = 6_000;
 
@@ -162,39 +162,27 @@ function labelFor(result: BackendProbeResult, optional?: boolean): string {
 }
 
 export const BackendStatus: React.FC = () => {
-  const [results, setResults] = useState(initialResults);
-  const [isChecking, setIsChecking] = useState(true);
-  const requestInFlightRef = useRef(false);
-
-  const checkBackend = useCallback(async (force = false) => {
-    if (requestInFlightRef.current) {
-      return;
-    }
-
-    if (force) {
-      probes.forEach((probe) => invalidateRequestCache(`backend:${probe.id}`));
-    }
-
-    requestInFlightRef.current = true;
-
-    try {
+  const poll = useMarketPolling(
+    'backend:status-pill',
+    async () => {
       const entries = await Promise.all(probes.map(async (probe) => {
         const result = await withRequestCache(`backend:${probe.id}`, 4_000, () => probeBackend(probe));
         return [probe.id, result] as const;
       }));
+      return Object.fromEntries(entries) as Record<BackendProbe['id'], BackendProbeResult>;
+    },
+    { intervalMs: 60_000, staleAfterMs: 90_000 }
+  );
 
-      setResults(Object.fromEntries(entries) as Record<BackendProbe['id'], BackendProbeResult>);
-    } finally {
-      setIsChecking(false);
-      requestInFlightRef.current = false;
+  const checkBackend = async (force = false) => {
+    if (force) {
+      probes.forEach((probe) => invalidateRequestCache(`backend:${probe.id}`));
     }
-  }, []);
+    await poll.refresh();
+  };
 
-  useVisibilityPolling(() => checkBackend(false), 60_000);
-
-  useEffect(() => {
-    void checkBackend(false);
-  }, [checkBackend]);
+  const results = poll.data || initialResults;
+  const isChecking = poll.status === 'loading' || poll.isRefreshing;
 
   const alpha = results.alpha;
   const gateway = results.gateway;
@@ -246,7 +234,7 @@ export const BackendStatus: React.FC = () => {
         L {labelFor(legacy, true)}
       </span>
       <span style={{ color: 'rgba(255, 255, 255, 0.45)', textTransform: 'none', letterSpacing: 0 }}>
-        {alpha.latencyMs === null ? 'n/a' : `${alpha.latencyMs}ms`}
+        {poll.status === 'stale' ? 'stale' : alpha.latencyMs === null ? 'n/a' : `${alpha.latencyMs}ms`}
       </span>
     </div>
   );

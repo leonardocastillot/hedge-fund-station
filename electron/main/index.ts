@@ -2,10 +2,11 @@ import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, session, shell } 
 import { ElectronBlocker } from '@ghostery/adblocker-electron';
 import { join } from 'path';
 import { spawn, spawnSync, ChildProcessWithoutNullStreams } from 'child_process';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
+import { request as httpRequest } from 'http';
 import { PTYManager } from './native/pty-manager';
 import { WorkspaceManager } from './native/workspace-manager';
-import { registerAgentLoopHandlers, registerDiagnosticsHandlers, registerMarketingHandlers, registerObsidianHandlers, registerTerminalHandlers, registerVoiceHandlers, registerWorkspaceHandlers } from './ipc/ipc-handlers';
+import { registerAgentLoopHandlers, registerDiagnosticsHandlers, registerMarketingHandlers, registerMissionConsoleHandlers, registerObsidianHandlers, registerTerminalHandlers, registerVoiceHandlers, registerWorkspaceHandlers } from './ipc/ipc-handlers';
 import { createApplicationMenu } from './app/menu';
 import { UpdateManager } from './app/updater';
 import { MarketingAutomationManager } from './native/marketing-automation';
@@ -14,6 +15,7 @@ import { GeminiLiveVoiceManager } from './native/gemini-live-voice';
 import { ObsidianManager } from './native/obsidian-manager';
 import { DiagnosticsManager } from './native/diagnostics-manager';
 import { AgentLoopManager } from './native/agent-loop-manager';
+import { MissionConsoleManager } from './native/mission-console-manager';
 
 let mainWindow: BrowserWindow | null = null;
 let ptyManager: PTYManager | null = null;
@@ -25,12 +27,35 @@ let geminiLiveVoiceManager: GeminiLiveVoiceManager | null = null;
 let obsidianManager: ObsidianManager | null = null;
 let diagnosticsManager: DiagnosticsManager | null = null;
 let agentLoopManager: AgentLoopManager | null = null;
+let missionConsoleManager: MissionConsoleManager | null = null;
 let backendProcess: ChildProcessWithoutNullStreams | null = null;
 let legacyBackendProcess: ChildProcessWithoutNullStreams | null = null;
 let backendStartTimer: NodeJS.Timeout | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let youtubeAdBlockerReady: Promise<void> | null = null;
+const nativeDevBaselineMtime = Date.now();
+
+type DevServiceStatus = {
+  ok: boolean;
+  url: string;
+  statusCode?: number;
+  latencyMs?: number;
+  error?: string;
+};
+
+type DevStatus = {
+  isDevelopment: boolean;
+  rendererLive: boolean;
+  nativeRestartRequired: boolean;
+  nativeChangedPaths: string[];
+  checkedAt: string;
+  services: {
+    vite: DevServiceStatus;
+    gateway: DevServiceStatus;
+    backend: DevServiceStatus;
+  };
+};
 
 function focusMainWindow(): void {
   if (!mainWindow) {
@@ -72,6 +97,118 @@ app.on('second-instance', () => {
 
 function getProjectRoot(): string {
   return join(__dirname, '../../');
+}
+
+function getNativeWatchRoots(): string[] {
+  const root = getProjectRoot();
+  return [
+    join(root, 'electron/main'),
+    join(root, 'electron/preload'),
+    join(root, 'electron/types'),
+    join(root, 'electron.vite.config.ts')
+  ];
+}
+
+function collectChangedNativePaths(targetPath: string, changedPaths: string[], limit = 12): void {
+  if (changedPaths.length >= limit || !existsSync(targetPath)) {
+    return;
+  }
+
+  let stat;
+  try {
+    stat = statSync(targetPath);
+  } catch {
+    return;
+  }
+
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(targetPath)) {
+      if (entry === 'node_modules' || entry === 'dist' || entry === 'dist-electron') {
+        continue;
+      }
+      collectChangedNativePaths(join(targetPath, entry), changedPaths, limit);
+      if (changedPaths.length >= limit) {
+        return;
+      }
+    }
+    return;
+  }
+
+  if (!/\.(ts|tsx|js|cjs|mjs|json)$/.test(targetPath)) {
+    return;
+  }
+
+  if (stat.mtimeMs > nativeDevBaselineMtime + 1000) {
+    changedPaths.push(targetPath.replace(`${getProjectRoot()}/`, ''));
+  }
+}
+
+function getNativeChangedPaths(): string[] {
+  const changedPaths: string[] = [];
+  for (const targetPath of getNativeWatchRoots()) {
+    collectChangedNativePaths(targetPath, changedPaths);
+    if (changedPaths.length >= 12) {
+      break;
+    }
+  }
+  return changedPaths;
+}
+
+function checkHttpStatus(url: string, timeoutMs = 1200): Promise<DevServiceStatus> {
+  const startedAt = Date.now();
+
+  return new Promise((resolve) => {
+    const request = httpRequest(url, { method: 'GET', timeout: timeoutMs }, (response) => {
+      response.resume();
+      response.once('end', () => {
+        const statusCode = response.statusCode;
+        resolve({
+          ok: typeof statusCode === 'number' && statusCode >= 200 && statusCode < 500,
+          url,
+          statusCode,
+          latencyMs: Date.now() - startedAt
+        });
+      });
+    });
+
+    request.once('timeout', () => {
+      request.destroy(new Error('timeout'));
+    });
+
+    request.once('error', (error) => {
+      resolve({
+        ok: false,
+        url,
+        latencyMs: Date.now() - startedAt,
+        error: error.message
+      });
+    });
+
+    request.end();
+  });
+}
+
+async function getDevStatus(): Promise<DevStatus> {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const [vite, gateway, backend] = await Promise.all([
+    checkHttpStatus('http://127.0.0.1:5173'),
+    checkHttpStatus('http://127.0.0.1:18001/health'),
+    checkHttpStatus('http://127.0.0.1:18500/health')
+  ]);
+  const nativeChangedPaths = isDevelopment ? getNativeChangedPaths() : [];
+
+  return {
+    isDevelopment,
+    rendererLive: vite.ok,
+    nativeRestartRequired: nativeChangedPaths.length > 0,
+    nativeChangedPaths,
+    checkedAt: new Date().toISOString(),
+    services: {
+      vite,
+      gateway,
+      backend
+    }
+  };
 }
 
 function canUseDocker(): boolean {
@@ -272,20 +409,29 @@ function clearIpcChannels(): void {
     'marketing:generateImage',
     'voice:transcribe',
     'obsidian:getStatus',
+    'obsidian:ensureVault',
     'obsidian:listNotes',
     'obsidian:searchRelevant',
     'obsidian:listPinned',
     'obsidian:exportMission',
     'obsidian:openPath',
+    'obsidian:openVault',
     'diagnostics:checkCommands',
     'diagnostics:shellSmokeTest',
     'diagnostics:runMissionDrill',
     'agentLoop:startMission',
     'agentLoop:getRun',
     'agentLoop:cancelRun',
+    'missionConsole:listRuns',
+    'missionConsole:saveRun',
+    'missionConsole:appendSnapshot',
+    'missionConsole:exportHandoff',
     'external:openUrl',
     'external:openUrlInBrave',
     'external:openUrlsInBrave',
+    'dev:getStatus',
+    'dev:reloadRenderer',
+    'dev:restartShell',
     'update:check',
     'update:download',
     'update:install'
@@ -397,6 +543,30 @@ function reloadMainWindow(): void {
 
   mainWindow.webContents.reload();
   focusMainWindow();
+}
+
+function restartElectronShell(): void {
+  if (process.env.NODE_ENV !== 'development') {
+    throw new Error('Electron shell restart is only available in development mode.');
+  }
+
+  isQuitting = true;
+  app.relaunch();
+  app.exit(0);
+}
+
+function registerDevHandlers(): void {
+  ipcMain.handle('dev:getStatus', async () => getDevStatus());
+
+  ipcMain.handle('dev:reloadRenderer', async () => {
+    reloadMainWindow();
+    return { success: true };
+  });
+
+  ipcMain.handle('dev:restartShell', async () => {
+    restartElectronShell();
+    return { success: true };
+  });
 }
 
 function toggleDevTools(): void {
@@ -548,6 +718,7 @@ function createWindow(): void {
   obsidianManager = new ObsidianManager();
   diagnosticsManager = new DiagnosticsManager();
   agentLoopManager = new AgentLoopManager();
+  missionConsoleManager = new MissionConsoleManager();
 
   clearIpcChannels();
   registerTerminalHandlers(ptyManager);
@@ -557,7 +728,11 @@ function createWindow(): void {
   registerObsidianHandlers(obsidianManager);
   registerDiagnosticsHandlers(diagnosticsManager);
   registerAgentLoopHandlers(agentLoopManager);
+  registerMissionConsoleHandlers(missionConsoleManager);
   registerExternalHandlers();
+  if (process.env.NODE_ENV === 'development') {
+    registerDevHandlers();
+  }
   registerUpdateHandlers(updateManager);
   createApplicationMenu(mainWindow);
 
@@ -611,6 +786,8 @@ function createWindow(): void {
     geminiLiveVoiceManager = null;
     obsidianManager = null;
     diagnosticsManager = null;
+    agentLoopManager = null;
+    missionConsoleManager = null;
     workspaceManager = null;
     mainWindow = null;
   });

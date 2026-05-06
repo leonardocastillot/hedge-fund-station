@@ -3,6 +3,7 @@ import * as path from 'path';
 import { shell } from 'electron';
 import type {
   ObsidianGetStatusParams,
+  ObsidianEnsureVaultParams,
   ObsidianListNotesParams,
   ObsidianExportMissionParams,
   ObsidianNoteSummary,
@@ -10,10 +11,19 @@ import type {
   ObsidianSearchRelevantParams,
   ObsidianListPinnedParams,
   ObsidianVaultStatus,
-  ObsidianOpenPathParams
+  ObsidianOpenPathParams,
+  ObsidianOpenVaultParams
 } from '../../types/ipc.types';
 
 export class ObsidianManager {
+  private writeFileIfMissing(filePath: string, content: string): void {
+    if (fs.existsSync(filePath)) {
+      return;
+    }
+
+    fs.writeFileSync(filePath, content, 'utf-8');
+  }
+
   private extractFrontmatter(raw: string): { body: string; metadata: Record<string, string | string[]> } {
     if (!raw.startsWith('---\n')) {
       return { body: raw, metadata: {} };
@@ -139,6 +149,96 @@ export class ObsidianManager {
       isAvailable: Boolean(vaultPath),
       vaultPath,
       notesPath: vaultPath ? path.join(vaultPath, 'hedge-station') : null
+    };
+  }
+
+  ensureVault(params: ObsidianEnsureVaultParams): ObsidianVaultStatus {
+    const workspacePath = params.workspacePath.trim();
+    if (!workspacePath || !fs.existsSync(workspacePath) || !fs.statSync(workspacePath).isDirectory()) {
+      throw new Error(`Workspace path does not exist or is not a directory: ${workspacePath}`);
+    }
+
+    const vaultPath = params.vaultPath?.trim() || workspacePath;
+    fs.mkdirSync(vaultPath, { recursive: true });
+    fs.mkdirSync(path.join(vaultPath, '.obsidian'), { recursive: true });
+
+    const notesPath = path.join(vaultPath, 'hedge-station');
+    fs.mkdirSync(notesPath, { recursive: true });
+
+    this.writeFileIfMissing(path.join(vaultPath, '.obsidian', 'app.json'), JSON.stringify({
+      newFileLocation: 'folder',
+      newFileFolderPath: 'hedge-station',
+      attachmentFolderPath: 'hedge-station/attachments'
+    }, null, 2));
+
+    fs.mkdirSync(path.join(notesPath, 'attachments'), { recursive: true });
+
+    this.writeFileIfMissing(path.join(notesPath, 'Workspace Home.md'), [
+      '---',
+      'type: workspace-home',
+      'pinned: true',
+      'tags: [hedge-station, workspace]',
+      `created_at: ${new Date().toISOString()}`,
+      '---',
+      '',
+      '# Workspace Home',
+      '',
+      '## Purpose',
+      '',
+      'Use this vault as the operating memory for the workspace.',
+      '',
+      '## Useful Links',
+      '',
+      '- [[Mission Log]]',
+      '- [[Pinned Memory]]',
+      '- [[Open Questions]]',
+      ''
+    ].join('\n'));
+
+    this.writeFileIfMissing(path.join(notesPath, 'Mission Log.md'), [
+      '---',
+      'type: mission-log',
+      'tags: [hedge-station, missions]',
+      `created_at: ${new Date().toISOString()}`,
+      '---',
+      '',
+      '# Mission Log',
+      '',
+      'Capture important mission outcomes here when they should stay visible beyond one run.',
+      ''
+    ].join('\n'));
+
+    this.writeFileIfMissing(path.join(notesPath, 'Pinned Memory.md'), [
+      '---',
+      'type: memory',
+      'pinned: true',
+      'tags: [hedge-station, pinned]',
+      `created_at: ${new Date().toISOString()}`,
+      '---',
+      '',
+      '# Pinned Memory',
+      '',
+      'Keep durable workspace facts, decisions, and shortcuts here.',
+      ''
+    ].join('\n'));
+
+    this.writeFileIfMissing(path.join(notesPath, 'Open Questions.md'), [
+      '---',
+      'type: open-questions',
+      'tags: [hedge-station, questions]',
+      `created_at: ${new Date().toISOString()}`,
+      '---',
+      '',
+      '# Open Questions',
+      '',
+      '- What should the next agent clarify before changing behavior?',
+      ''
+    ].join('\n'));
+
+    return {
+      isAvailable: true,
+      vaultPath,
+      notesPath
     };
   }
 
@@ -338,5 +438,21 @@ export class ObsidianManager {
   async openPath(params: ObsidianOpenPathParams): Promise<{ success: boolean }> {
     await shell.openPath(params.path);
     return { success: true };
+  }
+
+  async openVault(params: ObsidianOpenVaultParams): Promise<{ success: boolean; fallback: boolean }> {
+    const vaultPath = params.vaultPath.trim();
+    if (!vaultPath) {
+      throw new Error('Vault path is required.');
+    }
+
+    const url = `obsidian://open?path=${encodeURIComponent(vaultPath)}`;
+    try {
+      await shell.openExternal(url);
+      return { success: true, fallback: false };
+    } catch {
+      await shell.openPath(vaultPath);
+      return { success: true, fallback: true };
+    }
   }
 }

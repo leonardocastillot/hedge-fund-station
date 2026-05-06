@@ -4,8 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const CONFIG_FILE = 'marketing-ai.json';
-const DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
-const FALLBACK_LIVE_MODEL = '';
+const DEFAULT_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
+const FALLBACK_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const DEFAULT_VOICE_NAME = 'Kore';
 
 interface GeminiLiveConfig {

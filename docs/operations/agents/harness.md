@@ -10,6 +10,11 @@ The operating idea is adapted from harness engineering: do not rely on model
 quality alone. Build the surrounding system that guides an agent before it acts
 and checks its work after it acts.
 
+For the repo-file layer inspired by `betta-tech/ejemplo-harness-subagentes`,
+use `docs/operations/agents/file-harness.md`, `agent_tasks.json`,
+`progress/current.md`, and `CHECKPOINTS.md`. This document defines the broader
+mission contract; the file harness defines how agents coordinate through files.
+
 ## Core Rule
 
 Agents may accelerate research, validation, review, and repo maintenance. They

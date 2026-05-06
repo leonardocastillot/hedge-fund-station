@@ -2,11 +2,13 @@ import React from 'react';
 
 const REQUIRED_API_PATHS = [
   'obsidian.getStatus',
+  'obsidian.ensureVault',
   'obsidian.listNotes',
   'obsidian.searchRelevant',
   'obsidian.listPinned',
   'obsidian.exportMission',
-  'obsidian.openPath'
+  'obsidian.openPath',
+  'obsidian.openVault'
 ];
 
 function hasApiPath(root: unknown, path: string): boolean {

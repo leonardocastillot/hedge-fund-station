@@ -5,6 +5,7 @@ import { MarketingAutomationManager } from '../native/marketing-automation';
 import { ObsidianManager } from '../native/obsidian-manager';
 import { DiagnosticsManager } from '../native/diagnostics-manager';
 import { AgentLoopManager } from '../native/agent-loop-manager';
+import { MissionConsoleManager } from '../native/mission-console-manager';
 import type {
   TerminalCreateParams,
   TerminalWriteParams,
@@ -12,6 +13,7 @@ import type {
   TerminalKillParams,
   WorkspaceSetActiveParams,
   WorkspaceCreateParams,
+  WorkspaceInferParams,
   WorkspaceUpdateParams,
   WorkspaceDeleteParams,
   MarketingListBlogPostsParams,
@@ -21,15 +23,21 @@ import type {
   GeminiLiveTokenRequest,
   VoiceTranscriptionParams,
   ObsidianGetStatusParams,
+  ObsidianEnsureVaultParams,
   ObsidianListNotesParams,
   ObsidianSearchRelevantParams,
   ObsidianListPinnedParams,
   ObsidianExportMissionParams,
   ObsidianOpenPathParams,
+  ObsidianOpenVaultParams,
   DiagnosticsCheckCommandsParams,
   DiagnosticsShellSmokeTestParams,
   DiagnosticsMissionDrillParams,
-  AgentLoopStartParams
+  AgentLoopStartParams,
+  MissionConsoleAppendSnapshotParams,
+  MissionConsoleExportHandoffParams,
+  MissionConsoleListRunsParams,
+  MissionConsoleSaveRunParams
 } from '../../types/ipc.types';
 import { VoiceTranscriptionManager } from '../native/voice-transcription';
 import { GeminiLiveVoiceManager } from '../native/gemini-live-voice';
@@ -121,6 +129,15 @@ export function registerWorkspaceHandlers(workspaceManager: WorkspaceManager): v
       return { success: true };
     } catch (error) {
       console.error('Failed to create workspace:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('workspace:inferFromPath', async (_event, params: WorkspaceInferParams) => {
+    try {
+      return workspaceManager.inferFromPath(params.workspacePath);
+    } catch (error) {
+      console.error('Failed to infer workspace:', error);
       throw error;
     }
   });
@@ -255,6 +272,10 @@ export function registerObsidianHandlers(obsidianManager: ObsidianManager): void
     return obsidianManager.getStatus(params);
   });
 
+  ipcMain.handle('obsidian:ensureVault', async (_event, params: ObsidianEnsureVaultParams) => {
+    return obsidianManager.ensureVault(params);
+  });
+
   ipcMain.handle('obsidian:listNotes', async (_event, params: ObsidianListNotesParams) => {
     return obsidianManager.listNotes(params);
   });
@@ -273,6 +294,10 @@ export function registerObsidianHandlers(obsidianManager: ObsidianManager): void
 
   ipcMain.handle('obsidian:openPath', async (_event, params: ObsidianOpenPathParams) => {
     return obsidianManager.openPath(params);
+  });
+
+  ipcMain.handle('obsidian:openVault', async (_event, params: ObsidianOpenVaultParams) => {
+    return obsidianManager.openVault(params);
   });
 }
 
@@ -305,5 +330,23 @@ export function registerAgentLoopHandlers(agentLoopManager: AgentLoopManager): v
 
   ipcMain.handle('agentLoop:cancelRun', async (_event, params: { runId: string }) => {
     return agentLoopManager.cancelRun(params.runId);
+  });
+}
+
+export function registerMissionConsoleHandlers(missionConsoleManager: MissionConsoleManager): void {
+  ipcMain.handle('missionConsole:listRuns', async (_event, params?: MissionConsoleListRunsParams) => {
+    return missionConsoleManager.listRuns(params || {});
+  });
+
+  ipcMain.handle('missionConsole:saveRun', async (_event, params: MissionConsoleSaveRunParams) => {
+    return missionConsoleManager.saveRun(params);
+  });
+
+  ipcMain.handle('missionConsole:appendSnapshot', async (_event, params: MissionConsoleAppendSnapshotParams) => {
+    return missionConsoleManager.appendSnapshot(params);
+  });
+
+  ipcMain.handle('missionConsole:exportHandoff', async (_event, params: MissionConsoleExportHandoffParams) => {
+    return missionConsoleManager.exportHandoff(params);
   });
 }

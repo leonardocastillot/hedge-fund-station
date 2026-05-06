@@ -1,3 +1,77 @@
+# Hedge Fund Station Agent Map
+
+This file is the entrypoint for any AI agent working in this repo. Treat it as
+a navigation map first and a constitution second: read the minimum required
+context, work one scoped task, leave evidence in files, and make the next
+agent's job easier.
+
+## Quick Start
+
+1. Run `npm run agent:check` to verify the file-based harness is coherent.
+2. Read `progress/current.md` for the active session state.
+3. Read `agent_tasks.json` and pick one task with `status: "pending"` unless
+   `progress/current.md` names an active handoff you should continue.
+4. Read only the docs relevant to the mission class, starting from
+   `docs/operations/agents/file-harness.md`.
+5. Before editing, write or update the active plan in `progress/current.md`.
+6. After meaningful work, write a report in `progress/` and leave a handoff.
+
+## File-Based Harness
+
+The repo uses a vendor-neutral file harness inspired by
+`betta-tech/ejemplo-harness-subagentes`.
+
+Core files:
+
+- `agent_tasks.json` is the canonical task queue.
+- `progress/current.md` is the live session state.
+- `progress/history.md` is append-only session history.
+- `progress/explore_<topic>.md`, `progress/impl_<task>.md`, and
+  `progress/review_<task>.md` are subagent reports.
+- `CHECKPOINTS.md` defines objective checks for repo health, task health,
+  verification, handoff, and future production readiness.
+- `docs/operations/agents/roles/` contains role contracts for leader,
+  explorer, implementer, and reviewer agents.
+
+Hard harness rules:
+
+- One implementation task may be `in_progress` at a time unless the task is
+  explicitly marked `parallelizable`.
+- Subagents write findings to files and respond in chat with a short reference
+  such as `done -> progress/explore_backend_boundaries.md`.
+- Completed tasks must name evidence, verification, and review or handoff
+  files.
+- Future live/production work is allowed only through explicit promotion gates:
+  research, backtest, validation, paper evidence, risk review, operator
+  sign-off, and production runbook. Until those gates exist, live tasks stay
+  `blocked`.
+
+## Required Reads By Mission
+
+- Any repo or agent workflow work: `docs/project-architecture.md`,
+  `docs/operations/product-objective.md`,
+  `docs/operations/agents/harness.md`,
+  `docs/operations/agents/file-harness.md`, and
+  `skills/hedge-fund-repo-architect/SKILL.md`.
+- Strategy work: also read `docs/hedge-fund-agent-operating-model.md`,
+  `docs/hyperliquid-strategy-roadmap.md`, `docs/strategies/README.md`, and
+  `backend/hyperliquid_gateway/strategies/README.md`.
+- Recurring or autonomous work: also read
+  `docs/operations/agents/automation-system.md` and
+  `docs/operations/agents/backlog.md`.
+
+## Session Close
+
+Before finishing meaningful work:
+
+1. Run `npm run agent:check`.
+2. Run the mission-specific verification commands from `agent_tasks.json`.
+3. Write `progress/impl_<task>.md` or another report file with changed files,
+   commands, results, risks, and next action.
+4. Move durable session lessons into `progress/history.md`; update curated
+   memory only when `docs/operations/agents/memory/memory-policy.md` says it is
+   worth preserving.
+
 # Hedge Fund Station Agent Constitution
 
 ## Mission

@@ -10,6 +10,7 @@ import {
   type HyperliquidOverviewResponse,
   type HyperliquidWatchlistResponse
 } from '@/services/hyperliquidService';
+import { useMarketPolling } from '@/hooks/useMarketPolling';
 
 type MarketFilter = 'all' | HyperliquidMarketRow['signalLabel'];
 
@@ -177,73 +178,59 @@ export default function HyperliquidIntelligencePage() {
 
   const configState = hyperliquidService.getConfigState();
 
-  useEffect(() => {
-    let mounted = true;
+  const overviewPoll = useMarketPolling(
+    'hyperliquid:intelligence:overview',
+    async () => {
+      const [nextOverview, nextAlerts, nextWatchlist] = await Promise.all([
+        hyperliquidService.getOverview(28),
+        hyperliquidService.getAlerts(18),
+        hyperliquidService.getWatchlist(12)
+      ]);
+      return { nextOverview, nextAlerts, nextWatchlist };
+    },
+    { intervalMs: 12_000, staleAfterMs: 35_000 }
+  );
 
-    const loadOverview = async () => {
-      try {
-        const [nextOverview, nextAlerts, nextWatchlist] = await Promise.all([
-          hyperliquidService.getOverview(28),
-          hyperliquidService.getAlerts(18),
-          hyperliquidService.getWatchlist(12)
-        ]);
-        if (!mounted) {
-          return;
-        }
-        setOverview(nextOverview);
-        setAlerts(nextAlerts.alerts);
-        setWatchlist(nextWatchlist);
-        setSelectedSymbol((current) => current || nextOverview.markets[0]?.symbol || 'BTC');
-        setError(null);
-      } catch (err: any) {
-        if (mounted) {
-          setError(err.message || 'No se pudo cargar Hyperliquid.');
-        }
+  useEffect(() => {
+    if (!overviewPoll.data) {
+      if (overviewPoll.error) {
+        setError(overviewPoll.error || 'No se pudo cargar Hyperliquid.');
       }
-    };
-
-    void loadOverview();
-    const interval = window.setInterval(loadOverview, 12_000);
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-    };
-  }, []);
-
-  useEffect(() => {
-    const symbol = selectedSymbol || overview?.markets[0]?.symbol;
-    if (!symbol) {
       return;
     }
 
-    let mounted = true;
+    setOverview(overviewPoll.data.nextOverview);
+    setAlerts(overviewPoll.data.nextAlerts.alerts);
+    setWatchlist(overviewPoll.data.nextWatchlist);
+    setSelectedSymbol((current) => current || overviewPoll.data?.nextOverview.markets[0]?.symbol || 'BTC');
+    setError(overviewPoll.status === 'stale' ? overviewPoll.error : null);
+  }, [overviewPoll.data, overviewPoll.error, overviewPoll.status]);
 
-    const loadDetail = async () => {
-      try {
-        const [nextDetail, nextHistory] = await Promise.all([
-          hyperliquidService.getDetail(symbol),
-          hyperliquidService.getHistory(symbol, 48)
-        ]);
-        if (!mounted) {
-          return;
-        }
-        setDetail(nextDetail);
-        setHistory(nextHistory.points);
-        setError(null);
-      } catch (err: any) {
-        if (mounted) {
-          setDetail(null);
-          setHistory([]);
-          setError(err.message || `No se pudo cargar detalle para ${symbol}.`);
-        }
+  const detailSymbol = selectedSymbol || overview?.markets[0]?.symbol || 'BTC';
+  const detailPoll = useMarketPolling(
+    `hyperliquid:intelligence:detail:${detailSymbol}`,
+    async () => {
+      const [nextDetail, nextHistory] = await Promise.all([
+        hyperliquidService.getDetail(detailSymbol),
+        hyperliquidService.getHistory(detailSymbol, 48)
+      ]);
+      return { nextDetail, nextHistory };
+    },
+    { intervalMs: 12_000, staleAfterMs: 35_000, enabled: Boolean(detailSymbol) }
+  );
+
+  useEffect(() => {
+    if (!detailPoll.data) {
+      if (detailPoll.status === 'error') {
+        setError(detailPoll.error || `No se pudo cargar detalle para ${detailSymbol}.`);
       }
-    };
+      return;
+    }
 
-    void loadDetail();
-    return () => {
-      mounted = false;
-    };
-  }, [overview?.updatedAt, selectedSymbol]);
+    setDetail(detailPoll.data.nextDetail);
+    setHistory(detailPoll.data.nextHistory.points);
+    setError(detailPoll.status === 'stale' ? detailPoll.error : null);
+  }, [detailPoll.data, detailPoll.error, detailPoll.status, detailSymbol]);
 
   const markets = useMemo(() => {
     const base = overview?.markets || [];
@@ -269,12 +256,12 @@ export default function HyperliquidIntelligencePage() {
     ];
   }, [watchlist?.avoid, watchlist?.waitTrigger, watchlist?.watchNow]);
 
-  const chartData = history.map((point) => ({
+  const chartData = useMemo(() => history.map((point) => ({
     time: new Date(point.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     price: point.price ?? 0,
     score: point.opportunityScore,
     oi: point.openInterestUsd ?? 0
-  }));
+  })), [history]);
 
   return (
     <div className="min-h-full bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.14),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.10),_transparent_26%),linear-gradient(180deg,#020617_0%,#07111d_100%)] p-4">

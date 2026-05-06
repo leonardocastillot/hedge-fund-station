@@ -21,6 +21,33 @@ npm run dev
 This starts Electron in development mode. You do not need to create a Mac build
 while editing UI, services, docs, or backend integration code.
 
+## Stable Dev Loop
+
+Use the in-app Diagnostics page while developing. In development builds it shows:
+
+- `Renderer`: Vite/HMR status for `src/` changes.
+- `Native restart`: whether files under `electron/main/`, `electron/preload/`,
+  `electron/types/`, or `electron.vite.config.ts` changed after the current
+  Electron shell started.
+- `Vite`, `Gateway`, and `Backend`: quick local health checks for the renderer
+  dev server, Hyperliquid gateway, and backend tunnel.
+
+Daily edit rules:
+
+- Changes under `src/` should hot reload through Vite. Use `Reload renderer`
+  only when React state or a module cache gets awkward.
+- Changes under `electron/main/` require `Restart Electron shell`.
+- Changes under `electron/preload/` or `electron/types/` require
+  `Restart Electron shell`, then a renderer reload if the UI still has an old
+  bridge shape.
+- Changes under `backend/hyperliquid_gateway/` should restart the gateway or
+  backend process, not the whole desktop app, unless the renderer/preload IPC
+  contract also changed.
+
+The terminal bridge is designed to reattach to surviving PTY sessions after
+renderer reloads. A full Electron shell restart is still a native-process
+boundary and should be treated as intentional.
+
 ## What To Edit
 
 - `src/features/` for product surfaces such as Cockpit, BTC, Hyperliquid,
@@ -36,6 +63,17 @@ while editing UI, services, docs, or backend integration code.
 
 React and Electron may inspect and control workflows, but trading logic,
 validation, replay, paper evidence, and audit trails belong in the backend.
+
+## Product Vocabulary
+
+- **Trading Stations** are fixed renderer product surfaces. `Hedge Fund Station`
+  is the Research OS home and `Live Trading` is a safe monitor/review station.
+  They are always visible and are not user-created workspaces.
+- **Desks** are the Electron filesystem workspaces: local folders with saved
+  commands, launch profiles, terminals, agents, and optional Obsidian vaults.
+  Desks may be added, edited, or removed without changing the fixed stations.
+- The `Workspace` IPC/type remains the desk model only. Do not put trading
+  lifecycle state, strategy truth, or live execution authority into it.
 
 ## Generated Output
 
@@ -67,7 +105,10 @@ Developer ID signing and notarization. See
 
 The visible product navigation should remain:
 
-- `/` Cockpit
+- `/` redirects to `/station/hedge-fund`
+- `/station/hedge-fund` fixed Hedge Fund Station Research OS home
+- `/station/live` fixed Live Trading monitor, with no real order placement
+- `/cockpit` Cockpit module
 - `/btc` BTC research station with TradingView and the three YouTube streams
 - `/hyperliquid`
 - `/strategies`

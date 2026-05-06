@@ -12,8 +12,14 @@ try:
     from ..strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
     from ..strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
     from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+    from ..strategies.btc_crowding_scalper.backtest import run_backtest as btc_crowding_scalper_run_backtest
+    from ..strategies.btc_crowding_scalper.paper import paper_candidate as btc_crowding_scalper_paper_candidate
+    from ..strategies.btc_failed_impulse_reversal.backtest import run_backtest as btc_failed_impulse_reversal_run_backtest
+    from ..strategies.btc_failed_impulse_reversal.paper import paper_candidate as btc_failed_impulse_reversal_paper_candidate
     from ..strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
     from ..strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+    from ..strategies.oi_expansion_failure_fade.backtest import run_backtest as oi_expansion_failure_fade_run_backtest
+    from ..strategies.oi_expansion_failure_fade.paper import paper_candidate as oi_expansion_failure_fade_paper_candidate
     from ..strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
     from ..strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
     from ..strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
@@ -24,8 +30,14 @@ except ImportError:
     from strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
     from strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
     from strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+    from strategies.btc_crowding_scalper.backtest import run_backtest as btc_crowding_scalper_run_backtest
+    from strategies.btc_crowding_scalper.paper import paper_candidate as btc_crowding_scalper_paper_candidate
+    from strategies.btc_failed_impulse_reversal.backtest import run_backtest as btc_failed_impulse_reversal_run_backtest
+    from strategies.btc_failed_impulse_reversal.paper import paper_candidate as btc_failed_impulse_reversal_paper_candidate
     from strategies.funding_exhaustion_snap.backtest import run_backtest as funding_exhaustion_snap_run_backtest
     from strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
+    from strategies.oi_expansion_failure_fade.backtest import run_backtest as oi_expansion_failure_fade_run_backtest
+    from strategies.oi_expansion_failure_fade.paper import paper_candidate as oi_expansion_failure_fade_paper_candidate
     from strategies.polymarket_btc_5m_maker_basis_skew.backtest import run_backtest as polymarket_btc_5m_maker_basis_skew_run_backtest
     from strategies.polymarket_btc_5m_maker_basis_skew.paper import paper_candidate as polymarket_btc_5m_maker_basis_skew_paper_candidate
     from strategies.polymarket_btc_updown_5m_oracle_lag.backtest import run_backtest as polymarket_btc_updown_5m_oracle_lag_run_backtest
@@ -105,6 +117,48 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_profit_factor=1.1,
             min_win_rate_pct=35.0,
             max_drawdown_pct=8.0,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "btc_crowding_scalper": StrategyDefinition(
+        strategy_id="btc_crowding_scalper",
+        backtest_runner=btc_crowding_scalper_run_backtest,
+        paper_candidate_builder=btc_crowding_scalper_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=60,
+            min_return_pct=0.0,
+            min_profit_factor=1.30,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=3.5,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "btc_failed_impulse_reversal": StrategyDefinition(
+        strategy_id="btc_failed_impulse_reversal",
+        backtest_runner=btc_failed_impulse_reversal_run_backtest,
+        paper_candidate_builder=btc_failed_impulse_reversal_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=0.50,
+            min_profit_factor=1.50,
+            min_win_rate_pct=55.0,
+            max_drawdown_pct=4.0,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "oi_expansion_failure_fade": StrategyDefinition(
+        strategy_id="oi_expansion_failure_fade",
+        backtest_runner=oi_expansion_failure_fade_run_backtest,
+        paper_candidate_builder=oi_expansion_failure_fade_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=30,
+            min_return_pct=0.10,
+            min_profit_factor=1.20,
+            min_win_rate_pct=42.0,
+            max_drawdown_pct=5.0,
         ),
         default_dataset=str(DEFAULT_GATEWAY_DB),
         dataset_label="gateway_snapshot_db",

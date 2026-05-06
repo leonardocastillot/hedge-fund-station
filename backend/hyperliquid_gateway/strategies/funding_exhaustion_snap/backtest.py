@@ -8,10 +8,14 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from ...backtesting.engine import BacktestConfig
+    from ...backtesting.engine import BacktestConfig, calculate_trade_fee
+    from ...backtesting.diagnostics import build_trade_diagnostics
+    from ...backtesting.filters import build_snapshot_filter
     from ...backtesting.metrics import build_summary
 except ImportError:
-    from backtesting.engine import BacktestConfig
+    from backtesting.engine import BacktestConfig, calculate_trade_fee
+    from backtesting.diagnostics import build_trade_diagnostics
+    from backtesting.filters import build_snapshot_filter
     from backtesting.metrics import build_summary
 from .logic import calculate_funding_percentile, evaluate_signal
 from .paper import generate_invalidation_plan, generate_paper_trade_thesis, generate_trigger_plan
@@ -26,7 +30,7 @@ SEVEN_DAYS_MS = 7 * TWENTY_FOUR_HOURS_MS
 
 
 def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
-    sampled_rows = load_sampled_snapshots(dataset_path)
+    sampled_rows, replay_filter = load_sampled_snapshots(dataset_path, config)
     equity = config.initial_equity
     equity_curve: list[dict[str, float | int | str]] = []
     trades: list[dict[str, Any]] = []
@@ -50,7 +54,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             close_result = maybe_close_position(
                 position=open_positions[symbol],
                 current_market_data=market_data,
-                fee_rate=config.fee_rate,
+                config=config,
             )
             if close_result is not None:
                 trade = close_result["trade"]
@@ -103,6 +107,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         size_usd = float(sizing["size_usd"])
         if size_usd <= 0:
             continue
+        entry_fee_result = calculate_trade_fee(notional_usd=size_usd, config=config)
 
         open_positions[symbol] = {
             "status": "open",
@@ -113,6 +118,9 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             "entry_timestamp": market_data["timestamp"],
             "entryPrice": round(entry_fill["fill_price"], 6),
             "sizeUsd": round(size_usd, 2),
+            "entry_fee": round(float(entry_fee_result["fee"]), 6),
+            "entry_fee_rate": round(float(entry_fee_result["fee_rate"]), 8),
+            "entry_liquidity_role": entry_fee_result["liquidity_role"],
             "entry_slippage_pct": entry_fill["slippage_pct"],
             "execution_quality": int(setup_score["execution_quality"]),
             "entry_data": market_data,
@@ -130,7 +138,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             position=position,
             current_market_data=forced_market_data,
             exit_reason="forced_close",
-            fee_rate=config.fee_rate,
+            config=config,
         )
         equity += float(trade["net_pnl"])
         trades.append(trade)
@@ -144,12 +152,19 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         trades=trades,
         fees_paid=fees_paid,
     )
+    diagnostics = build_trade_diagnostics(
+        summary=summary,
+        trades=trades,
+        initial_equity=config.initial_equity,
+        requested_symbols=replay_filter["requested_symbols"],
+    )
     return {
         "dataset": {
             "path": str(dataset_path),
             "type": "gateway_snapshot_db",
             "rows": len(sampled_rows),
             "symbols": len({row["symbol"] for row in sampled_rows}),
+            "symbol_filter": replay_filter,
             "sampling_bucket_minutes": 5,
             "start": sampled_rows[0]["timestamp"] if sampled_rows else None,
             "end": sampled_rows[-1]["timestamp"] if sampled_rows else None,
@@ -158,6 +173,9 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         "latest_signal": latest_signal,
         "trades": trades,
         "equity_curve": equity_curve,
+        "symbol_leaderboard": diagnostics["symbol_leaderboard"],
+        "exit_reason_counts": diagnostics["exit_reason_counts"],
+        "robust_assessment": diagnostics["robust_assessment"],
         "notes": [
             "Replay uses gateway market_snapshots sampled to 5-minute buckets.",
             "This is a backend-native research replay on funding/OI/crowding data, not donor OHLCV.",
@@ -166,13 +184,24 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
     }
 
 
-def load_sampled_snapshots(dataset_path: Path) -> list[dict[str, Any]]:
+def load_sampled_snapshots(dataset_path: Path, config: BacktestConfig) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     connection = sqlite3.connect(dataset_path)
     connection.row_factory = sqlite3.Row
-    query = """
-    WITH sampled AS (
-        SELECT MAX(id) AS id
+    where_sql, where_params, replay_filter = build_snapshot_filter(
+        connection,
+        table="market_snapshots",
+        timestamp_column="timestamp_ms",
+        config=config,
+    )
+    query = f"""
+    WITH filtered AS (
+        SELECT id, timestamp_ms, symbol
         FROM market_snapshots
+        {where_sql}
+    ),
+    sampled AS (
+        SELECT MAX(id) AS id
+        FROM filtered
         GROUP BY symbol, CAST(timestamp_ms / ? AS INTEGER)
     )
     SELECT
@@ -194,7 +223,7 @@ def load_sampled_snapshots(dataset_path: Path) -> list[dict[str, Any]]:
     JOIN sampled s ON s.id = ms.id
     ORDER BY ms.timestamp_ms ASC, ms.symbol ASC
     """
-    rows = connection.execute(query, (FIVE_MINUTES_MS,)).fetchall()
+    rows = connection.execute(query, (*where_params, FIVE_MINUTES_MS)).fetchall()
     connection.close()
 
     normalized: list[dict[str, Any]] = []
@@ -218,7 +247,7 @@ def load_sampled_snapshots(dataset_path: Path) -> list[dict[str, Any]]:
                 "setup_scores": json.loads(row["setup_scores_json"] or "{}"),
             }
         )
-    return normalized
+    return normalized, replay_filter
 
 
 def build_market_data(history: list[dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
@@ -281,7 +310,7 @@ def maybe_close_position(
     *,
     position: dict[str, Any],
     current_market_data: dict[str, Any],
-    fee_rate: float,
+    config: BacktestConfig,
 ) -> dict[str, Any] | None:
     pnl_pct = current_pnl_pct(position, current_market_data)
     held_ms = int(current_market_data["timestamp_ms"]) - int(position["createdAt"])
@@ -334,7 +363,7 @@ def maybe_close_position(
             position=position,
             current_market_data=current_market_data,
             exit_reason=exit_reason,
-            fee_rate=fee_rate,
+            config=config,
             urgent=urgent,
         )
     }
@@ -355,7 +384,7 @@ def close_position(
     position: dict[str, Any],
     current_market_data: dict[str, Any],
     exit_reason: str,
-    fee_rate: float,
+    config: BacktestConfig,
     urgent: bool = False,
 ) -> dict[str, Any]:
     exit_fill = deterministic_fill_price(
@@ -371,8 +400,9 @@ def close_position(
     units = 0.0 if entry_price == 0 else size_usd / entry_price
     side = str(position["side"])
     gross_pnl = (exit_price - entry_price) * units if side == "long" else (entry_price - exit_price) * units
-    entry_fee = size_usd * fee_rate
-    exit_fee = size_usd * fee_rate
+    entry_fee = float(position.get("entry_fee") or calculate_trade_fee(notional_usd=size_usd, config=config)["fee"])
+    exit_fee_result = calculate_trade_fee(notional_usd=size_usd, config=config)
+    exit_fee = float(exit_fee_result["fee"])
     total_fees = entry_fee + exit_fee
     net_pnl = gross_pnl - total_fees
     return {
@@ -386,8 +416,13 @@ def close_position(
         "size_usd": round(size_usd, 2),
         "gross_pnl": round(gross_pnl, 2),
         "net_pnl": round(net_pnl, 2),
+        "equity_delta": round(net_pnl, 2),
         "return_pct": round((net_pnl / size_usd) * 100, 3) if size_usd else 0.0,
         "fees": round(total_fees, 6),
+        "entry_fee_rate": position.get("entry_fee_rate"),
+        "exit_fee_rate": round(float(exit_fee_result["fee_rate"]), 8),
+        "entry_liquidity_role": position.get("entry_liquidity_role"),
+        "exit_liquidity_role": exit_fee_result["liquidity_role"],
         "exit_reason": exit_reason,
         "entry_context": {
             "market_data": position["entry_data"],

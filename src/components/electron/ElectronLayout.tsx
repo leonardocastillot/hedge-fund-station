@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import {
   Bot,
@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { WidgetPanel } from '@/features/cockpit/WidgetPanel';
-import { MissionChatWorkbench } from '@/features/agents/components/MissionChatWorkbench';
+
+const MissionChatWorkbench = React.lazy(() => import('@/features/agents/components/MissionChatWorkbench').then((module) => ({ default: module.MissionChatWorkbench })));
 
 export const ElectronLayout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -102,7 +103,9 @@ export const ElectronLayout: React.FC = () => {
                 id="voice-mission-source"
                 order={3}
               >
-                <MissionChatWorkbench variant="dock" />
+                <Suspense fallback={<DockLoading />}>
+                  <MissionChatWorkbench variant="dock" />
+                </Suspense>
               </Panel>
             </>
           )}
@@ -111,6 +114,22 @@ export const ElectronLayout: React.FC = () => {
     </div>
   );
 };
+
+const DockLoading: React.FC = () => (
+  <div style={{
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'var(--app-muted)',
+    fontSize: '12px',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    background: 'rgba(6, 10, 20, 0.35)'
+  }}>
+    Loading workbench...
+  </div>
+);
 
 type ResizeHandleProps = {
   title: string;

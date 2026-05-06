@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getActive: () => ipcRenderer.invoke('workspace:getActive'),
     setActive: (id: string) => ipcRenderer.invoke('workspace:setActive', { id }),
     create: (workspace: any) => ipcRenderer.invoke('workspace:create', { workspace }),
+    inferFromPath: (workspacePath: string) => ipcRenderer.invoke('workspace:inferFromPath', { workspacePath }),
     update: (id: string, updates: any) => ipcRenderer.invoke('workspace:update', { id, updates }),
     delete: (id: string) => ipcRenderer.invoke('workspace:delete', { id }),
     pickDirectory: () => ipcRenderer.invoke('workspace:pickDirectory')
@@ -74,6 +75,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   obsidian: {
     getStatus: (workspacePath: string, vaultPath?: string) =>
       ipcRenderer.invoke('obsidian:getStatus', { workspacePath, vaultPath }),
+    ensureVault: (workspacePath: string, vaultPath?: string) =>
+      ipcRenderer.invoke('obsidian:ensureVault', { workspacePath, vaultPath }),
     listNotes: (workspacePath: string, vaultPath?: string, limit?: number) =>
       ipcRenderer.invoke('obsidian:listNotes', { workspacePath, vaultPath, limit }),
     searchRelevant: (workspacePath: string, query: string, vaultPath?: string, limit?: number) =>
@@ -103,7 +106,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         runtimeProvider
       }),
     openPath: (path: string) =>
-      ipcRenderer.invoke('obsidian:openPath', { path })
+      ipcRenderer.invoke('obsidian:openPath', { path }),
+    openVault: (vaultPath: string) =>
+      ipcRenderer.invoke('obsidian:openVault', { vaultPath })
   },
 
   diagnostics: {
@@ -134,10 +139,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     cancelRun: (runId: string) => ipcRenderer.invoke('agentLoop:cancelRun', { runId })
   },
 
+  missionConsole: {
+    listRuns: (workspaceId?: string) =>
+      ipcRenderer.invoke('missionConsole:listRuns', { workspaceId }),
+    saveRun: (run: any) =>
+      ipcRenderer.invoke('missionConsole:saveRun', { run }),
+    appendSnapshot: (params: any) =>
+      ipcRenderer.invoke('missionConsole:appendSnapshot', params),
+    exportHandoff: (params: any) =>
+      ipcRenderer.invoke('missionConsole:exportHandoff', params)
+  },
+
   external: {
     openUrl: (url: string) => ipcRenderer.invoke('external:openUrl', { url }),
     openUrlInBrave: (url: string) => ipcRenderer.invoke('external:openUrlInBrave', { url }),
     openUrlsInBrave: (urls: string[]) => ipcRenderer.invoke('external:openUrlsInBrave', { urls })
+  },
+
+  dev: {
+    getStatus: () => ipcRenderer.invoke('dev:getStatus'),
+    reloadRenderer: () => ipcRenderer.invoke('dev:reloadRenderer'),
+    restartShell: () => ipcRenderer.invoke('dev:restartShell')
   },
 
   // Update operations

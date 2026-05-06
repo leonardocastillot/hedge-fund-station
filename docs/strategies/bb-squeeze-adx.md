@@ -52,7 +52,7 @@ Avoid in:
 
 ## Costs
 
-- default fee model: 5.5 bps per side
+- default fee model: Hyperliquid perps Tier 0 taker 4.5 bps per side unless maker/mixed fees are explicitly configured
 - milestone 1 does not model slippage yet
 
 ## Validation

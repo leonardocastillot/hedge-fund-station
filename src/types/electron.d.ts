@@ -69,6 +69,27 @@ export interface DiagnosticsMissionDrillResult {
   errors: string[];
 }
 
+export interface DevServiceStatus {
+  ok: boolean;
+  url: string;
+  statusCode?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface DevStatus {
+  isDevelopment: boolean;
+  rendererLive: boolean;
+  nativeRestartRequired: boolean;
+  nativeChangedPaths: string[];
+  checkedAt: string;
+  services: {
+    vite: DevServiceStatus;
+    gateway: DevServiceStatus;
+    backend: DevServiceStatus;
+  };
+}
+
 export interface AgentLoopMemoryNote {
   title: string;
   snippet: string;
@@ -111,6 +132,67 @@ export interface AgentLoopRunSnapshot {
   updatedAt: number;
   endedAt?: number;
   error?: string;
+}
+
+export type MissionConsoleProvider = 'codex' | 'claude' | 'gemini';
+export type MissionConsoleRunStatus =
+  | 'shell'
+  | 'launching'
+  | 'handoff'
+  | 'ready'
+  | 'waiting-response'
+  | 'awaiting-approval'
+  | 'running'
+  | 'stalled'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface MissionConsoleEvidenceRef {
+  id: string;
+  kind: string;
+  label: string;
+  path?: string;
+  summary?: string;
+  createdAt?: number;
+}
+
+export interface MissionConsoleRun {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspacePath: string;
+  title: string;
+  goal: string;
+  provider: MissionConsoleProvider;
+  missionKind: string;
+  prompt: string;
+  status: MissionConsoleRunStatus;
+  terminalId?: string;
+  commands: string[];
+  outputExcerpt?: string;
+  outputCapturedAt?: number;
+  handoffSummary?: string;
+  handoffPath?: string;
+  evidenceRefs: MissionConsoleEvidenceRef[];
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+export interface MissionConsoleAppendSnapshotParams {
+  runId: string;
+  terminalId?: string;
+  status?: MissionConsoleRunStatus;
+  outputExcerpt?: string;
+  handoffSummary?: string;
+  evidenceRefs?: MissionConsoleEvidenceRef[];
+}
+
+export interface MissionConsoleExportHandoffResult {
+  success: boolean;
+  path: string;
+  run: MissionConsoleRun;
 }
 
 export interface MarketingBlogPost {
@@ -184,6 +266,7 @@ export interface UpdateStatus {
 export interface VoiceTranscriptionResult {
   text: string;
   model: string;
+  responseText?: string;
 }
 
 export interface GeminiLiveStatus {
@@ -230,6 +313,7 @@ export interface ElectronAPI {
     getActive: () => Promise<Workspace>;
     setActive: (id: string) => Promise<void>;
     create: (workspace: Workspace) => Promise<void>;
+    inferFromPath: (workspacePath: string) => Promise<Workspace>;
     update: (id: string, updates: Partial<Workspace>) => Promise<void>;
     delete: (id: string) => Promise<void>;
     pickDirectory: () => Promise<string | null>;
@@ -258,6 +342,7 @@ export interface ElectronAPI {
   };
   obsidian: {
     getStatus: (workspacePath: string, vaultPath?: string) => Promise<ObsidianVaultStatus>;
+    ensureVault: (workspacePath: string, vaultPath?: string) => Promise<ObsidianVaultStatus>;
     listNotes: (workspacePath: string, vaultPath?: string, limit?: number) => Promise<ObsidianNoteSummary[]>;
     searchRelevant: (workspacePath: string, query: string, vaultPath?: string, limit?: number) => Promise<ObsidianRelevantNote[]>;
     listPinned: (workspacePath: string, vaultPath?: string, workspaceId?: string, workspaceName?: string, limit?: number) => Promise<ObsidianRelevantNote[]>;
@@ -273,6 +358,7 @@ export interface ElectronAPI {
       runtimeProvider?: string
     ) => Promise<{ filePath: string }>;
     openPath: (path: string) => Promise<{ success: boolean }>;
+    openVault: (vaultPath: string) => Promise<{ success: boolean; fallback: boolean }>;
   };
   diagnostics: {
     checkCommands: (commands: string[]) => Promise<DiagnosticsCommandStatus[]>;
@@ -280,7 +366,7 @@ export interface ElectronAPI {
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) => Promise<DiagnosticsMissionDrillResult>;
     launchCodexLogin: () => Promise<{ success: boolean; command: string; error?: string }>;
   };
-  agentLoop: {
+    agentLoop: {
     startMission: (params: {
       workspaceId: string;
       workspaceName: string;
@@ -293,13 +379,29 @@ export interface ElectronAPI {
       notes?: AgentLoopMemoryNote[];
       maxIterations?: number;
     }) => Promise<AgentLoopRunSnapshot>;
-    getRun: (runId: string) => Promise<AgentLoopRunSnapshot | null>;
-    cancelRun: (runId: string) => Promise<{ success: boolean }>;
-  };
-  external: {
+      getRun: (runId: string) => Promise<AgentLoopRunSnapshot | null>;
+      cancelRun: (runId: string) => Promise<{ success: boolean }>;
+    };
+    missionConsole: {
+      listRuns: (workspaceId?: string) => Promise<MissionConsoleRun[]>;
+      saveRun: (run: MissionConsoleRun) => Promise<MissionConsoleRun>;
+      appendSnapshot: (params: MissionConsoleAppendSnapshotParams) => Promise<MissionConsoleRun>;
+      exportHandoff: (params: {
+        runId: string;
+        workspacePath?: string;
+        summary?: string;
+        outputExcerpt?: string;
+      }) => Promise<MissionConsoleExportHandoffResult>;
+    };
+    external: {
     openUrl: (url: string) => Promise<{ success: boolean }>;
     openUrlInBrave: (url: string) => Promise<{ success: boolean; fallback: boolean }>;
     openUrlsInBrave: (urls: string[]) => Promise<{ success: boolean; results: Array<{ success: boolean; fallback: boolean }> }>;
+  };
+  dev?: {
+    getStatus: () => Promise<DevStatus>;
+    reloadRenderer: () => Promise<{ success: boolean }>;
+    restartShell: () => Promise<{ success: boolean }>;
   };
   update: {
     check: () => Promise<{ success: boolean }>;

@@ -27,6 +27,7 @@ REPORTS_ROOT = DATA_ROOT / "backtests"
 AUDITS_ROOT = DATA_ROOT / "audits"
 PAPER_ROOT = DATA_ROOT / "paper"
 VALIDATIONS_ROOT = DATA_ROOT / "validations"
+DOCS_STRATEGIES_ROOT = REPO_ROOT / "docs" / "strategies"
 
 
 def run_backtest_workflow(
@@ -59,7 +60,16 @@ def run_backtest_workflow(
         "config": {
             "initial_equity": config.initial_equity,
             "fee_rate": config.fee_rate,
+            "taker_fee_rate": config.taker_fee_rate,
+            "maker_fee_rate": config.maker_fee_rate,
+            "fee_model": config.fee_model,
+            "maker_ratio": config.maker_ratio,
             "risk_fraction": config.risk_fraction,
+            "symbols": list(config.effective_symbols()),
+            "universe": config.universe,
+            "start": config.start,
+            "end": config.end,
+            "lookback_days": config.lookback_days,
         },
         "validation_policy": validation_policy_payload(definition.validation_policy),
         "summary": result["summary"],
@@ -101,10 +111,12 @@ def validate_strategy_workflow(
     }
 
     summary: dict[str, Any] | None = None
+    robust_assessment: dict[str, Any] | None = None
     gate_checks: dict[str, bool] = {}
     if resolved_report and resolved_report.exists():
         report_payload = json.loads(resolved_report.read_text(encoding="utf-8"))
         summary = report_payload.get("summary", {})
+        robust_assessment = report_payload.get("robust_assessment")
         policy = definition.validation_policy
         gate_checks = {
             "min_trades": int(summary.get("total_trades", 0)) >= policy.min_trades,
@@ -113,6 +125,8 @@ def validate_strategy_workflow(
             "min_win_rate_pct": float(summary.get("win_rate_pct", 0.0)) >= policy.min_win_rate_pct,
             "max_drawdown_pct": float(summary.get("max_drawdown_pct", 999.0)) <= policy.max_drawdown_pct,
         }
+        if robust_assessment:
+            gate_checks["robust_gate"] = robust_assessment.get("status") == "passes"
 
     package_ready = all(checks.values())
     backtest_ready = bool(gate_checks) and all(gate_checks.values())
@@ -125,6 +139,8 @@ def validate_strategy_workflow(
         }.items()
         if not passed
     ]
+    if robust_assessment and robust_assessment.get("status") != "passes":
+        blocking_reasons.extend(f"robust:{reason}" for reason in robust_assessment.get("blockers") or [])
     report_artifact_id = None
     if resolved_report and resolved_report.exists():
         report_artifact_id = json.loads(resolved_report.read_text(encoding="utf-8")).get("artifact_id")
@@ -139,6 +155,7 @@ def validate_strategy_workflow(
         "checks": checks,
         "validation_policy": validation_policy_payload(definition.validation_policy),
         "gate_checks": gate_checks,
+        "robust_assessment": robust_assessment,
         "blocking_reasons": blocking_reasons,
         "report_path": str(resolved_report) if resolved_report else None,
         "report_artifact_id": report_artifact_id,
@@ -235,20 +252,99 @@ def build_paper_workflow(
     return {"paper_path": destination, "payload": payload}
 
 
+def normalize_strategy_id(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def is_strategy_document_path(path: Path) -> bool:
+    if not path.is_file() or path.suffix.lower() != ".md":
+        return False
+    stem = path.stem.lower()
+    if stem in {"readme", "implementation-roadmap"}:
+        return False
+    return not stem.endswith("-template")
+
+
+def strategy_document_id(path: Path) -> str:
+    normalized = normalize_strategy_id(path.stem)
+    for suffix in ("_validation", "_research_note", "_template"):
+        if normalized.endswith(suffix):
+            return normalized[: -len(suffix)]
+    return normalized
+
+
+def discover_strategy_documents(docs_root: Path | None = None) -> list[str]:
+    return sorted(discover_strategy_document_paths(docs_root).keys())
+
+
+def discover_strategy_document_paths(docs_root: Path | None = None) -> dict[str, list[str]]:
+    root = docs_root or DOCS_STRATEGIES_ROOT
+    if not root.exists():
+        return {}
+    paths: dict[str, list[str]] = {}
+    for path in root.glob("*.md"):
+        if not is_strategy_document_path(path):
+            continue
+        paths.setdefault(strategy_document_id(path), []).append(str(path))
+    return {
+        strategy_id: sorted(items, key=lambda item: (Path(item).stem != strategy_id.replace("_", "-"), item))
+        for strategy_id, items in paths.items()
+    }
+
+
+def discover_artifact_strategy_ids(*roots: Path) -> list[str]:
+    strategy_ids: set[str] = set()
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.glob("*.json"):
+            payload = load_json_if_exists(path) or {}
+            raw_strategy_id = payload.get("strategy_id") or path.stem.split("-")[0]
+            if raw_strategy_id:
+                strategy_ids.add(normalize_strategy_id(str(raw_strategy_id)))
+    return sorted(strategy_ids)
+
+
 def build_status_snapshot() -> dict[str, Any]:
+    strategy_document_paths = discover_strategy_document_paths()
+    strategy_documents = sorted(strategy_document_paths.keys())
     strategy_packages = discover_strategy_packages()
     registered = available_strategies()
+    artifact_strategy_ids = discover_artifact_strategy_ids(REPORTS_ROOT, VALIDATIONS_ROOT, PAPER_ROOT)
+    catalog_strategy_ids = sorted(set(strategy_documents) | set(strategy_packages) | set(registered) | set(artifact_strategy_ids))
     strategy_status: list[dict[str, Any]] = []
-    for strategy_id in strategy_packages:
+    for strategy_id in catalog_strategy_ids:
         latest_report = latest_json(REPORTS_ROOT, f"{strategy_id}-")
         latest_validation = latest_json(VALIDATIONS_ROOT, f"{strategy_id}-")
         latest_paper = latest_json(PAPER_ROOT, f"{strategy_id}-")
         latest_validation_payload = load_json_if_exists(latest_validation)
         latest_paper_payload = load_json_if_exists(latest_paper)
+        docs_exists = strategy_id in strategy_documents
+        backend_module_exists = strategy_id in strategy_packages
+        registered_for_backtest = strategy_id in registered
+        sources = []
+        if docs_exists:
+            sources.append("docs")
+        if backend_module_exists:
+            sources.append("backend_module")
+        if registered_for_backtest:
+            sources.append("registered_backtest")
+        if latest_report:
+            sources.append("backtest_artifact")
+        if latest_validation:
+            sources.append("validation_artifact")
+        if latest_paper:
+            sources.append("paper_candidate_artifact")
         strategy_status.append(
             {
                 "strategy_id": strategy_id,
-                "registered_for_backtest": strategy_id in registered,
+                "docs_exists": docs_exists,
+                "backend_module_exists": backend_module_exists,
+                "registered_for_backtest": registered_for_backtest,
+                "sources": sources,
+                "docs_path": strategy_document_paths.get(strategy_id, [None])[0] if docs_exists else None,
+                "docs_paths": strategy_document_paths.get(strategy_id, []),
+                "strategy_dir": str(BACKEND_ROOT / "strategies" / strategy_id) if backend_module_exists else None,
                 "latest_backtest": str(latest_report) if latest_report else None,
                 "latest_validation": str(latest_validation) if latest_validation else None,
                 "latest_paper": str(latest_paper) if latest_paper else None,
@@ -257,6 +353,9 @@ def build_status_snapshot() -> dict[str, Any]:
                     latest_report=latest_report,
                     latest_validation_payload=latest_validation_payload,
                     latest_paper_payload=latest_paper_payload,
+                    docs_exists=docs_exists,
+                    backend_module_exists=backend_module_exists,
+                    registered_for_backtest=registered_for_backtest,
                 ),
             }
         )
@@ -264,7 +363,15 @@ def build_status_snapshot() -> dict[str, Any]:
     return {
         "generated_at": now_iso(),
         "available_strategies": registered,
+        "strategy_documents": strategy_documents,
         "strategy_packages": strategy_packages,
+        "catalog_strategy_ids": catalog_strategy_ids,
+        "docs_only_strategy_ids": [
+            strategy_id for strategy_id in catalog_strategy_ids if strategy_id in strategy_documents and strategy_id not in strategy_packages
+        ],
+        "backend_only_strategy_ids": [
+            strategy_id for strategy_id in catalog_strategy_ids if strategy_id in strategy_packages and strategy_id not in strategy_documents
+        ],
         "unregistered_strategy_packages": [strategy_id for strategy_id in strategy_packages if strategy_id not in registered],
         "latest_audit": path_to_str(latest_json(AUDITS_ROOT)),
         "latest_backtest": path_to_str(latest_json(REPORTS_ROOT)),
@@ -378,6 +485,9 @@ def infer_strategy_stage(
     latest_report: Path | None,
     latest_validation_payload: dict[str, Any] | None,
     latest_paper_payload: dict[str, Any] | None,
+    docs_exists: bool = False,
+    backend_module_exists: bool = False,
+    registered_for_backtest: bool = False,
 ) -> str:
     if latest_paper_payload is not None:
         return latest_paper_payload.get("promotion_path", {}).get("current_stage", "paper_candidate")
@@ -387,8 +497,12 @@ def infer_strategy_stage(
         return "backtest_validated"
     if latest_report is not None:
         return "backtest_complete"
-    if strategy_id in discover_strategy_packages():
+    if registered_for_backtest:
+        return "registered_for_backtest"
+    if backend_module_exists:
         return "research_package_only"
+    if docs_exists:
+        return "docs_only"
     return "unknown"
 
 

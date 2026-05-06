@@ -1,0 +1,234 @@
+{
+  "project": "hedge-fund-station",
+  "description": "Canonical file-based task queue for AI agents working in this repo.",
+  "rules": {
+    "one_implementation_task_at_a_time": true,
+    "valid_status": [
+      "pending",
+      "in_progress",
+      "review",
+      "done",
+      "blocked"
+    ],
+    "report_paths": {
+      "explore": "progress/explore_<topic>.md",
+      "implement": "progress/impl_<task>.md",
+      "review": "progress/review_<task>.md"
+    }
+  },
+  "tasks": [
+    {
+      "id": "strategy_pipeline_stabilization",
+      "title": "Stabilize Strategy Pipeline performance, gates, and artifact evidence",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py"
+      ],
+      "acceptance": [
+        "Strategy catalog uses lightweight backend evidence and no longer blocks on exact SQLite table counts.",
+        "Strategy audit keeps database health visible without doing expensive counts unless explicitly requested.",
+        "Blocked validation gate actions run validation against the latest backtest instead of rerunning a full backtest.",
+        "Strategy Detail can list and load comparable backtest artifacts by artifact_id.",
+        "Implementation handoff names files changed, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_backtest_filters tests.test_backtest_fees_and_scalper",
+        "npm run hf:status",
+        "npm run gateway:probe",
+        "npm run build",
+        "curl performance checks for /api/hyperliquid/strategies/catalog and /health"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "progress/impl_strategy_pipeline_stabilization.md"
+      ],
+      "notes": "Implementation ready for review. Scope is local strategy review reliability; credentials and promotion routing are out of scope."
+    },
+    {
+      "id": "file_harness_bootstrap_review",
+      "title": "Review the initial file-based agent harness",
+      "mission_class": "repo health audit",
+      "priority": 0,
+      "scope": [
+        "AGENTS.md",
+        "CHECKPOINTS.md",
+        "agent_tasks.json",
+        "progress/",
+        "docs/operations/agents/",
+        "scripts/agent_harness.py",
+        "package.json"
+      ],
+      "acceptance": [
+        "AGENTS.md gives new agents a progressive navigation map.",
+        "The task queue, progress files, role contracts, and file-harness docs exist.",
+        "npm run agent:check passes.",
+        "A reviewer can write progress/review_file_harness_bootstrap.md without needing chat context."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run agent:status"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "AGENTS.md",
+        "CHECKPOINTS.md",
+        "agent_tasks.json",
+        "docs/operations/agents/file-harness.md",
+        "docs/operations/agents/roles/leader.md",
+        "docs/operations/agents/roles/explorer.md",
+        "docs/operations/agents/roles/implementer.md",
+        "docs/operations/agents/roles/reviewer.md",
+        "scripts/agent_harness.py",
+        "package.json",
+        "progress/impl_file_harness_bootstrap.md",
+        "progress/current.md"
+      ],
+      "notes": "Initial harness structure is queued for reviewer approval after bootstrap implementation."
+    },
+    {
+      "id": "oi_expansion_failure_fade_strategy",
+      "title": "Create and backtest OI Expansion Failure Fade strategy",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "docs/strategies/",
+        "backend/hyperliquid_gateway/strategies/",
+        "backend/hyperliquid_gateway/backtesting/",
+        "backend/hyperliquid_gateway/data/backtests/",
+        "backend/hyperliquid_gateway/data/validations/",
+        "backend/hyperliquid_gateway/data/paper/",
+        "tests/"
+      ],
+      "acceptance": [
+        "Strategy spec exists for oi_expansion_failure_fade with hypothesis, regimes, rules, costs, risk, validation, and failure modes.",
+        "Backend strategy package exists with deterministic logic, scoring, risk, paper, and registered backtest workflow.",
+        "Backtest artifacts are generated with fee metadata, symbol leaderboard, exit reasons, and robust assessment.",
+        "Validation artifact is generated and paper candidate is created only if validation reaches ready-for-paper.",
+        "Implementation handoff names files changed, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_backtest_filters tests.test_backtest_fees_and_scalper tests.test_strategy_catalog tests.test_oi_expansion_failure_fade",
+        "npm run hf:backtest -- --strategy oi_expansion_failure_fade --symbols BTC,SOL,HYPE --fee-model taker --lookback-days 3",
+        "npm run hf:backtest -- --strategy oi_expansion_failure_fade --symbols BTC,SOL,HYPE --fee-model mixed --maker-ratio 0.35 --lookback-days 3",
+        "npm run hf:validate -- --strategy oi_expansion_failure_fade --report <primary_report>",
+        "npm run hf:paper -- --strategy oi_expansion_failure_fade --report <primary_report> --validation <validation_report> when validation is ready-for-paper"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/oi-expansion-failure-fade.md",
+        "backend/hyperliquid_gateway/strategies/oi_expansion_failure_fade/spec.md",
+        "backend/hyperliquid_gateway/strategies/oi_expansion_failure_fade/logic.py",
+        "backend/hyperliquid_gateway/strategies/oi_expansion_failure_fade/scoring.py",
+        "backend/hyperliquid_gateway/strategies/oi_expansion_failure_fade/risk.py",
+        "backend/hyperliquid_gateway/strategies/oi_expansion_failure_fade/paper.py",
+        "backend/hyperliquid_gateway/strategies/oi_expansion_failure_fade/backtest.py",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_oi_expansion_failure_fade.py",
+        "backend/hyperliquid_gateway/data/backtests/oi_expansion_failure_fade-hyperliquid-20260505T182148Z.json",
+        "backend/hyperliquid_gateway/data/backtests/oi_expansion_failure_fade-hyperliquid-20260505T182154Z.json",
+        "backend/hyperliquid_gateway/data/validations/oi_expansion_failure_fade-20260505T182201Z.json",
+        "progress/impl_oi_expansion_failure_fade_strategy.md"
+      ],
+      "notes": "Human explicitly requested implementation of the OI Expansion Failure Fade plan. Implementation is ready for review. Validation is blocked, and paper candidate generation was intentionally skipped. This is research/backtesting only; no live trading, credentials, production routing, or promotion is in scope. Any future live or production path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and a production runbook."
+    },
+    {
+      "id": "live_production_gate_package",
+      "title": "Define the future live trading promotion gate package",
+      "mission_class": "production review",
+      "priority": 1,
+      "scope": [
+        "docs/operations/",
+        "docs/strategies/",
+        "backend/hyperliquid_gateway/strategies/",
+        "backend/hyperliquid_gateway/data/"
+      ],
+      "acceptance": [
+        "Document required research, backtest, validation, paper, risk, operator sign-off, monitoring, and rollback evidence.",
+        "Define what remains impossible for agents without explicit human approval.",
+        "Map promotion evidence to stable hf:* commands and backend artifacts."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run hf:status"
+      ],
+      "status": "blocked",
+      "owner": "human-operator",
+      "parallelizable": false,
+      "evidence_paths": [],
+      "notes": "Blocked until the human explicitly requests production/live gate design. Live remains a future path, not an agent shortcut."
+    },
+    {
+      "id": "btc_failed_impulse_reversal_strategy",
+      "title": "Create and backtest BTC Failed Impulse Reversal strategy",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "docs/strategies/",
+        "backend/hyperliquid_gateway/strategies/",
+        "backend/hyperliquid_gateway/backtesting/",
+        "backend/hyperliquid_gateway/data/backtests/",
+        "backend/hyperliquid_gateway/data/validations/",
+        "backend/hyperliquid_gateway/data/paper/",
+        "tests/"
+      ],
+      "acceptance": [
+        "Strategy spec exists for btc_failed_impulse_reversal with hypothesis, regimes, rules, costs, risk, validation, and failure modes.",
+        "Backend strategy package exists with deterministic logic, scoring, risk, paper, and registered BTC backtest workflow.",
+        "Backtest artifacts are generated on BTC with fee metadata, exit reasons, and robust assessment.",
+        "Validation artifact is generated and paper candidate is created only if validation reaches ready-for-paper.",
+        "Implementation handoff names files changed, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_backtest_filters tests.test_backtest_fees_and_scalper tests.test_strategy_catalog tests.test_btc_failed_impulse_reversal",
+        "npm run hf:backtest -- --strategy btc_failed_impulse_reversal --symbol BTC --fee-model taker --lookback-days 3",
+        "npm run hf:validate -- --strategy btc_failed_impulse_reversal --report <primary_report>",
+        "npm run hf:paper -- --strategy btc_failed_impulse_reversal --report <primary_report> --validation <validation_report> when validation is ready-for-paper"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/btc-failed-impulse-reversal.md",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/spec.md",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/logic.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/scoring.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/risk.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/paper.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/backtest.py",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_btc_failed_impulse_reversal.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_failed_impulse_reversal-hyperliquid-20260506T165516Z.json",
+        "backend/hyperliquid_gateway/data/backtests/btc_failed_impulse_reversal-hyperliquid-20260506T165646Z.json",
+        "backend/hyperliquid_gateway/data/validations/btc_failed_impulse_reversal-20260506T165520Z.json",
+        "backend/hyperliquid_gateway/data/paper/btc_failed_impulse_reversal-20260506T165525Z.json",
+        "progress/impl_btc_failed_impulse_reversal_strategy.md"
+      ],
+      "notes": "Human asked for the best Bitcoin trading strategy with backtesting and maximum possible return. BTC Failed Impulse Reversal is the best current local BTC candidate: 2026-05-06 taker-fee backtest returned 0.97% with 9 trades, 88.89% win rate, 22.68 profit factor, 0.05% max drawdown, robust gate passes, and validation is ready-for-paper. Paper payload is standby because latest signal is none. This task remains research/backtesting/paper-candidate only; no live trading, credentials, production routing, or promotion is in scope. Any future live or production path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and a production runbook."
+    }
+  ]
+}

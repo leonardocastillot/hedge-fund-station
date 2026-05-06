@@ -2,8 +2,9 @@
  * Liquidations Context - Proveedor global de datos de liquidaciones
  * Disponible en toda la aplicación para informar decisiones de trading
  */
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { liquidationsService, LiquidationsStats, HedgeFundInsights, LiquidationSnapshot, LiquidationAlert, LiquidationChartData } from "../services/liquidationsService";
+import { useMarketPolling } from "@/hooks/useMarketPolling";
 
 interface LiquidationsContextType {
   stats: LiquidationsStats | null;
@@ -35,11 +36,11 @@ export function LiquidationsProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isStale, setIsStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-  const hasSnapshotRef = useRef(false);
+  const [hasSnapshot, setHasSnapshot] = useState(false);
 
-  const loadData = useCallback(async () => {
-    try {
+  const poll = useMarketPolling(
+    `liquidations:context:${chartHours}`,
+    async () => {
       const [statusData, insightsData, snapshotsData, alertsData, chartDataResponse] = await Promise.all([
         liquidationsService.getStatus(),
         liquidationsService.getInsights(),
@@ -47,42 +48,38 @@ export function LiquidationsProvider({ children }: { children: ReactNode }) {
         liquidationsService.getAlerts(10),
         liquidationsService.getChartData(chartHours)
       ]);
-
-      if (isMountedRef.current) {
-        setStats(statusData);
-        setInsights(insightsData);
-        setSnapshots(snapshotsData);
-        setChartData(chartDataResponse);
-        setRecentAlerts(alertsData);
-        setIsConnected(true);
-        setIsLoading(false);
-        setIsStale(false);
-        setError(null);
-        hasSnapshotRef.current = snapshotsData.length > 0;
-      }
-    } catch (err: any) {
-      if (isMountedRef.current) {
-        console.error("Error loading liquidations data:", err);
-        setIsConnected(false);
-        setIsLoading(false);
-        setIsStale(hasSnapshotRef.current);
-        setError(err.message || "Failed to load liquidations data");
-      }
-    }
-  }, [chartHours]);
+      return { statusData, insightsData, snapshotsData, alertsData, chartDataResponse };
+    },
+    { intervalMs: 12_000, staleAfterMs: 35_000 }
+  );
 
   useEffect(() => {
-    isMountedRef.current = true;
-    void loadData();
-    const interval = window.setInterval(() => {
-      void loadData();
-    }, 12_000);
+    if (poll.data) {
+      setStats(poll.data.statusData);
+      setInsights(poll.data.insightsData);
+      setSnapshots(poll.data.snapshotsData);
+      setChartData(poll.data.chartDataResponse);
+      setRecentAlerts(poll.data.alertsData);
+      setIsConnected(true);
+      setIsLoading(false);
+      setIsStale(poll.status === 'stale');
+      setError(null);
+      setHasSnapshot(poll.data.snapshotsData.length > 0);
+      return;
+    }
 
-    return () => {
-      isMountedRef.current = false;
-      window.clearInterval(interval);
-    };
-  }, [loadData]);
+    if (poll.status === 'error' || poll.status === 'stale') {
+      console.error("Error loading liquidations data:", poll.error);
+      setIsConnected(false);
+      setIsLoading(false);
+      setIsStale(hasSnapshot || poll.status === 'stale');
+      setError(poll.error || "Failed to load liquidations data");
+    }
+  }, [hasSnapshot, poll.data, poll.error, poll.status]);
+
+  const loadData = useCallback(async () => {
+    await poll.refresh();
+  }, [poll]);
 
   const startMonitoring = useCallback(async () => {
     try {
@@ -110,14 +107,14 @@ export function LiquidationsProvider({ children }: { children: ReactNode }) {
     chartHours,
     recentAlerts,
     isConnected,
-    isLoading,
+    isLoading: isLoading || poll.status === 'loading',
     isStale,
     error,
     setChartHours,
     refreshStats: loadData,
     startMonitoring,
     stopMonitoring
-  }), [stats, insights, snapshots, chartData, chartHours, recentAlerts, isConnected, isLoading, isStale, error, loadData, startMonitoring, stopMonitoring]);
+  }), [stats, insights, snapshots, chartData, chartHours, recentAlerts, isConnected, isLoading, isStale, error, loadData, startMonitoring, stopMonitoring, poll.status]);
 
   return (
     <LiquidationsContext.Provider value={value}>

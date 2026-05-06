@@ -1,4 +1,5 @@
 import React from 'react';
+import { recordTelemetry } from '@/services/performanceTelemetry';
 
 interface AppErrorBoundaryState {
   hasError: boolean;
@@ -26,6 +27,7 @@ export class AppErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('AppErrorBoundary caught renderer error:', error, errorInfo);
+    recordTelemetry({ type: 'error', label: 'app:error-boundary', status: 'render-error', detail: error.message });
   }
 
   render() {

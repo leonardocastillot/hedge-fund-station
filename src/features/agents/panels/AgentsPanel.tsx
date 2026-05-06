@@ -6,6 +6,7 @@ import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import type { TaskStatus } from '@/types/tasks';
 import { AgentSupervisorBoard } from '../components/AgentSupervisorBoard';
 import { MissionChatWorkbench } from '../components/MissionChatWorkbench';
+import { MissionConsoleLauncher } from '../components/MissionConsoleLauncher';
 import { KnowledgeDock } from '../components/KnowledgeDock';
 import { SystemHealthCard } from '../components/SystemHealthCard';
 import { LaunchSignalStrip } from '../components/LaunchSignalStrip';
@@ -309,7 +310,10 @@ export const AgentsPanel: React.FC = () => {
         </div>
 
         {activeView === 'chat' ? (
-          <MissionChatWorkbench workspaceId={workspaceId} />
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <MissionConsoleLauncher workspaceId={workspaceId} />
+            <MissionChatWorkbench workspaceId={workspaceId} />
+          </div>
         ) : null}
 
         {activeView === 'fleet' ? (

@@ -150,9 +150,9 @@ Must satisfy ALL conditions:
 ## Costs
 
 **Fee Assumptions:**
-- Maker: 0.02% (Hyperliquid tier 1)
-- Taker: 0.055% (Hyperliquid tier 1)
-- Assume 70% taker, 30% maker = avg 0.044% per side
+- Maker: 0.0150% (Hyperliquid perps Tier 0)
+- Taker: 0.0450% (Hyperliquid perps Tier 0)
+- Default backtests are conservative taker/taker unless maker or mixed fees are explicitly configured
 - Round-trip cost: ~0.088%
 
 **Slippage Assumptions:**

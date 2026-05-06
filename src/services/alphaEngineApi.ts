@@ -243,6 +243,8 @@ export interface CalendarWeek {
     forecast: string | null;
     previous: string | null;
     actual: string | null;
+    is_fallback?: boolean;
+    provider_time?: string | null;
   }>>;
   count: number;
   warning?: string | null;
@@ -334,6 +336,85 @@ export interface WeeklyBrief {
   updated_at: string;
 }
 
+export interface CalendarIntelligence {
+  quality: {
+    provider: string;
+    status: 'fresh' | 'cached' | 'stale' | 'fallback' | 'unknown' | string;
+    confidence: number;
+    age_minutes: number | null;
+    source: string;
+    source_updated_at: string | null;
+    served_at: string | null;
+    event_count: number;
+    uses_saved_snapshot: boolean;
+    uses_fallback: boolean;
+    warnings: string[];
+  };
+  today_desk: {
+    date: string;
+    posture: string;
+    overall_risk: string;
+    source_status: string;
+    headline: string;
+    next_event: CanonicalCalendarEvent | null;
+    today_event_count: number;
+    today_high_impact_count: number;
+    tomorrow_event_count: number;
+    week_high_impact_count: number;
+    what_to_watch: string[];
+  };
+  canonical_events: CanonicalCalendarEvent[];
+  stand_aside_windows: Array<{
+    event_id: string;
+    label: string;
+    start: string;
+    end: string;
+    reason: string;
+    confidence: number;
+  }>;
+  post_event_notes: Array<{
+    event_id: string;
+    event_name: string;
+    surprise: Record<string, unknown>;
+    read: string;
+  }>;
+  deterministic: CalendarAnalysis['analysis'];
+  model: {
+    headline: string;
+    confidence: number;
+    posture: string;
+    key_event_ids: string[];
+    watch_before: string[];
+    watch_during: string[];
+    watch_after: string[];
+    operator_notes: string[];
+  };
+  ai: AiMeta;
+  calendar: CalendarWeek;
+  news: MacroNews;
+  holidays: BankHolidays;
+  updated_at: string;
+}
+
+export interface CanonicalCalendarEvent {
+  event_id: string;
+  date: string;
+  time: string;
+  date_time: string;
+  currency: string;
+  impact: string;
+  event_name: string;
+  category: string;
+  crypto_importance: string;
+  forecast: string | null;
+  previous: string | null;
+  actual: string | null;
+  surprise: Record<string, unknown> | null;
+  source: string;
+  confidence: number | null;
+  is_fallback: boolean;
+}
+
 export interface WalletOverview {
   address: string;
   portfolioValue: number;
@@ -421,10 +502,11 @@ export const alphaEngineApi = {
   labOverview: () => requestWrappedData<LabOverview>('/api/polymarket/lab/overview', 20_000),
   aiStatus: () => requestJson<AiStatus>('/api/ai/status', 10_000),
   aiTest: () => requestJson<AiTestResult>('/api/ai/test', 35_000, 'POST'),
-  calendarAnalysis: () => requestJson<CalendarAnalysis>('/calendar/analysis', 15_000),
-  calendarWeek: () => requestJson<CalendarWeek>('/calendar/this-week', 15_000),
-  calendarNews: () => requestJson<MacroNews>('/calendar/news', 15_000),
-  calendarHolidays: () => requestJson<BankHolidays>('/calendar/holidays', 15_000),
-  calendarWeeklyBrief: () => requestJson<WeeklyBrief>('/calendar/weekly-brief', 40_000),
+  calendarAnalysis: (refresh = false) => requestJson<CalendarAnalysis>(`/calendar/analysis${refresh ? '?refresh=true' : ''}`, 15_000),
+  calendarWeek: (refresh = false) => requestJson<CalendarWeek>(`/calendar/this-week${refresh ? '?refresh=true' : ''}`, 15_000),
+  calendarNews: (refresh = false) => requestJson<MacroNews>(`/calendar/news${refresh ? '?refresh=true' : ''}`, 15_000),
+  calendarHolidays: (refresh = false) => requestJson<BankHolidays>(`/calendar/holidays${refresh ? '?refresh=true' : ''}`, 15_000),
+  calendarIntelligence: (refresh = false) => requestJson<CalendarIntelligence>(`/calendar/intelligence${refresh ? '?refresh=true' : ''}`, 22_000),
+  calendarWeeklyBrief: (refresh = false) => requestJson<WeeklyBrief>(`/calendar/weekly-brief${refresh ? '?refresh=true' : ''}`, 18_000),
   calendarRefresh: () => requestJson<{ success: boolean }>('/calendar/refresh', 45_000, 'POST')
 };

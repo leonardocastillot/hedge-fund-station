@@ -39,6 +39,7 @@ import {
   type WeeklyBrief,
   type WalletOverview
 } from '@/services/alphaEngineApi';
+import { useMarketPolling } from '@/hooks/useMarketPolling';
 
 interface CockpitState {
   health: { status: string } | null;
@@ -246,13 +247,20 @@ export default function TradingCockpitPage() {
     }
     setUpdatedAt(new Date());
     setIsDeferredRefreshing(false);
+    return { updatedAt: Date.now() };
   };
 
+  const cockpitPoll = useMarketPolling(
+    'trading-cockpit:core',
+    load,
+    { intervalMs: 30_000, staleAfterMs: 75_000 }
+  );
+
   useEffect(() => {
-    void load();
-    const interval = window.setInterval(() => void load(), 30_000);
-    return () => window.clearInterval(interval);
-  }, []);
+    if (cockpitPoll.status === 'stale' && cockpitPoll.error) {
+      setError(cockpitPoll.error);
+    }
+  }, [cockpitPoll.error, cockpitPoll.status]);
 
   const equityData = useMemo(() => {
     const points = state.equity.length > 0
@@ -305,12 +313,12 @@ export default function TradingCockpitPage() {
 
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void cockpitPoll.refresh()}
             disabled={isRefreshing || isDeferredRefreshing}
             className="inline-flex h-9 items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-400/10 px-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshCw size={15} className={isRefreshing || isDeferredRefreshing ? 'animate-spin' : ''} />
-            {isDeferredRefreshing && !isRefreshing ? 'Finishing' : 'Refresh'}
+            {cockpitPoll.status === 'stale' ? 'Refresh Stale' : isDeferredRefreshing && !isRefreshing ? 'Finishing' : 'Refresh'}
           </button>
         </div>
       </div>
