@@ -147,3 +147,21 @@ entries unless the human explicitly asks for cleanup.
 - Status: ready for review; catalog performance on the local gateway measured
   `0.340786s` cold and `0.119913s` repeated, with `/health` no longer blocked
   by the catalog path.
+
+---
+
+## 2026-05-06 - Strategy Pipeline Responsive Layout
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed the `/strategies` board layout so pipeline columns respond to
+  available Electron panel width instead of viewport breakpoints, preventing
+  squeezed columns and clipped card content.
+- Evidence:
+  `src/features/strategies/pages/StrategyLibraryPage.tsx`,
+  `progress/impl_strategy_pipeline_responsive_layout.md`.
+- Verification: `npm run build`, `npm run agent:check`, catalog curl smoke, and
+  Electron visual smoke on `/strategies` passed. Narrow center-panel state wraps
+  cleanly; wide rail-collapsed state shows all five stages in one row.
+- Status: ready for review; renderer layout only, with backend evidence/action
+  behavior unchanged.

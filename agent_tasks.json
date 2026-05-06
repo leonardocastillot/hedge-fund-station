@@ -18,6 +18,36 @@
   },
   "tasks": [
     {
+      "id": "strategy_pipeline_responsive_layout",
+      "title": "Fix Strategy Pipeline responsive layout and structure",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx"
+      ],
+      "acceptance": [
+        "Strategy Pipeline uses available panel width instead of viewport-only breakpoints so side panels do not squeeze the board.",
+        "Pipeline columns, summary metrics, action buttons, commands, and blocker text remain readable on desktop and narrow widths.",
+        "The UI keeps backend evidence/action behavior unchanged and only improves review structure.",
+        "Implementation handoff names files changed, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run build",
+        "npm run agent:check",
+        "browser smoke for /strategies at desktop and narrow widths when practical"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "progress/impl_strategy_pipeline_responsive_layout.md"
+      ],
+      "notes": "Human reported Strategy Pipeline display/responsiveness problems after the stabilization work. Scope is renderer layout only; no backend strategy logic, credential, or routing changes."
+    },
+    {
       "id": "strategy_pipeline_stabilization",
       "title": "Stabilize Strategy Pipeline performance, gates, and artifact evidence",
       "mission_class": "UI review-speed audit",
