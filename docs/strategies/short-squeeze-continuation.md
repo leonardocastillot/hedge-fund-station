@@ -66,7 +66,7 @@ Enter long only when most of these align:
 
 ## Costs
 
-- default gateway backtest fee model: 5.5 bps per side
+- default gateway backtest fee model: Hyperliquid perps Tier 0 taker 4.5 bps per side unless maker/mixed fees are explicitly configured
 - deterministic slippage proxy based on execution quality
 - production validation still needs orderbook and trade-flow replay
 

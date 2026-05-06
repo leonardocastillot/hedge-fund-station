@@ -23,6 +23,20 @@ Hyperliquid gateway for paper, liquidations, and market overview. If Docker is
 not available, it falls back to a local Python `uvicorn` process on
 `127.0.0.1:18001`.
 
+When backend routes change under `backend/hyperliquid_gateway/app.py`, restart
+the local gateway before refreshing the Electron app:
+
+```bash
+npm run gateway:restart
+curl -fsS http://127.0.0.1:18001/api/hyperliquid/strategies/catalog?limit=500
+npm run gateway:probe
+```
+
+If `/strategies` shows a Pipeline `404 Not Found` while the React route itself
+loads, check this endpoint first. A 404 on
+`/api/hyperliquid/strategies/catalog` means the gateway process on `18001` is
+stale and has not loaded the current backend code.
+
 ## Backend Contracts
 
 - Alpha engine VM tunnel: `http://127.0.0.1:18500`
@@ -142,9 +156,35 @@ Verify from the Mac through the tunnel after restart:
 ```bash
 npm run backend:probe
 curl -fsS http://127.0.0.1:18500/calendar/this-week
+curl -fsS http://127.0.0.1:18500/calendar/intelligence
 curl -fsS http://127.0.0.1:18500/calendar/news
 curl -fsS http://127.0.0.1:18500/calendar/weekly-brief
 ```
+
+## Daily Macro Calendar Workflow
+
+Use the desktop app's `Calendar` tab before opening new discretionary crypto or
+derivatives risk. The tab is a review surface for the backend calendar
+contract, not a trading signal.
+
+1. Read `Today's Macro Desk` first. Its source badge should be `fresh`; if it is
+   `cached`, `stale`, or `fallback`, treat the calendar as degraded and verify
+   major releases before sizing up.
+2. Use `Posture` as risk framing only:
+   `verify_calendar_first`, `reduce_size_until_post_event`,
+   `selective_risk_only`, or `normal`. It is not a buy/sell signal.
+3. Check `Stand-Aside Windows` before opening new trades. High crypto-relevant
+   releases are default no-new-risk windows until post-event liquidity is clear.
+4. Use the model checklist for what to watch before, during, and after the
+   event. The model is constrained to cite backend event IDs and should not
+   invent calendar events.
+5. Check deterministic `Critical Days`; this remains usable even when the AI
+   weekly brief is unavailable or slow.
+6. Review macro news and bank holidays last for liquidity, settlement, and
+   weekend/session-handoff risk.
+7. Press `Refresh` when starting the session or after the VM backend restarts.
+   The UI refreshes the intelligence/core modules independently so a slow AI
+   brief does not hide the Forex Factory calendar.
 
 If `/calendar/this-week` returns `source: Deterministic macro calendar
 fallback`, the route is healthy but Forex Factory is blocked or rate-limited.

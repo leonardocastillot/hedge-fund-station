@@ -59,6 +59,7 @@ runtime state are written outside the repository checkout.
 
 Use it for:
 
+- fixed trading stations that organize the hedge fund workflow
 - dashboards
 - watchlists
 - signal drilldowns
@@ -72,6 +73,15 @@ Use it for:
 Never put core strategy logic, heavy compute loops, or source-of-truth trading
 state in React. The UI may rank, group, and present backend outputs, but the
 strategy decision path must remain in the backend.
+
+Renderer terminology:
+
+- Trading stations are fixed product surfaces such as Hedge Fund Station and
+  Live Trading. They organize research, validation, review, monitoring, and
+  operator attention.
+- Desks are Electron workspaces backed by local folders, commands, terminals,
+  agents, and vaults. The `Workspace` IPC contract should stay scoped to desks,
+  not trading lifecycle state.
 
 ### `electron/`
 

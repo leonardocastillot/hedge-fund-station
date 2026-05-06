@@ -62,19 +62,19 @@ This document outlines the complete validation workflow for the Funding Exhausti
 4. Run strategy evaluation every 30 seconds
 5. Simulate entries when signals trigger
 6. Apply realistic slippage model (from paper.py)
-7. Apply taker fees (0.055% per side)
+7. Apply taker fees (0.0450% per side)
 8. Track signal-to-fill delays
 9. Monitor invalidations and exits in real-time
 
 #### Execution Model
 **Entry**:
-- Taker order (0.055% fee)
+- Taker order (0.0450% fee)
 - Slippage: 0.05-0.10% (based on exec quality score)
 - Latency: 1-3 seconds
 - Size: Paper position (no real capital)
 
 **Exit**:
-- Taker order (0.055% fee)
+- Taker order (0.0450% fee)
 - Slippage: 0.06-0.12% (worse on stops, panic)
 - Latency: 1-3 seconds
 - Check invalidations every 60 seconds
@@ -341,10 +341,9 @@ Week 5:  [Final Review + Decision]
 ## Cost Model Validation
 
 **Assumed Costs** (from strategy spec):
-- Maker: 0.02%
-- Taker: 0.055%
-- Avg per side: 0.044% (70% taker, 30% maker)
-- Round-trip fee: 0.088%
+- Maker: 0.0150%
+- Taker: 0.0450%
+- Default conservative round-trip fee: 0.0900% taker/taker
 - Entry slippage: 0.05-0.10%
 - Exit slippage: 0.06-0.12%
 - Total friction: ~0.24-0.31%

@@ -1,10 +1,18 @@
 import legacyApi from './legacyTradingApi';
-import { alphaEngineApi, type EvaluationItem } from './alphaEngineApi';
-import { hyperliquidService, type HyperliquidMarketRow, type HyperliquidPaperTrade } from './hyperliquidService';
+import {
+  hyperliquidService,
+  type HyperliquidGateStatus,
+  type HyperliquidMarketRow,
+  type HyperliquidPipelineStage,
+  type HyperliquidPaperTrade,
+  type HyperliquidStrategyCatalogRow,
+  type HyperliquidStrategyNextAction
+} from './hyperliquidService';
 
 export const DEFAULT_BACKTEST_INITIAL_CAPITAL = 500;
 
 export interface Strategy {
+  strategy_id?: string;
   strategy_name: string;
   symbol: string;
   score: number;
@@ -25,7 +33,13 @@ export interface Strategy {
   trigger_plan?: string;
   invalidation_plan?: string;
   market?: HyperliquidMarketRow | null;
-  source: 'alpha' | 'legacy' | 'gateway';
+  stage?: HyperliquidStrategyCatalogRow['stage'];
+  pipeline_stage?: HyperliquidPipelineStage;
+  gate_status?: HyperliquidGateStatus;
+  gate_reasons?: string[];
+  next_action?: HyperliquidStrategyNextAction;
+  registered_for_backtest?: boolean;
+  source: 'backend' | 'alpha' | 'legacy' | 'gateway';
 }
 
 export interface DeployedStrategy {
@@ -55,121 +69,82 @@ export interface PortfolioStats {
   strategies: DeployedStrategy[];
 }
 
-function mapLegacyStrategy(item: any): Strategy {
-  const decisionLabel = item.deployment_status ? 'watch-now' : item.score >= 75 ? 'watch-now' : 'wait-trigger';
-  return {
-    strategy_name: item.strategy_name,
-    symbol: item.strategy_name,
-    score: item.score ?? 0,
-    direction: item.direction ?? 'BOTH',
-    timeframe: item.timeframe ?? '4h',
-    last_evaluated: item.last_evaluated ?? new Date().toISOString(),
-    total_return_pct: item.total_return_pct ?? 0,
-    win_rate: item.win_rate ?? 0,
-    sharpe_ratio: item.sharpe_ratio ?? 0,
-    max_drawdown_pct: item.max_drawdown_pct ?? 0,
-    total_trades: item.total_trades ?? 0,
-    deployment_status: item.deployment_status ?? null,
-    deployment_id: item.deployment_id ?? null,
-    is_stale: Boolean(item.is_stale),
-    setup_tag: item.timeframe ?? '4h',
-    decision_label: decisionLabel,
-    execution_quality: Math.max(0, Math.min(100, item.score ?? 0)),
-    trigger_plan: `Use cached backtest and current score ${item.score ?? 0} as the ranking baseline.`,
-    invalidation_plan: `Invalidate if freshness becomes stale or score degrades materially from ${item.score ?? 0}.`,
-    market: null,
-    source: 'legacy'
-  };
-}
-
-function scoreEvaluation(item: EvaluationItem): number {
-  const profitFactorScore = Math.max(0, Math.min(35, ((item.profit_factor ?? 0) / 2) * 35));
-  const winRateScore = Math.max(0, Math.min(25, ((item.win_rate_pct ?? 0) / 70) * 25));
-  const returnScore = Math.max(0, Math.min(25, ((item.return_pct ?? 0) + 5) * 2.5));
-  const drawdownPenalty = Math.max(0, Math.min(20, item.max_drawdown_pct ?? 0));
-  const statusBonus = item.status === 'ok' ? 15 : 0;
-  return Number(Math.max(0, Math.min(100, profitFactorScore + winRateScore + returnScore + statusBonus - drawdownPenalty)).toFixed(1));
-}
-
-function evaluationDirection(item: EvaluationItem): string {
-  const text = `${item.archetype} ${item.proxy_model} ${item.title}`.toLowerCase();
-  if (text.includes('short squeeze') || text.includes('breakout') || text.includes('continuation')) return 'LONG';
+function backendDirection(item: HyperliquidStrategyCatalogRow): string {
+  if (item.side === 'long') return 'LONG';
+  if (item.side === 'short') return 'SHORT';
+  const text = `${item.strategyId} ${item.displayName}`.toLowerCase();
+  if (text.includes('short_squeeze') || text.includes('crowding_scalper') || text.includes('breakout')) return 'LONG';
   if (text.includes('flush') || text.includes('fade')) return 'SHORT';
   return 'BOTH';
 }
 
-function evaluationDecisionLabel(item: EvaluationItem, score: number): string {
-  const promotion = item.promotion_state.toLowerCase();
-  if (promotion.includes('paper') || promotion.includes('candidate')) return 'watch-now';
-  if (promotion.includes('reject') || item.status !== 'ok' || score < 35) return 'avoid';
-  return score >= 65 ? 'watch-now' : 'wait-trigger';
+function backendDecisionLabel(item: HyperliquidStrategyCatalogRow): string {
+  if (item.robustAssessment?.status === 'passes' || item.validationStatus === 'ready-for-paper') return 'watch-now';
+  if (item.stage === 'validation_blocked' || item.robustAssessment?.status === 'blocked') return 'avoid';
+  return item.registeredForBacktest ? 'wait-trigger' : 'avoid';
 }
 
-function mapAlphaEvaluation(item: EvaluationItem): Strategy {
-  const score = scoreEvaluation(item);
-  const decisionLabel = evaluationDecisionLabel(item, score);
-  const notes = item.notes.length > 0 ? item.notes.join(' ') : `${item.title} evaluated by the alpha engine.`;
+function scoreBackendStrategy(item: HyperliquidStrategyCatalogRow): number {
+  const summary = item.latestBacktestSummary;
+  const stageScore: Record<HyperliquidStrategyCatalogRow['stage'], number> = {
+    paper_runtime: 82,
+    paper_candidate: 74,
+    validated: 70,
+    backtested: 58,
+    validation_blocked: 36,
+    registered: 48,
+    runtime_setup: 44,
+    research: 30,
+    unknown: 12
+  };
+  const trades = Number(summary?.total_trades ?? item.tradeCount ?? 0);
+  const returnPct = Number(summary?.return_pct ?? 0);
+  const profitFactor = Number(summary?.profit_factor ?? 0);
+  const drawdown = Number(summary?.max_drawdown_pct ?? 0);
+  const robustBonus = item.robustAssessment?.status === 'passes' ? 12 : item.robustAssessment?.status === 'insufficient-sample' ? -4 : 0;
+  const tradeScore = Math.min(14, trades / 6);
+  const returnScore = Math.max(-10, Math.min(12, returnPct * 2));
+  const pfScore = Math.max(0, Math.min(10, (profitFactor - 1) * 12));
+  const drawdownPenalty = Math.max(0, Math.min(14, drawdown));
+  return Number(Math.max(0, Math.min(100, (stageScore[item.stage] ?? 12) + tradeScore + returnScore + pfScore + robustBonus - drawdownPenalty)).toFixed(1));
+}
+
+function mapBackendStrategy(item: HyperliquidStrategyCatalogRow): Strategy {
+  const summary = item.latestBacktestSummary;
+  const score = scoreBackendStrategy(item);
+  const decisionLabel = backendDecisionLabel(item);
+  const blockers = item.robustAssessment?.blockers?.length
+    ? item.robustAssessment.blockers.join(', ')
+    : item.missingAuditItems.join(', ') || 'no blockers recorded';
   return {
-    strategy_name: item.title,
-    symbol: item.strategy_id,
+    strategy_name: item.displayName,
+    strategy_id: item.strategyId,
+    symbol: item.strategyId,
     score,
-    direction: evaluationDirection(item),
-    timeframe: item.dataset_mode || 'evaluation',
-    last_evaluated: item.last_run_at || new Date().toISOString(),
-    total_return_pct: item.return_pct ?? 0,
-    win_rate: item.win_rate_pct ?? 0,
-    sharpe_ratio: Number(((item.profit_factor ?? 0) / 1.5).toFixed(2)),
-    max_drawdown_pct: item.max_drawdown_pct ?? 0,
-    total_trades: item.total_trades ?? 0,
-    deployment_status: decisionLabel === 'watch-now' ? 'PAPER' : null,
+    direction: backendDirection(item),
+    timeframe: item.stage,
+    last_evaluated: item.lastActivityAt ? new Date(item.lastActivityAt).toISOString() : new Date().toISOString(),
+    total_return_pct: Number(summary?.return_pct ?? 0),
+    win_rate: Number(summary?.win_rate_pct ?? item.winRate ?? 0),
+    sharpe_ratio: Number((Number(summary?.profit_factor ?? 0) / 1.3).toFixed(2)),
+    max_drawdown_pct: Number(summary?.max_drawdown_pct ?? 0),
+    total_trades: Number(summary?.total_trades ?? item.tradeCount ?? 0),
+    deployment_status: item.stage === 'paper_runtime' || item.stage === 'paper_candidate' ? 'PAPER' : null,
     deployment_id: null,
-    is_stale: item.status !== 'ok',
-    setup_tag: item.archetype || item.proxy_model || 'evaluation',
+    is_stale: item.stage === 'unknown',
+    setup_tag: item.setupTag || item.strategyId,
     decision_label: decisionLabel,
     execution_quality: score,
-    trigger_plan: notes,
-    invalidation_plan: `Promotion state is ${item.promotion_state}; reject or demote if validation remains weak, stale, or drawdown expands beyond current ${item.max_drawdown_pct ?? 0}%.`,
+    trigger_plan: `${item.stage.replace(/_/g, ' ')} | sources: ${item.sourceTypes.join(', ') || 'none'} | registered: ${item.registeredForBacktest ? 'yes' : 'no'}.`,
+    invalidation_plan: `Review blockers before promotion: ${blockers}.`,
     market: null,
-    source: 'alpha'
-  };
-}
-
-function formatStrategyName(market: HyperliquidMarketRow): string {
-  const setup = market.primarySetup || 'no-trade';
-  return `${market.symbol} ${setup}`;
-}
-
-function mapDirection(market: HyperliquidMarketRow): string {
-  if (market.primarySetup === 'short-squeeze' || market.primarySetup === 'breakout-continuation') return 'LONG';
-  if (market.primarySetup === 'long-flush' || market.primarySetup === 'fade') return 'SHORT';
-  return 'BOTH';
-}
-
-function mapGatewayStrategy(market: HyperliquidMarketRow, evaluatedAt: number): Strategy {
-  const executionQuality = market.executionQuality ?? 0;
-  const score = Number((market.opportunityScore * 10 + executionQuality * 0.35).toFixed(1));
-  return {
-    strategy_name: formatStrategyName(market),
-    symbol: market.symbol,
-    score,
-    direction: mapDirection(market),
-    timeframe: 'intraday',
-    last_evaluated: new Date(evaluatedAt).toISOString(),
-    total_return_pct: market.change24hPct ?? 0,
-    win_rate: Math.max(20, Math.min(95, 40 + Math.max(0, executionQuality - 40) * 0.7)),
-    sharpe_ratio: Number((score / 40).toFixed(2)),
-    max_drawdown_pct: Number((Math.max(2, 18 - (market.executionQuality ?? 0) / 8)).toFixed(1)),
-    total_trades: 0,
-    deployment_status: market.decisionLabel === 'watch-now' ? 'PAPER' : null,
-    deployment_id: null,
-    is_stale: false,
-    setup_tag: market.primarySetup || 'no-trade',
-    decision_label: market.decisionLabel || 'wait-trigger',
-    execution_quality: executionQuality,
-    trigger_plan: market.triggerPlan,
-    invalidation_plan: market.invalidationPlan,
-    market,
-    source: 'gateway'
+    stage: item.stage,
+    pipeline_stage: item.pipelineStage,
+    gate_status: item.gateStatus,
+    gate_reasons: item.gateReasons,
+    next_action: item.nextAction,
+    registered_for_backtest: item.registeredForBacktest,
+    source: 'backend'
   };
 }
 
@@ -193,18 +168,9 @@ function toGatewayDeployedTrade(trade: HyperliquidPaperTrade): DeployedStrategy 
   };
 }
 
-async function getLegacyLibrary(filter: 'all' | 'long' | 'bidirectional' | 'deployed') {
-  const params: Record<string, string> = {};
-  if (filter === 'deployed') params.status_filter = 'deployed';
-  if (filter === 'long') params.direction = 'LONG';
-  if (filter === 'bidirectional') params.direction = 'BOTH';
-  const response = await legacyApi.get('/api/portfolio/strategies/library', { params });
-  return (response.data?.strategies ?? []).map(mapLegacyStrategy) as Strategy[];
-}
-
-async function getAlphaLibrary() {
-  const snapshot = await alphaEngineApi.evaluations();
-  return snapshot.strategies.map(mapAlphaEvaluation);
+async function getBackendLibrary() {
+  const catalog = await hyperliquidService.getStrategyCatalog(500);
+  return catalog.strategies.map(mapBackendStrategy);
 }
 
 function applyStrategyFilter(strategies: Strategy[], filter: 'all' | 'long' | 'bidirectional' | 'deployed') {
@@ -229,28 +195,8 @@ export const strategyService = {
     filter: 'all' | 'long' | 'bidirectional' | 'deployed' = 'all',
     sortBy: 'score' | 'return' | 'sharpe' | 'win_rate' = 'score'
   ) {
-    try {
-      return { success: true, strategies: sortStrategies(applyStrategyFilter(await getAlphaLibrary(), filter), sortBy) };
-    } catch {
-      try {
-        let strategies = await getLegacyLibrary(filter);
-        return { success: true, strategies: sortStrategies(strategies, sortBy) };
-      } catch {
-        const overview = await hyperliquidService.getOverview(36);
-        const trades = await hyperliquidService.getPaperTrades('all');
-        const tradeCountBySymbol = new Map<string, number>();
-        for (const trade of trades.trades) {
-          tradeCountBySymbol.set(trade.symbol, (tradeCountBySymbol.get(trade.symbol) ?? 0) + 1);
-        }
-        const strategies = overview.markets.map((market) => {
-          const strategy = mapGatewayStrategy(market, overview.updatedAt);
-          strategy.total_trades = tradeCountBySymbol.get(market.symbol) ?? 0;
-          if (strategy.total_trades > 0) strategy.deployment_status = 'PAPER';
-          return strategy;
-        });
-        return { success: true, strategies: sortStrategies(applyStrategyFilter(strategies, filter), sortBy) };
-      }
-    }
+    const backendStrategies = await getBackendLibrary();
+    return { success: true, strategies: sortStrategies(applyStrategyFilter(backendStrategies, filter), sortBy) };
   },
 
   async deploy(strategyName: string, mode: 'LIVE' | 'PAPER', allocationPct: number, timeframe = '4h') {
@@ -287,32 +233,20 @@ export const strategyService = {
   },
 
   async runBacktest(strategyName: string, timeframe: string = '4h', years: number = 3) {
-    try {
-      const response = await legacyApi.post('/api/backtest/run', null, {
-        params: {
-          strategy_name: strategyName,
-          timeframe,
-          days_back: years * 365,
-          initial_capital: DEFAULT_BACKTEST_INITIAL_CAPITAL
-        }
-      });
-      return response.data;
-    } catch {
-      return hyperliquidService.seedPaperSignals(6);
-    }
+    void timeframe;
+    void years;
+    return hyperliquidService.runBacktest(strategyName, false);
   },
 
   async runAllBacktests(_timeframe: string = '4h', _years: number = 3) {
-    try {
-      const response = await legacyApi.post('/api/backtest/run-all', null, {
-        params: { mode: 'quick' },
-        timeout: 300000
-      });
-      return response.data;
-    } catch {
-      const result = await hyperliquidService.seedPaperSignals(6);
-      return { success: result.success, successful: result.created, failed: 0 };
-    }
+    const result = await hyperliquidService.runAllBacktests(false);
+    const successful = result.results.filter((item) => item.success).length;
+    return {
+      success: result.success,
+      successful,
+      failed: result.results.length - successful,
+      results: result.results
+    };
   },
 
   async getDeployed(): Promise<DeployedStrategy[]> {

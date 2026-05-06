@@ -166,8 +166,8 @@ def calculate_paper_pnl(
     Calculate P&L for paper trade including all costs.
 
     Costs:
-    - Entry fee (0.055% taker)
-    - Exit fee (0.055% taker)
+    - Entry fee (0.045% taker)
+    - Exit fee (0.045% taker)
     - Entry slippage
     - Exit slippage
 
@@ -203,8 +203,8 @@ def calculate_paper_pnl(
 
     gross_pnl_usd = (gross_pnl_pct / 100) * size_usd
 
-    # Calculate fees (0.055% per side = 0.11% round-trip)
-    fee_rate = 0.055
+    # Calculate Hyperliquid Tier 0 taker fees (0.045% per side = 0.09% round-trip).
+    fee_rate = 0.045
     entry_fee = size_usd * (fee_rate / 100)
     exit_fee = size_usd * (fee_rate / 100)
     total_fees_usd = entry_fee + exit_fee

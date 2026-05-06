@@ -6,6 +6,12 @@ import { useTerminalContext } from '@/contexts/TerminalContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { useGeminiLiveVoice } from '@/hooks/useGeminiLiveVoice';
 import {
+  GEMINI_BACKEND_ACTIONS,
+  GEMINI_STABLE_TERMINAL_COMMANDS,
+  type GeminiLiveProposal,
+  type GeminiOrchestratorCapabilityContext
+} from '@/features/agents/orchestration/geminiOrchestrator';
+import {
   hyperliquidService,
   type HyperliquidAgentRunCreateResponse,
   type HyperliquidAgentRuntimeStatus,
@@ -13,8 +19,10 @@ import {
 } from '@/services/hyperliquidService';
 import type { AgentProfile, AgentProvider, AgentRole } from '@/types/agents';
 import type { ApprovedMission, MissionBackendAction, MissionDraft, MissionPacket } from '@/types/tasks';
-import { getProviderMeta, inferRequestedProvider, resolveAgentRuntimeCommand } from '@/utils/agentRuntime';
+import { getProviderMeta, inferRequestedProvider } from '@/utils/agentRuntime';
 import { launchAgentRun } from '@/utils/agentOrchestration';
+import { runMissionAction } from '@/utils/missionActions';
+import { VoiceOrbScene } from './VoiceOrbScene';
 import {
   buildMissionMetadata,
   formatRoleLabel,
@@ -23,7 +31,38 @@ import {
   MISSION_MODE_CONFIG,
   type MissionMode
 } from '@/utils/missionControl';
-import { VoiceOrbScene } from './VoiceOrbScene';
+
+type SafeVoiceSceneStatus = 'idle' | 'recording' | 'transcribing' | 'ready' | 'error';
+
+type VoiceSceneBoundaryProps = {
+  children: React.ReactNode;
+  fallback: React.ReactNode;
+  onError: () => void;
+};
+
+type VoiceSceneBoundaryState = {
+  hasError: boolean;
+};
+
+class VoiceSceneBoundary extends React.Component<VoiceSceneBoundaryProps, VoiceSceneBoundaryState> {
+  state: VoiceSceneBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): VoiceSceneBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+
+    return this.props.children;
+  }
+}
 
 function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -76,6 +115,43 @@ function buildBackendActions(mode: MissionMode, strategyId?: string): MissionBac
     strategyId,
     status: 'proposed'
   }];
+}
+
+function getProposalDetail(proposal: GeminiLiveProposal): string {
+  if (proposal.type === 'propose_terminal_command') {
+    return `Command: ${proposal.command || proposal.goal}`;
+  }
+
+  if (proposal.type === 'propose_backend_action') {
+    const action = GEMINI_BACKEND_ACTIONS.find((item) => item.actionKey === proposal.actionKey);
+    return `Backend action: ${action?.label || proposal.actionKey || proposal.goal}`;
+  }
+
+  if (proposal.type === 'propose_send_to_terminal') {
+    return `Terminal text: ${proposal.text || proposal.goal}`;
+  }
+
+  if (proposal.type === 'propose_agent_run') {
+    return `${proposal.agentRole ? `Agent role: ${proposal.agentRole}. ` : ''}${proposal.goal}`;
+  }
+
+  return proposal.goal;
+}
+
+function getProposalApproveLabel(proposal: GeminiLiveProposal): string {
+  switch (proposal.type) {
+    case 'propose_terminal_command':
+      return 'Send Command';
+    case 'propose_backend_action':
+      return 'Run Action';
+    case 'propose_send_to_terminal':
+      return 'Send To Terminal';
+    case 'propose_agent_run':
+      return 'Create Agent Draft';
+    case 'propose_mission':
+    default:
+      return 'Create Draft';
+  }
 }
 
 function buildRuntimePlan(params: {
@@ -188,13 +264,16 @@ function updateDraftWithLatestAgentRun(
   updateMissionDraft: (draftId: string, updates: Partial<MissionDraft>) => void
 ): void {
   const decision = latest.agentRun.decision;
+  const parentPath = Array.isArray(latest.agentRun.lineage?.parents)
+    ? latest.agentRun.lineage.parents[0]
+    : undefined;
   const evidenceRefs = [
     ...missionPacket.evidenceRefs,
     {
       id: latest.agentRun.run_id,
       kind: 'agent-run' as const,
       label: `Latest Research OS ${latest.agentRun.mode}`,
-      path: latest.agentRun.lineage?.parents?.[0] as string | undefined,
+      path: typeof parentPath === 'string' ? parentPath : undefined,
       runId: latest.agentRun.run_id,
       strategyId: latest.strategyId,
       summary: `${decision.recommendation} | ${decision.blockers.length} blockers`,
@@ -260,6 +339,76 @@ const voiceSceneLabelStyle: React.CSSProperties = {
   backdropFilter: 'blur(10px)'
 };
 
+const voiceSceneSafePulseStyle = (status: string, audioLevel: number): React.CSSProperties => {
+  const isActive = status === 'recording' || status === 'transcribing';
+  const size = 96 + Math.round(audioLevel * 72);
+  return {
+    position: 'absolute',
+    left: '50%',
+    top: '44%',
+    width: `${size}px`,
+    height: `${size}px`,
+    transform: 'translate(-50%, -50%)',
+    borderRadius: '999px',
+    border: isActive ? '1px solid rgba(125, 211, 252, 0.50)' : '1px solid rgba(255, 255, 255, 0.18)',
+    background: isActive
+      ? 'radial-gradient(circle, rgba(125, 211, 252, 0.34), rgba(34, 197, 94, 0.14) 48%, rgba(0, 0, 0, 0) 72%)'
+      : 'radial-gradient(circle, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04) 55%, rgba(0, 0, 0, 0) 74%)',
+    boxShadow: isActive
+      ? '0 0 48px rgba(56, 189, 248, 0.20), inset 0 0 32px rgba(255, 255, 255, 0.08)'
+      : '0 0 36px rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.04)',
+    transition: 'width 120ms ease, height 120ms ease, border-color 160ms ease, background 160ms ease'
+  };
+};
+
+function canUseWebGL(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
+const SafeVoiceScene: React.FC<{
+  status: SafeVoiceSceneStatus;
+  durationSeconds: number;
+  audioLevel: number;
+}> = ({ status, durationSeconds, audioLevel }) => {
+  const [canRenderThree, setCanRenderThree] = React.useState(false);
+
+  React.useEffect(() => {
+    const disabled = window.localStorage.getItem('hedge.voiceOrb.webglDisabled') === '1';
+    setCanRenderThree(!disabled && canUseWebGL());
+  }, []);
+
+  const fallback = <div style={voiceSceneSafePulseStyle(status, audioLevel)} />;
+
+  if (!canRenderThree) {
+    return fallback;
+  }
+
+  return (
+    <VoiceSceneBoundary
+      fallback={fallback}
+      onError={() => {
+        window.localStorage.setItem('hedge.voiceOrb.webglDisabled', '1');
+        setCanRenderThree(false);
+      }}
+    >
+      <VoiceOrbScene
+        status={status}
+        durationSeconds={durationSeconds}
+        audioLevel={audioLevel}
+        onRenderError={() => {
+          window.localStorage.setItem('hedge.voiceOrb.webglDisabled', '1');
+          setCanRenderThree(false);
+        }}
+      />
+    </VoiceSceneBoundary>
+  );
+};
+
 export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; variant?: 'full' | 'dock' }> = ({
   workspaceId,
   variant = 'full'
@@ -273,18 +422,18 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
     runs,
     createTask,
     updateTaskStatus,
+    updateTaskAction,
     createRun,
     updateRun,
     addMissionMessage,
     createMissionDraft,
     updateMissionDraft
   } = useCommanderTasksContext();
-  const { createTerminal, closeTerminal, setActiveTerminal, terminals } = useTerminalContext();
+  const { createTerminal, closeTerminal, setActiveTerminal, terminals, activeTerminalId } = useTerminalContext();
   const [input, setInput] = React.useState('');
   const [editingDraftId, setEditingDraftId] = React.useState<string | null>(null);
   const [runtimeStatus, setRuntimeStatus] = React.useState<HyperliquidAgentRuntimeStatus | null>(null);
   const [claudeAvailable, setClaudeAvailable] = React.useState(false);
-  const pointerRecordingRef = React.useRef(false);
   const buildDraftRef = React.useRef<(goal: string) => void>(() => undefined);
 
   const workspace = React.useMemo(
@@ -311,6 +460,113 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
       .slice(0, 6),
     [missionDrafts, workspace?.id]
   );
+
+  const scopedRuns = React.useMemo(
+    () => runs
+      .filter((run) => run.workspaceId === workspace?.id)
+      .slice(0, 6),
+    [runs, workspace?.id]
+  );
+
+  const activeTerminal = React.useMemo(
+    () => terminals.find((terminal) => terminal.id === activeTerminalId) || null,
+    [activeTerminalId, terminals]
+  );
+
+  const orchestratorContext = React.useMemo<GeminiOrchestratorCapabilityContext>(() => ({
+    appName: 'Hedge Fund Station',
+    workspace: workspace
+      ? {
+          id: workspace.id,
+          name: workspace.name,
+          path: workspace.path,
+          shell: workspace.shell
+        }
+      : undefined,
+    runtime: {
+      codexConnected: Boolean(runtimeStatus?.codexAuthenticated),
+      claudeAvailable,
+      apiProviderAvailable: Boolean(runtimeStatus?.apiProviderAvailable),
+      runtimeMode: runtimeStatus?.runtimeMode,
+      defaultModel: runtimeStatus?.defaultModel || null
+    },
+    missionModes: Object.values(MISSION_MODE_CONFIG).map((mode) => ({
+      id: mode.id,
+      label: mode.label,
+      description: mode.description,
+      routeRoles: mode.routeRoles,
+      appSurfaces: mode.appSurfaces,
+      backendCapabilities: mode.backendCapabilities
+    })),
+    agents: workspaceAgents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      role: agent.role,
+      provider: agent.provider,
+      objective: agent.objective
+    })),
+    runtimes: [
+      {
+        id: 'codex',
+        label: 'Codex',
+        available: Boolean(runtimeStatus?.codexAuthenticated),
+        status: runtimeStatus?.codexAuthenticated ? 'authenticated' : 'login pending'
+      },
+      {
+        id: 'claude',
+        label: 'Claude CLI',
+        available: claudeAvailable,
+        status: claudeAvailable ? 'available' : 'not detected'
+      },
+      {
+        id: 'gemini',
+        label: 'Gemini Live',
+        available: true,
+        status: 'voice orchestrator'
+      }
+    ],
+    safeTerminalCommands: GEMINI_STABLE_TERMINAL_COMMANDS,
+    backendActions: GEMINI_BACKEND_ACTIONS,
+    appSurfaces: Array.from(new Set(Object.values(MISSION_MODE_CONFIG).flatMap((mode) => mode.appSurfaces)))
+      .map((name) => ({ name })),
+    terminal: {
+      terminalCount: terminals.length,
+      activeTerminalId: activeTerminal?.id,
+      activeLabel: activeTerminal?.label,
+      activeCwd: activeTerminal?.cwd,
+      activeCommand: activeTerminal?.currentCommand,
+      available: Boolean(activeTerminal)
+    },
+    recentDrafts: scopedDrafts.slice(0, 4).map((draft) => ({
+      id: draft.id,
+      title: draft.title,
+      mode: draft.mode,
+      status: draft.approvalStatus
+    })),
+    recentRuns: scopedRuns.slice(0, 4).map((run) => ({
+      id: run.id,
+      summary: run.summary,
+      status: run.status,
+      runtimeProvider: run.runtimeProvider
+    })),
+    guardrails: [
+      'Gemini can converse freely, but every command, agent launch, backend action, terminal write, and mission execution needs human approval.',
+      'The renderer is a cockpit. Heavy market logic, replay, validation, and paper evidence stay in backend or stable scripts.',
+      'Never place live trades, change credentials, or promote a strategy without explicit human review.'
+    ]
+  }), [
+    activeTerminal,
+    claudeAvailable,
+    runtimeStatus?.apiProviderAvailable,
+    runtimeStatus?.codexAuthenticated,
+    runtimeStatus?.defaultModel,
+    runtimeStatus?.runtimeMode,
+    scopedDrafts,
+    scopedRuns,
+    terminals.length,
+    workspace,
+    workspaceAgents
+  ]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -416,10 +672,27 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
     error: voiceError,
     durationSeconds,
     audioLevel,
+    proposals: voiceProposals,
+    diagnostics: voiceDiagnostics,
     start: startRecording,
     stop: stopRecording,
-    reset
+    reset,
+    endSession,
+    approveProposal,
+    dismissProposal
   } = useGeminiLiveVoice({
+    autoDraftOnTurnComplete: false,
+    orchestratorContext,
+    onProposal: (proposal) => {
+      if (!workspace) {
+        return;
+      }
+      addMissionMessage({
+        workspaceId: workspace.id,
+        role: 'assistant',
+        content: `Gemini proposed "${proposal.title}". Waiting for your approval before any action.`
+      });
+    },
     onConversationReady: (conversation) => {
       const goal = conversation.missionText.trim();
       if (!goal) {
@@ -427,14 +700,28 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
       }
 
       setInput(goal);
-      buildDraftRef.current(goal);
     }
   });
-  const voiceSceneStatus = voiceStatus === 'connecting' || voiceStatus === 'waiting-response' || voiceStatus === 'responding'
+  const voiceSceneStatus: SafeVoiceSceneStatus = voiceStatus === 'token' || voiceStatus === 'connecting' || voiceStatus === 'responding'
     ? 'transcribing'
     : voiceStatus === 'missing-key'
       ? 'error'
-      : voiceStatus;
+      : voiceStatus === 'listening'
+        ? 'recording'
+      : voiceStatus === 'live' || voiceStatus === 'ready'
+        ? 'ready'
+      : voiceStatus === 'idle' || voiceStatus === 'error'
+        ? voiceStatus
+        : 'idle';
+  const canCancelVoice = voiceStatus === 'token'
+    || voiceStatus === 'connecting'
+    || voiceStatus === 'listening'
+    || voiceStatus === 'responding';
+  const canEndLiveSession = voiceStatus === 'live' || voiceStatus === 'listening' || voiceStatus === 'responding';
+  const pendingVoiceProposals = React.useMemo(
+    () => voiceProposals.filter((proposal) => proposal.status === 'pending'),
+    [voiceProposals]
+  );
 
   const handleSubmit = React.useCallback(() => {
     const goal = input.trim();
@@ -778,29 +1065,208 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
     });
   }, [runs, scopedDrafts, updateMissionDraft]);
 
-  const handlePressStart = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (voiceStatus === 'connecting' || voiceStatus === 'recording' || voiceStatus === 'waiting-response' || voiceStatus === 'responding') {
+  const sendApprovedTerminalText = React.useCallback((proposal: GeminiLiveProposal, text: string, execute: boolean) => {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    const payload = execute ? `${trimmed}\r` : trimmed;
+    if (activeTerminal) {
+      setActiveTerminal(activeTerminal.id);
+      window.electronAPI.terminal.write(activeTerminal.id, payload);
+      if (workspace) {
+        addMissionMessage({
+          workspaceId: workspace.id,
+          role: 'system',
+          content: execute
+            ? `Approved terminal command sent to ${activeTerminal.label}: ${trimmed}`
+            : `Approved text sent to ${activeTerminal.label}.`
+        });
+      }
+      return true;
+    }
+
+    if (!workspace) {
+      setInput(trimmed);
+      return false;
+    }
+
+    const terminalId = createTerminal(
+      workspace.path,
+      workspace.shell,
+      proposal.title || 'Gemini terminal proposal',
+      execute ? trimmed : undefined,
+      { terminalPurpose: 'gemini-orchestrator' }
+    );
+    setActiveTerminal(terminalId);
+    if (!execute) {
+      window.setTimeout(() => {
+        window.electronAPI.terminal.write(terminalId, trimmed);
+      }, 500);
+    }
+    addMissionMessage({
+      workspaceId: workspace.id,
+      role: 'system',
+      content: execute
+        ? `Approved terminal command launched in a new terminal: ${trimmed}`
+        : 'Approved terminal text sent to a new terminal.'
+    });
+    return true;
+  }, [activeTerminal, addMissionMessage, createTerminal, setActiveTerminal, workspace]);
+
+  const runApprovedBackendAction = React.useCallback(async (proposal: GeminiLiveProposal) => {
+    if (!workspace) {
+      setInput(proposal.goal || proposal.title);
+      return false;
+    }
+
+    const action = GEMINI_BACKEND_ACTIONS.find((item) => item.actionKey === proposal.actionKey);
+    if (!action) {
+      addMissionMessage({
+        workspaceId: workspace.id,
+        role: 'system',
+        content: `Gemini proposed an unsupported backend action: ${proposal.actionKey || 'unknown'}. Nothing ran.`
+      });
+      return false;
+    }
+
+    const goal = proposal.goal.trim() || `${action.label}: ${proposal.reason || action.description}`;
+    const mode = (action.modeHints[0] as MissionMode | undefined) || inferMissionMode(goal);
+    const missionMetadata = buildMissionMetadata({
+      goal,
+      missionMode: mode,
+      missionDepth: 'focused',
+      pinnedNotes: [],
+      memoryNotes: []
+    });
+    const task = createTask(goal, workspace.id, proposal.title || action.label, missionMetadata);
+    const actionRecord = task.actions?.find((item) => item.key === action.actionKey);
+
+    updateTaskStatus(task.id, 'running');
+    if (actionRecord) {
+      updateTaskAction(task.id, actionRecord.id, {
+        status: 'running',
+        summary: `Running ${action.label} from approved Gemini proposal...`
+      });
+    }
+    addMissionMessage({
+      workspaceId: workspace.id,
+      taskId: task.id,
+      role: 'system',
+      content: `Approved backend action: ${action.label}.`
+    });
+
+    try {
+      const result = await runMissionAction(task, action.actionKey);
+      updateTaskStatus(task.id, 'completed');
+      if (actionRecord) {
+        updateTaskAction(task.id, actionRecord.id, {
+          status: 'completed',
+          summary: result.summary
+        });
+      }
+      addMissionMessage({
+        workspaceId: workspace.id,
+        taskId: task.id,
+        role: 'assistant',
+        content: `${action.label} completed. ${result.summary}`
+      });
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `${action.label} failed.`;
+      updateTaskStatus(task.id, 'failed');
+      if (actionRecord) {
+        updateTaskAction(task.id, actionRecord.id, {
+          status: 'failed',
+          summary: message
+        });
+      }
+      addMissionMessage({
+        workspaceId: workspace.id,
+        taskId: task.id,
+        role: 'system',
+        content: `${action.label} failed: ${message}`
+      });
+      return false;
+    }
+  }, [addMissionMessage, createTask, updateTaskAction, updateTaskStatus, workspace]);
+
+  const handleVoicePrimary = React.useCallback(() => {
+    if (voiceStatus === 'listening') {
+      stopRecording();
       return;
     }
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointerRecordingRef.current = true;
+
+    if (voiceStatus === 'token' || voiceStatus === 'connecting' || voiceStatus === 'responding') {
+      return;
+    }
+
     void startRecording();
-  }, [startRecording, voiceStatus]);
+  }, [startRecording, stopRecording, voiceStatus]);
 
-  const handlePressEnd = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!pointerRecordingRef.current) {
+  const handleApproveVoiceProposal = React.useCallback(async (proposal: GeminiLiveProposal) => {
+    if (proposal.type === 'propose_terminal_command') {
+      const command = proposal.command?.trim();
+      if (!command) {
+        return;
+      }
+      const sent = sendApprovedTerminalText(proposal, command, true);
+      if (sent) {
+        approveProposal(proposal.id);
+      }
       return;
     }
-    event.preventDefault();
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    pointerRecordingRef.current = false;
-    stopRecording();
-  }, [stopRecording]);
 
-  const latestTerminalCount = terminals.filter((terminal) => terminal.runId).length;
+    if (proposal.type === 'propose_send_to_terminal') {
+      const text = proposal.text?.trim() || proposal.goal.trim();
+      if (!text) {
+        return;
+      }
+      const sent = sendApprovedTerminalText(proposal, text, false);
+      if (sent) {
+        approveProposal(proposal.id);
+      }
+      return;
+    }
+
+    if (proposal.type === 'propose_backend_action') {
+      if (!GEMINI_BACKEND_ACTIONS.some((action) => action.actionKey === proposal.actionKey)) {
+        if (workspace) {
+          addMissionMessage({
+            workspaceId: workspace.id,
+            role: 'system',
+            content: `Unsupported Gemini backend action: ${proposal.actionKey || 'unknown'}. Nothing ran.`
+          });
+        }
+        return;
+      }
+      approveProposal(proposal.id);
+      await runApprovedBackendAction(proposal);
+      return;
+    }
+
+    if (!workspace) {
+      setInput(proposal.goal.trim() || proposal.title);
+      return;
+    }
+
+    approveProposal(proposal.id);
+    const goal = [
+      proposal.goal.trim() || proposal.title,
+      proposal.type === 'propose_agent_run' && proposal.agentRole
+        ? `Requested specialist role: ${proposal.agentRole}`
+        : ''
+    ].filter(Boolean).join('\n\n');
+    setInput(goal);
+    buildDraftRef.current(goal);
+  }, [
+    addMissionMessage,
+    approveProposal,
+    runApprovedBackendAction,
+    sendApprovedTerminalText,
+    workspace
+  ]);
 
   return (
     <div style={{ ...shellStyle, ...(isDock ? dockShellStyle : null) }}>
@@ -808,19 +1274,19 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
         <div>
           <div style={eyebrowStyle}>{isDock ? 'Voice Source' : 'Codex Mission Chat'}</div>
           <h2 style={{ ...titleStyle, ...(isDock ? dockTitleStyle : null) }}>
-            {isDock ? 'Speak to the desk' : 'Talk first. Approve. Then run auditable agents.'}
+            {isDock ? 'Gemini Live desk' : 'Talk live. Approve actions. Then run auditable agents.'}
           </h2>
           <p style={copyStyle}>
             {isDock
-              ? 'Hold to speak, draft the mission, approve the frontier runtime when ready.'
-              : 'Research OS prepares evidence first; Codex or Claude runs the approved frontier mission.'}
+              ? 'Tap to talk with Gemini Live. Approve only when it proposes an action.'
+              : 'Gemini Live can plan with you in real time; Research OS and terminals still require explicit approval.'}
           </p>
         </div>
         <div style={{ ...statusStripStyle, ...(isDock ? dockStatusStripStyle : null) }}>
-          <div style={statusPillStyle}>Approval required</div>
+          <div style={statusPillStyle}>Actions need approval</div>
           <div style={statusPillStyle}>{runtimeStatus?.codexAuthenticated ? 'Codex connected' : 'Codex pending'}</div>
           <div style={statusPillStyle}>{claudeAvailable ? 'Claude available' : 'Claude optional'}</div>
-          <div style={statusPillStyle}>{latestTerminalCount} evidence terminals</div>
+          <div style={statusPillStyle}>{voiceDiagnostics.model || 'Gemini Live'}</div>
         </div>
       </div>
 
@@ -828,19 +1294,19 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
         <section style={{ ...chatPanelStyle, ...(isDock ? dockChatPanelStyle : null) }}>
           {isDock ? (
             <div style={voiceSceneStageStyle}>
-                <VoiceOrbScene status={voiceSceneStatus} durationSeconds={durationSeconds} audioLevel={audioLevel} />
+              <SafeVoiceScene status={voiceSceneStatus} durationSeconds={durationSeconds} audioLevel={audioLevel} />
               <div style={voiceSceneOverlayStyle}>
                 <div style={voiceSceneLabelStyle}>
-                  {voiceStatus === 'recording'
-                    ? 'Listening'
+                  {voiceStatus === 'listening'
+                      ? 'Listening'
+                    : voiceStatus === 'token'
+                      ? 'Token'
                     : voiceStatus === 'connecting'
                       ? 'Connecting'
-                      : voiceStatus === 'waiting-response'
-                        ? 'Waiting'
                       : voiceStatus === 'responding'
                         ? 'Responding'
-                      : voiceStatus === 'ready'
-                        ? 'Ready'
+                      : voiceStatus === 'live' || voiceStatus === 'ready'
+                        ? 'Live'
                         : voiceStatus === 'error' || voiceStatus === 'missing-key'
                           ? 'Voice Error'
                           : 'Standing By'}
@@ -852,7 +1318,7 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
             {scopedMessages.length === 0 ? (
               <div style={{ ...emptyStateStyle, ...(isDock ? dockEmptyStateStyle : null) }}>
                 <Bot size={24} />
-                <div>{isDock ? 'Hold the mic and talk. I will turn it into an approvable mission.' : 'Describe a market scan, strategy idea, backend fix, or execution prep. The workbench will draft the mission and attach backend evidence before anything runs.'}</div>
+                <div>{isDock ? 'Tap Talk and speak with Gemini Live. Proposals will wait for approval.' : 'Speak with Gemini Live, then approve any mission, agent, or terminal proposal before it runs.'}</div>
               </div>
             ) : (
               scopedMessages.map((message) => (
@@ -876,28 +1342,28 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
             {isDock ? (
               <button
                 type="button"
-                onPointerDown={handlePressStart}
-                onPointerUp={handlePressEnd}
-                onPointerCancel={handlePressEnd}
-                disabled={voiceStatus === 'connecting' || voiceStatus === 'waiting-response' || voiceStatus === 'responding'}
+                onClick={handleVoicePrimary}
+                disabled={voiceStatus === 'token' || voiceStatus === 'connecting' || voiceStatus === 'responding'}
                 style={{
                   ...dockPrimaryVoiceButtonStyle,
-                  background: voiceStatus === 'recording'
+                  background: voiceStatus === 'listening'
                     ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(200, 200, 200, 0.90))'
                     : 'linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(180, 180, 180, 0.10))',
-                  color: voiceStatus === 'recording' ? '#0a0a0a' : '#ffffff'
+                  color: voiceStatus === 'listening' ? '#0a0a0a' : '#ffffff'
                 }}
               >
                 <Mic size={20} />
-                {voiceStatus === 'recording'
-                  ? `Listening ${durationSeconds}s`
+                {voiceStatus === 'listening'
+                  ? `Stop Turn ${durationSeconds}s`
+                  : voiceStatus === 'token'
+                    ? 'Getting Token'
                   : voiceStatus === 'connecting'
                     ? 'Connecting'
-                    : voiceStatus === 'waiting-response'
-                      ? 'Waiting For Gemini'
                     : voiceStatus === 'responding'
                       ? 'Gemini Responding'
-                      : 'Hold To Speak'}
+                    : voiceStatus === 'live'
+                      ? 'Talk'
+                      : 'Start Live'}
               </button>
             ) : null}
             <textarea
@@ -911,26 +1377,36 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
               {!isDock ? (
                 <button
                   type="button"
-                  onPointerDown={handlePressStart}
-                  onPointerUp={handlePressEnd}
-                  onPointerCancel={handlePressEnd}
-                  disabled={voiceStatus === 'connecting' || voiceStatus === 'waiting-response' || voiceStatus === 'responding'}
+                  onClick={handleVoicePrimary}
+                  disabled={voiceStatus === 'token' || voiceStatus === 'connecting' || voiceStatus === 'responding'}
                   style={{
                     ...voiceButtonStyle,
-                    background: voiceStatus === 'recording' ? 'rgba(239, 68, 68, 0.24)' : 'rgba(59, 130, 246, 0.18)',
-                    color: voiceStatus === 'recording' ? '#fecaca' : '#bfdbfe'
+                    background: voiceStatus === 'listening' ? 'rgba(239, 68, 68, 0.24)' : 'rgba(59, 130, 246, 0.18)',
+                    color: voiceStatus === 'listening' ? '#fecaca' : '#bfdbfe'
                   }}
                 >
-                  <Mic size={15} />
-                  {voiceStatus === 'recording'
-                    ? `Listening ${durationSeconds}s`
+                        <Mic size={15} />
+                  {voiceStatus === 'listening'
+                    ? `Stop turn ${durationSeconds}s`
+                    : voiceStatus === 'token'
+                      ? 'Getting token'
                     : voiceStatus === 'connecting'
                       ? 'Connecting'
-                      : voiceStatus === 'waiting-response'
-                        ? 'Waiting for Gemini'
                       : voiceStatus === 'responding'
                         ? 'Gemini responding'
-                        : 'Hold to speak'}
+                      : voiceStatus === 'live'
+                        ? 'Talk'
+                        : 'Start Live'}
+                </button>
+              ) : null}
+              {canCancelVoice ? (
+                <button type="button" onClick={reset} style={ghostButtonStyle}>
+                  Cancel
+                </button>
+              ) : null}
+              {canEndLiveSession ? (
+                <button type="button" onClick={endSession} style={ghostButtonStyle}>
+                  End Session
                 </button>
               ) : null}
               <button type="button" onClick={() => { reset(); setInput(''); }} style={ghostButtonStyle}>
@@ -942,8 +1418,49 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
               </button>
             </div>
             {voiceError ? <div style={errorStyle}>{voiceError}</div> : null}
-            {transcript && voiceStatus === 'ready' ? <div style={hintStyle}>Voice captured and draft prepared for approval.</div> : null}
+            {transcript ? <div style={hintStyle}>You: {transcript}</div> : null}
             {outputTranscript ? <div style={hintStyle}>Gemini: {outputTranscript}</div> : null}
+            {pendingVoiceProposals.length > 0 ? (
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {pendingVoiceProposals.map((proposal) => (
+                  <div
+                    key={proposal.id}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(56, 189, 248, 0.24)',
+                      background: 'rgba(8, 47, 73, 0.26)',
+                      display: 'grid',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ color: '#e0f2fe', fontSize: '12px', fontWeight: 800 }}>
+                      Pending approval: {proposal.title}
+                    </div>
+                    <div style={{ color: '#94a3b8', fontSize: '11px', lineHeight: 1.45 }}>
+                      {getProposalDetail(proposal)}
+                    </div>
+                    {proposal.reason ? (
+                      <div style={{ color: '#cbd5e1', fontSize: '11px', lineHeight: 1.45 }}>
+                        Reason: {proposal.reason}
+                      </div>
+                    ) : null}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button type="button" onClick={() => { void handleApproveVoiceProposal(proposal); }} style={sendButtonStyle}>
+                        {getProposalApproveLabel(proposal)}
+                      </button>
+                      <button type="button" onClick={() => dismissProposal(proposal.id)} style={ghostButtonStyle}>
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div style={hintStyle}>
+              Live diag: {voiceStatus} | sent {voiceDiagnostics.sentAudioChunks} | recv {voiceDiagnostics.receivedAudioChunks}
+              {voiceDiagnostics.fallbackUsed ? ' | fallback model' : ''}
+            </div>
           </div>
         </section>
 

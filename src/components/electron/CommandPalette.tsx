@@ -65,6 +65,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
   const actions = React.useMemo<PaletteAction[]>(() => {
     const next: PaletteAction[] = [];
 
+    workspaces.forEach((workspace) => {
+      next.push({
+        id: `workspace-switch-${workspace.id}`,
+        title: `Switch to ${workspace.name}`,
+        subtitle: workspace.path,
+        keywords: `switch workspace ${workspace.name} ${workspace.path}`,
+        run: async () => {
+          await setActiveWorkspace(workspace.id);
+        }
+      });
+    });
+
     if (activeWorkspace) {
       next.push({
         id: 'active-open-shell',
@@ -104,16 +116,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     }
 
     workspaces.forEach((workspace) => {
-      next.push({
-        id: `workspace-switch-${workspace.id}`,
-        title: `Switch to ${workspace.name}`,
-        subtitle: workspace.path,
-        keywords: `switch workspace ${workspace.name} ${workspace.path}`,
-        run: async () => {
-          await setActiveWorkspace(workspace.id);
-        }
-      });
-
       next.push({
         id: `workspace-shell-${workspace.id}`,
         title: `Open shell in ${workspace.name}`,

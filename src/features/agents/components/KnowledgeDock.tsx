@@ -7,6 +7,7 @@ import type {
   ObsidianVaultStatus,
   DiagnosticsMissionDrillResult
 } from '@/types/electron';
+import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
 
 function formatRelativeTime(timestamp: number): string {
@@ -30,10 +31,12 @@ export const KnowledgeDock: React.FC<{
   tasks: CommanderTask[];
   runs: TaskRun[];
 }> = ({ workspace, tasks, runs }) => {
+  const { updateWorkspace } = useWorkspaceContext();
   const [status, setStatus] = React.useState<ObsidianVaultStatus | null>(null);
   const [notes, setNotes] = React.useState<ObsidianNoteSummary[]>([]);
   const [pinnedNotes, setPinnedNotes] = React.useState<ObsidianRelevantNote[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [setupRunning, setSetupRunning] = React.useState(false);
   const [exportMessage, setExportMessage] = React.useState('');
   const [drillRunning, setDrillRunning] = React.useState(false);
   const [drillResult, setDrillResult] = React.useState<DiagnosticsMissionDrillResult | null>(null);
@@ -42,6 +45,7 @@ export const KnowledgeDock: React.FC<{
     if (!workspace) {
       setStatus(null);
       setNotes([]);
+      setPinnedNotes([]);
       return;
     }
 
@@ -51,6 +55,10 @@ export const KnowledgeDock: React.FC<{
       setStatus(nextStatus);
 
       if (nextStatus.isAvailable) {
+        if (nextStatus.vaultPath && nextStatus.vaultPath !== workspace.obsidian_vault_path) {
+          void updateWorkspace(workspace.id, { obsidian_vault_path: nextStatus.vaultPath });
+        }
+
         const nextNotes = await window.electronAPI.obsidian.listNotes(workspace.path, workspace.obsidian_vault_path, 6);
         setNotes(nextNotes);
         if (typeof window.electronAPI.obsidian.listPinned === 'function') {
@@ -72,11 +80,31 @@ export const KnowledgeDock: React.FC<{
     } finally {
       setIsLoading(false);
     }
-  }, [workspace]);
+  }, [updateWorkspace, workspace]);
 
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const setupWorkspaceVault = React.useCallback(async () => {
+    if (!workspace) {
+      return;
+    }
+
+    setSetupRunning(true);
+    setExportMessage('');
+    try {
+      const nextStatus = await window.electronAPI.obsidian.ensureVault(workspace.path, workspace.obsidian_vault_path);
+      setStatus(nextStatus);
+      if (nextStatus.vaultPath && nextStatus.vaultPath !== workspace.obsidian_vault_path) {
+        await updateWorkspace(workspace.id, { obsidian_vault_path: nextStatus.vaultPath });
+      }
+      setExportMessage(`Workspace vault ready at ${nextStatus.vaultPath}`);
+      void refresh();
+    } finally {
+      setSetupRunning(false);
+    }
+  }, [refresh, updateWorkspace, workspace]);
 
   const latestTask = tasks[0];
   const latestRun = runs[0];
@@ -247,10 +275,10 @@ export const KnowledgeDock: React.FC<{
             <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={() => void window.electronAPI.obsidian.openPath(status.vaultPath as string)}
+                onClick={() => void window.electronAPI.obsidian.openVault(status.vaultPath as string)}
                 style={actionButtonStyle}
               >
-                Open Vault
+                Open in Obsidian
               </button>
               {status.notesPath ? (
                 <button
@@ -262,7 +290,26 @@ export const KnowledgeDock: React.FC<{
                 </button>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            <div style={{ marginTop: '12px' }}>
+              <div style={{ color: '#cbd5e1', fontSize: '12px', lineHeight: 1.45 }}>
+                Create a local Obsidian vault for this workspace. The app will add starter notes for missions, pinned memory and open questions.
+              </div>
+              <button
+                type="button"
+                disabled={!workspace || setupRunning}
+                onClick={() => void setupWorkspaceVault()}
+                style={{
+                  ...actionButtonStyle,
+                  marginTop: '12px',
+                  opacity: !workspace || setupRunning ? 0.5 : 1,
+                  cursor: !workspace || setupRunning ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {setupRunning ? 'Creating Vault...' : 'Create Workspace Vault'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={cardStyle}>

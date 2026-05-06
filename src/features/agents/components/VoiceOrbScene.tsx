@@ -6,6 +6,7 @@ type VoiceOrbSceneProps = {
   status: VoiceStatus;
   durationSeconds: number;
   audioLevel: number;
+  onRenderError?: () => void;
 };
 
 type CloudPalette = {
@@ -167,7 +168,7 @@ function lerpColor(out: THREE.Color, a: THREE.Color, b: THREE.Color, t: number):
   out.b = a.b + (b.b - a.b) * t;
 }
 
-export const VoiceOrbScene: React.FC<VoiceOrbSceneProps> = ({ status, durationSeconds, audioLevel }) => {
+export const VoiceOrbScene: React.FC<VoiceOrbSceneProps> = ({ status, durationSeconds, audioLevel, onRenderError }) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const statusRef = React.useRef(status);
   const durationRef = React.useRef(durationSeconds);
@@ -189,7 +190,13 @@ export const VoiceOrbScene: React.FC<VoiceOrbSceneProps> = ({ status, durationSe
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
     camera.position.set(0, 0.0, 5.8);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+    } catch {
+      onRenderError?.();
+      return undefined;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     container.appendChild(renderer.domElement);
@@ -705,7 +712,6 @@ export const VoiceOrbScene: React.FC<VoiceOrbSceneProps> = ({ status, durationSe
         const a = ringAngles[i] + elapsed * ringSpeed * (0.8 + seededNoise(i, 45) * 0.4);
         const rWobble = Math.sin(elapsed * 1.5 + i * 0.1) * 0.08 + Math.sin(elapsed * 0.7 + i * 0.23) * 0.04;
         const r = ringRadii[i] + rWobble * (1 + mic * 2);
-        const i3 = i * 3;
         const yFloat = ringYOffsets[i] + Math.sin(elapsed * 0.9 + i * 0.07) * 0.05;
         ringPosAttr.setXYZ(i, Math.cos(a) * r, yFloat, Math.sin(a) * r);
         ringAlphaAttr.setX(i, (0.15 + seededNoise(i, 44) * 0.25) * (0.7 + breatheMix * 0.4 + mic * 1.2));

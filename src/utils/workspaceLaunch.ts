@@ -27,8 +27,8 @@ export function createDefaultLaunchProfiles(workspaceName: string): LaunchProfil
   if (isTrading) {
     return [
       {
-        id: 'ai-trading-desk',
-        name: 'AI Trading Desk',
+        id: 'ai-work-desk',
+        name: 'AI Work Desk',
         steps: [
           { command: 'agent-runtime', delayMs: 0 },
           { command: 'docker compose ps', delayMs: 300 },
@@ -49,8 +49,8 @@ export function createDefaultLaunchProfiles(workspaceName: string): LaunchProfil
 
   return [
     {
-        id: 'ai-dev-desk',
-        name: 'AI Dev Desk',
+        id: 'ai-work-desk',
+        name: 'AI Work Desk',
         steps: [
           { command: 'agent-runtime', delayMs: 0 },
           { command: 'git status', delayMs: 300 },

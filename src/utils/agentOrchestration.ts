@@ -73,10 +73,22 @@ function buildMissionPrompt(task: CommanderTask, agent: AgentProfile, workspace:
   const guardrails = task.mission?.guardrails.length
     ? `Guardrails: ${task.mission.guardrails.slice(0, 3).join('; ')}.`
     : '';
+  const workspaceCommands = workspace.default_commands?.slice(0, 6).join('; ') || 'No saved commands.';
+  const workspaceProfiles = workspace.launch_profiles?.slice(0, 4).map((profile) => (
+    `${profile.name}: ${profile.steps.map((step) => step.command).join(' -> ')}`
+  )).join(' | ') || 'No launch profiles.';
+  const hedgeFundGuardrail = /hedge|fund|hyperliquid|trading|market/i.test(`${workspace.name} ${workspace.path}`)
+    ? 'Hedge Fund Station boundary: keep trading logic, validation, replay, persistence, paper execution, and evidence in backend/docs. React and Electron are cockpit surfaces only. Do not promote live trading or change credentials.'
+    : '';
 
   return [
     `You are ${agent.name}, the ${formatRoleLabel(agent.role)} agent for workspace "${workspace.name}".`,
-    'Read AGENTS.md first. If strategy-related, inspect only the minimum relevant docs and backend files before acting.',
+    'Mission Console workspace capsule:',
+    `Workspace name: ${workspace.name}.`,
+    `Workspace path: ${workspace.path}.`,
+    `Saved commands: ${workspaceCommands}.`,
+    `Launch profiles: ${workspaceProfiles}.`,
+    'Read AGENTS.md first when it exists. If strategy-related, inspect only the minimum relevant docs and backend files before acting.',
     agent.promptTemplate ? `Role instructions: ${agent.promptTemplate}` : '',
     `Role objective: ${agent.objective || getRoleOperatingBrief(agent.role)}`,
     `Operating brief: ${getRoleOperatingBrief(agent.role)}`,
@@ -84,8 +96,11 @@ function buildMissionPrompt(task: CommanderTask, agent: AgentProfile, workspace:
     missionMetadata,
     workflowMetadata,
     guardrails,
+    hedgeFundGuardrail,
     `Output contract: ${getRoleOutputContract(agent)}`,
-    'Stay scoped to your role. Do not paste large blocks of prior context. Use short summaries, concrete findings, and exact file or data references. End with the next concrete action only.'
+    'Operator approval rule: do not run destructive commands, credential changes, live trading, large migrations, or broad rewrites without explicit human approval.',
+    'Mission Console handoff: end with outcome, important files or artifact paths, commands run, verification status or skipped reason, risks, and next concrete action.',
+    'Stay scoped to your role. Do not paste large blocks of prior context. Use short summaries, concrete findings, and exact file or data references.'
   ].join(' ');
 }
 

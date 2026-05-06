@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Beaker, BookOpen, RefreshCcw, TrendingDown, TrendingUp } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
 import { hyperliquidService, type HyperliquidHistoryPoint, type HyperliquidPaperSignal, type HyperliquidPaperTrade } from '@/services/hyperliquidService';
+import { useMarketPolling } from '@/hooks/useMarketPolling';
 
 type PaperView = 'signals' | 'trades' | 'review';
 type ReviewForm = { close_reason: string; outcome_tag: string; execution_score: number; notes: string };
@@ -35,28 +36,30 @@ export default function HyperliquidPaperLabPage() {
   const [replayHistory, setReplayHistory] = useState<HyperliquidHistoryPoint[]>([]);
   const [replayLoading, setReplayLoading] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    try {
+  const paperPoll = useMarketPolling(
+    'hyperliquid:paper-lab',
+    async () => {
       const [signalsPayload, tradesPayload] = await Promise.all([
         hyperliquidService.getPaperSignals(24),
         hyperliquidService.getPaperTrades('all')
       ]);
-      setSignals(signalsPayload.signals);
-      setTrades(tradesPayload.trades);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'No se pudo cargar el paper lab.');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return { signals: signalsPayload.signals, trades: tradesPayload.trades };
+    },
+    { intervalMs: 10_000, staleAfterMs: 30_000 }
+  );
 
   useEffect(() => {
-    void load();
-    const interval = window.setInterval(() => void load(), 10_000);
-    return () => window.clearInterval(interval);
-  }, []);
+    setLoading(paperPoll.status === 'loading' || paperPoll.isRefreshing);
+    if (paperPoll.data) {
+      setSignals(paperPoll.data.signals);
+      setTrades(paperPoll.data.trades);
+      setError(paperPoll.status === 'stale' ? paperPoll.error : null);
+      return;
+    }
+    if (paperPoll.status === 'error') {
+      setError(paperPoll.error || 'No se pudo cargar el paper lab.');
+    }
+  }, [paperPoll.data, paperPoll.error, paperPoll.isRefreshing, paperPoll.status]);
 
   useEffect(() => {
     if (!notice) return;
@@ -229,7 +232,7 @@ export default function HyperliquidPaperLabPage() {
     try {
       const result = await hyperliquidService.seedPaperSignals(6);
       setNotice(`Signals seeded: ${result.created}`);
-      await load();
+      await paperPoll.refresh();
     } catch (err: any) {
       setError(err.message || 'No se pudieron generar senales.');
     } finally {
@@ -259,7 +262,7 @@ export default function HyperliquidPaperLabPage() {
         execution_quality: signal.executionQuality || undefined
       });
       setNotice(`Paper trade opened for ${signal.symbol}`);
-      await load();
+      await paperPoll.refresh();
     } catch (err: any) {
       setError(err.message || 'No se pudo abrir el paper trade.');
     } finally {
@@ -272,7 +275,7 @@ export default function HyperliquidPaperLabPage() {
     try {
       await hyperliquidService.closePaperTrade(tradeId);
       setNotice(`Trade ${tradeId} closed`);
-      await load();
+      await paperPoll.refresh();
     } catch (err: any) {
       setError(err.message || 'No se pudo cerrar el trade.');
     } finally {
@@ -287,7 +290,7 @@ export default function HyperliquidPaperLabPage() {
       setNotice(`Review saved for trade ${tradeId}`);
       setReviewTradeId(null);
       setReviewForm(defaultReviewForm());
-      await load();
+      await paperPoll.refresh();
     } catch (err: any) {
       setError(err.message || 'No se pudo guardar el review.');
     } finally {
@@ -305,7 +308,7 @@ export default function HyperliquidPaperLabPage() {
               <div className="mt-1 text-xl font-semibold text-white">Valida ideas rapidas con pnl, journal y review disciplinado.</div>
             </div>
             <div className="flex gap-2">
-              <ActionButton onClick={() => void load()} icon={<RefreshCcw className="h-4 w-4" />} label="Refresh" />
+              <ActionButton onClick={() => void paperPoll.refresh()} icon={<RefreshCcw className="h-4 w-4" />} label={paperPoll.status === 'stale' ? 'Refresh Stale' : 'Refresh'} />
               <ActionButton onClick={handleSeedSignals} icon={<Beaker className="h-4 w-4" />} label="Seed Signals" tone="emerald" />
             </div>
           </div>

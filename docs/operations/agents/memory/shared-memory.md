@@ -13,6 +13,9 @@ canonical docs.
 - Electron is a shell and bridge: lifecycle, native integrations, IPC,
   workspace, and terminal orchestration.
 - Agent operating docs now live under `docs/operations/agents/`.
+- File-based agent coordination starts from `agent_tasks.json`,
+  `progress/current.md`, `CHECKPOINTS.md`, and
+  `docs/operations/agents/file-harness.md`.
 - Generated agent evidence belongs under
   `backend/hyperliquid_gateway/data/agent_runs/`.
 - Shared memory is curated under `docs/operations/agents/memory/`; follow
@@ -22,6 +25,7 @@ canonical docs.
 
 - Agent orientation: `docs/operations/agents/orientation.md`
 - Harness: `docs/operations/agents/harness.md`
+- File harness: `docs/operations/agents/file-harness.md`
 - Memory policy: `docs/operations/agents/memory/memory-policy.md`
 - Backlog: `docs/operations/agents/backlog.md`
 - Handoff template: `docs/operations/agents/templates/handoff.md`

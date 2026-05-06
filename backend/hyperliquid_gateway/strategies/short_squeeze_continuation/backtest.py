@@ -8,10 +8,14 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from ...backtesting.engine import BacktestConfig
+    from ...backtesting.engine import BacktestConfig, calculate_trade_fee
+    from ...backtesting.diagnostics import build_trade_diagnostics
+    from ...backtesting.filters import build_snapshot_filter
     from ...backtesting.metrics import build_summary
 except ImportError:
-    from backtesting.engine import BacktestConfig
+    from backtesting.engine import BacktestConfig, calculate_trade_fee
+    from backtesting.diagnostics import build_trade_diagnostics
+    from backtesting.filters import build_snapshot_filter
     from backtesting.metrics import build_summary
 from .logic import calculate_funding_percentile, evaluate_signal
 from .risk import build_risk_plan, calculate_position_size
@@ -25,7 +29,7 @@ SEVEN_DAYS_MS = 7 * 24 * ONE_HOUR_MS
 
 
 def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
-    sampled_rows = load_sampled_snapshots(dataset_path)
+    sampled_rows, replay_filter = load_sampled_snapshots(dataset_path, config)
     equity = config.initial_equity
     equity_curve: list[dict[str, float | int | str]] = []
     trades: list[dict[str, Any]] = []
@@ -40,10 +44,10 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         history.append(market_data)
 
         if symbol in open_positions:
-            maybe_trade = maybe_close_position(open_positions[symbol], market_data, config.fee_rate)
+            maybe_trade = maybe_close_position(open_positions[symbol], market_data, config)
             if maybe_trade is not None:
-                equity += float(maybe_trade["net_pnl"])
-                fees_paid += float(maybe_trade["fees"])
+                equity += float(maybe_trade.get("equity_delta", maybe_trade["net_pnl"]))
+                fees_paid += float(maybe_trade["fees"]) - float(open_positions[symbol]["entry_fee"])
                 trades.append(maybe_trade)
                 del open_positions[symbol]
 
@@ -70,7 +74,8 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         if size_usd <= 0:
             continue
         risk_plan = build_risk_plan(market_data)
-        entry_fee = size_usd * config.fee_rate
+        entry_fee_result = calculate_trade_fee(notional_usd=size_usd, config=config)
+        entry_fee = float(entry_fee_result["fee"])
         equity -= entry_fee
         fees_paid += entry_fee
         open_positions[symbol] = {
@@ -82,6 +87,8 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             "entry_price": round(entry_price, 6),
             "size_usd": round(size_usd, 2),
             "entry_fee": round(entry_fee, 6),
+            "entry_fee_rate": round(float(entry_fee_result["fee_rate"]), 8),
+            "entry_liquidity_role": entry_fee_result["liquidity_role"],
             "stop_loss": round(entry_price * 0.992, 6),
             "take_profit": round(entry_price * 1.014, 6),
             "entry_context": {
@@ -93,31 +100,42 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         }
 
     for position in list(open_positions.values()):
-        trade = close_position(position, position["entry_timestamp"], float(position["entry_price"]), "forced_close", config.fee_rate)
-        equity += float(trade["net_pnl"])
+        trade = close_position(position, position["entry_timestamp"], float(position["entry_price"]), "forced_close", config)
+        equity += float(trade.get("equity_delta", trade["net_pnl"]))
         fees_paid += float(trade["fees"]) - float(position["entry_fee"])
         trades.append(trade)
         equity_curve.append({"timestamp": position["entry_timestamp"], "equity": round(equity, 2)})
 
+    summary = build_summary(
+        initial_equity=config.initial_equity,
+        equity_curve=equity_curve,
+        trades=trades,
+        fees_paid=fees_paid,
+    )
+    diagnostics = build_trade_diagnostics(
+        summary=summary,
+        trades=trades,
+        initial_equity=config.initial_equity,
+        requested_symbols=replay_filter["requested_symbols"],
+    )
     return {
         "dataset": {
             "path": str(dataset_path),
             "type": "gateway_snapshot_db",
             "rows": len(sampled_rows),
             "symbols": len({row["symbol"] for row in sampled_rows}),
+            "symbol_filter": replay_filter,
             "sampling_bucket_minutes": 5,
             "start": sampled_rows[0]["timestamp"] if sampled_rows else None,
             "end": sampled_rows[-1]["timestamp"] if sampled_rows else None,
         },
-        "summary": build_summary(
-            initial_equity=config.initial_equity,
-            equity_curve=equity_curve,
-            trades=trades,
-            fees_paid=fees_paid,
-        ),
+        "summary": summary,
         "latest_signal": build_latest_signal(symbol_histories),
         "trades": trades,
         "equity_curve": equity_curve,
+        "symbol_leaderboard": diagnostics["symbol_leaderboard"],
+        "exit_reason_counts": diagnostics["exit_reason_counts"],
+        "robust_assessment": diagnostics["robust_assessment"],
         "notes": [
             "Backend replay for short squeeze continuation using gateway market snapshots.",
             "Uses low/negative funding, shorts-at-risk crowding, price impulse, OI stability, and setup scores.",
@@ -126,14 +144,25 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
     }
 
 
-def load_sampled_snapshots(dataset_path: Path) -> list[dict[str, Any]]:
+def load_sampled_snapshots(dataset_path: Path, config: BacktestConfig) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     connection = sqlite3.connect(dataset_path)
     connection.row_factory = sqlite3.Row
+    where_sql, where_params, replay_filter = build_snapshot_filter(
+        connection,
+        table="market_snapshots",
+        timestamp_column="timestamp_ms",
+        config=config,
+    )
     rows = connection.execute(
-        """
-        WITH sampled AS (
-            SELECT MAX(id) AS id
+        f"""
+        WITH filtered AS (
+            SELECT id, timestamp_ms, symbol
             FROM market_snapshots
+            {where_sql}
+        ),
+        sampled AS (
+            SELECT MAX(id) AS id
+            FROM filtered
             GROUP BY symbol, CAST(timestamp_ms / ? AS INTEGER)
         )
         SELECT ms.*
@@ -141,10 +170,10 @@ def load_sampled_snapshots(dataset_path: Path) -> list[dict[str, Any]]:
         JOIN sampled s ON s.id = ms.id
         ORDER BY ms.timestamp_ms ASC, ms.symbol ASC
         """,
-        (FIVE_MINUTES_MS,),
+        (*where_params, FIVE_MINUTES_MS),
     ).fetchall()
     connection.close()
-    return [
+    normalized = [
         {
             "timestamp_ms": int(row["timestamp_ms"]),
             "timestamp": iso_from_ms(int(row["timestamp_ms"])),
@@ -164,6 +193,7 @@ def load_sampled_snapshots(dataset_path: Path) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+    return normalized, replay_filter
 
 
 def build_market_data(history: list[dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
@@ -195,33 +225,35 @@ def build_market_data(history: list[dict[str, Any]], row: dict[str, Any]) -> dic
     return market_data
 
 
-def maybe_close_position(position: dict[str, Any], market_data: dict[str, Any], fee_rate: float) -> dict[str, Any] | None:
+def maybe_close_position(position: dict[str, Any], market_data: dict[str, Any], config: BacktestConfig) -> dict[str, Any] | None:
     price = float(market_data["price"])
     if price <= float(position["stop_loss"]):
-        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "stop_loss", fee_rate)
+        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "stop_loss", config)
     if price >= float(position["take_profit"]):
-        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "take_profit", fee_rate)
+        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "take_profit", config)
     held_ms = int(market_data["timestamp_ms"]) - int(position["createdAt"])
     entry_oi = float(position["entry_context"]["market"].get("openInterestUsd", 0.0) or 0.0)
     current_oi = float(market_data.get("openInterestUsd", 0.0) or 0.0)
     oi_delta = ((current_oi - entry_oi) / entry_oi) * 100 if entry_oi else 0.0
     if oi_delta < -6.0:
-        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "oi_collapse", fee_rate)
+        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "oi_collapse", config)
     if market_data.get("crowdingBias") != "shorts-at-risk" and held_ms >= ONE_HOUR_MS:
-        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "crowding_flip", fee_rate)
+        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "crowding_flip", config)
     if held_ms >= TWO_HOURS_MS:
-        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "time_stop", fee_rate)
+        return close_position(position, market_data["timestamp"], apply_slippage(price, "long", int(market_data.get("executionQuality", 60)), True), "time_stop", config)
     return None
 
 
-def close_position(position: dict[str, Any], exit_timestamp: str, exit_price: float, exit_reason: str, fee_rate: float) -> dict[str, Any]:
+def close_position(position: dict[str, Any], exit_timestamp: str, exit_price: float, exit_reason: str, config: BacktestConfig) -> dict[str, Any]:
     entry_price = float(position["entry_price"])
     size_usd = float(position["size_usd"])
     units = 0.0 if entry_price == 0 else size_usd / entry_price
     gross_pnl = (exit_price - entry_price) * units
-    exit_fee = size_usd * fee_rate
+    exit_fee_result = calculate_trade_fee(notional_usd=size_usd, config=config)
+    exit_fee = float(exit_fee_result["fee"])
     total_fees = float(position["entry_fee"]) + exit_fee
-    net_pnl = gross_pnl - exit_fee
+    equity_delta = gross_pnl - exit_fee
+    net_pnl = gross_pnl - total_fees
     return {
         "strategy_id": "short_squeeze_continuation",
         "symbol": position["symbol"],
@@ -233,8 +265,13 @@ def close_position(position: dict[str, Any], exit_timestamp: str, exit_price: fl
         "size_usd": round(size_usd, 2),
         "gross_pnl": round(gross_pnl, 2),
         "net_pnl": round(net_pnl, 2),
+        "equity_delta": round(equity_delta, 2),
         "return_pct": round((net_pnl / size_usd) * 100, 3) if size_usd else 0.0,
         "fees": round(total_fees, 6),
+        "entry_fee_rate": position.get("entry_fee_rate"),
+        "exit_fee_rate": round(float(exit_fee_result["fee_rate"]), 8),
+        "entry_liquidity_role": position.get("entry_liquidity_role"),
+        "exit_liquidity_role": exit_fee_result["liquidity_role"],
         "exit_reason": exit_reason,
         "entry_context": position["entry_context"],
     }

@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""Validate and summarize the file-based agent harness."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TASKS_PATH = REPO_ROOT / "agent_tasks.json"
+CURRENT_PATH = REPO_ROOT / "progress" / "current.md"
+VALID_STATUSES = {"pending", "in_progress", "review", "done", "blocked"}
+REQUIRED_FILES = [
+    "AGENTS.md",
+    "CHECKPOINTS.md",
+    "agent_tasks.json",
+    "progress/README.md",
+    "progress/current.md",
+    "progress/history.md",
+    "docs/operations/agents/file-harness.md",
+    "docs/operations/agents/roles/leader.md",
+    "docs/operations/agents/roles/explorer.md",
+    "docs/operations/agents/roles/implementer.md",
+    "docs/operations/agents/roles/reviewer.md",
+]
+REQUIRED_TASK_FIELDS = {
+    "id",
+    "title",
+    "mission_class",
+    "priority",
+    "scope",
+    "acceptance",
+    "verification",
+    "status",
+    "owner",
+    "evidence_paths",
+    "notes",
+}
+LIVE_TERMS = ("live", "production", "prod", "execution")
+LIVE_GATE_TERMS = ("research", "backtest", "validation", "paper", "risk", "operator")
+
+
+class HarnessIssue:
+    """A single validation issue."""
+
+    def __init__(self, message: str, *, warning: bool = False) -> None:
+        self.message = message
+        self.warning = warning
+
+
+def repo_path(relative: str) -> Path:
+    return REPO_ROOT / relative
+
+
+def load_json(path: Path) -> tuple[dict[str, Any] | None, list[HarnessIssue]]:
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, [HarnessIssue(f"Missing {path.relative_to(REPO_ROOT)}")]
+    except json.JSONDecodeError as exc:
+        return None, [HarnessIssue(f"Invalid JSON in {path.relative_to(REPO_ROOT)}: {exc}")]
+    if not isinstance(parsed, dict):
+        return None, [HarnessIssue(f"{path.relative_to(REPO_ROOT)} must contain a JSON object")]
+    return parsed, []
+
+
+def task_id(task: dict[str, Any], index: int) -> str:
+    value = task.get("id")
+    return str(value) if value else f"<task #{index + 1}>"
+
+
+def as_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def validate_required_files() -> list[HarnessIssue]:
+    issues: list[HarnessIssue] = []
+    for relative in REQUIRED_FILES:
+        if not repo_path(relative).exists():
+            issues.append(HarnessIssue(f"Missing required harness file: {relative}"))
+    return issues
+
+
+def validate_tasks(data: dict[str, Any] | None) -> tuple[list[dict[str, Any]], list[HarnessIssue]]:
+    if data is None:
+        return [], []
+    raw_tasks = data.get("tasks")
+    if not isinstance(raw_tasks, list):
+        return [], [HarnessIssue("agent_tasks.json must contain a tasks array")]
+
+    issues: list[HarnessIssue] = []
+    tasks: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    for index, raw_task in enumerate(raw_tasks):
+        if not isinstance(raw_task, dict):
+            issues.append(HarnessIssue(f"Task #{index + 1} must be an object"))
+            continue
+        tasks.append(raw_task)
+        current_id = task_id(raw_task, index)
+        missing = sorted(REQUIRED_TASK_FIELDS - raw_task.keys())
+        if missing:
+            issues.append(HarnessIssue(f"{current_id} missing required fields: {', '.join(missing)}"))
+        if current_id in seen_ids:
+            issues.append(HarnessIssue(f"Duplicate task id: {current_id}"))
+        seen_ids.add(current_id)
+        status = raw_task.get("status")
+        if status not in VALID_STATUSES:
+            issues.append(HarnessIssue(f"{current_id} has invalid status: {status}"))
+        for list_field in ("scope", "acceptance", "verification", "evidence_paths"):
+            if list_field in raw_task and not isinstance(raw_task.get(list_field), list):
+                issues.append(HarnessIssue(f"{current_id}.{list_field} must be a list"))
+        if status == "blocked" and not str(raw_task.get("notes", "")).strip():
+            issues.append(HarnessIssue(f"{current_id} is blocked but has no notes"))
+        if status == "done":
+            issues.extend(validate_done_task(raw_task, current_id))
+        issues.extend(validate_live_task(raw_task, current_id))
+
+    nonparallel_active = [
+        task
+        for task in tasks
+        if task.get("status") == "in_progress" and not bool(task.get("parallelizable"))
+    ]
+    if len(nonparallel_active) > 1:
+        ids = ", ".join(str(task.get("id")) for task in nonparallel_active)
+        issues.append(HarnessIssue(f"More than one non-parallel task is in_progress: {ids}"))
+
+    return tasks, issues
+
+
+def validate_done_task(task: dict[str, Any], current_id: str) -> list[HarnessIssue]:
+    issues: list[HarnessIssue] = []
+    evidence_paths = [str(item) for item in as_list(task.get("evidence_paths"))]
+    if not evidence_paths:
+        issues.append(HarnessIssue(f"{current_id} is done but has no evidence_paths"))
+    evidence_text = " ".join(evidence_paths).lower()
+    if not any(token in evidence_text for token in ("review_", "handoff", "impl_")):
+        issues.append(
+            HarnessIssue(
+                f"{current_id} is done but evidence_paths do not include an implementation, review, or handoff report"
+            )
+        )
+    for relative in evidence_paths:
+        if not repo_path(relative).exists():
+            issues.append(HarnessIssue(f"{current_id} evidence path does not exist: {relative}"))
+    return issues
+
+
+def validate_live_task(task: dict[str, Any], current_id: str) -> list[HarnessIssue]:
+    haystack = " ".join(
+        [
+            str(task.get("title", "")),
+            str(task.get("mission_class", "")),
+            str(task.get("notes", "")),
+            " ".join(str(item) for item in as_list(task.get("acceptance"))),
+        ]
+    ).lower()
+    if not any(term in haystack for term in LIVE_TERMS):
+        return []
+    if task.get("status") != "blocked":
+        missing = [term for term in LIVE_GATE_TERMS if term not in haystack]
+        if missing:
+            return [
+                HarnessIssue(
+                    f"{current_id} appears live/production-related but is not blocked and lacks gates: {', '.join(missing)}"
+                )
+            ]
+    return []
+
+
+def validate_current(tasks: list[dict[str, Any]]) -> list[HarnessIssue]:
+    issues: list[HarnessIssue] = []
+    try:
+        current = CURRENT_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return [HarnessIssue("Missing progress/current.md")]
+
+    active = [task for task in tasks if task.get("status") in {"in_progress", "review"}]
+    if active and not any(str(task.get("id")) in current for task in active):
+        ids = ", ".join(str(task.get("id")) for task in active)
+        issues.append(HarnessIssue(f"progress/current.md does not mention active task(s): {ids}"))
+    if not active and "Task:" not in current:
+        issues.append(HarnessIssue("progress/current.md should state that no task is active", warning=True))
+    return issues
+
+
+def collect_issues() -> tuple[list[dict[str, Any]], list[HarnessIssue]]:
+    issues = validate_required_files()
+    data, json_issues = load_json(TASKS_PATH)
+    issues.extend(json_issues)
+    tasks, task_issues = validate_tasks(data)
+    issues.extend(task_issues)
+    issues.extend(validate_current(tasks))
+    return tasks, issues
+
+
+def print_issues(issues: list[HarnessIssue]) -> None:
+    for issue in issues:
+        label = "WARN" if issue.warning else "FAIL"
+        print(f"[{label}] {issue.message}")
+
+
+def command_check(_: argparse.Namespace) -> int:
+    tasks, issues = collect_issues()
+    failures = [issue for issue in issues if not issue.warning]
+    warnings = [issue for issue in issues if issue.warning]
+    if issues:
+        print_issues(issues)
+    if failures:
+        print(f"[FAIL] Harness check failed with {len(failures)} failure(s).")
+        return 1
+    print(f"[OK] Harness check passed ({len(tasks)} task(s), {len(warnings)} warning(s)).")
+    return 0
+
+
+def command_status(_: argparse.Namespace) -> int:
+    tasks, issues = collect_issues()
+    counts = Counter(str(task.get("status")) for task in tasks)
+    active = [
+        {
+            "id": task.get("id"),
+            "title": task.get("title"),
+            "status": task.get("status"),
+            "owner": task.get("owner"),
+            "priority": task.get("priority"),
+        }
+        for task in tasks
+        if task.get("status") in {"in_progress", "review"}
+    ]
+    payload = {
+        "ok": not any(not issue.warning for issue in issues),
+        "task_count": len(tasks),
+        "status_counts": dict(sorted(counts.items())),
+        "active_tasks": active,
+        "issues": [
+            {"level": "warning" if issue.warning else "failure", "message": issue.message}
+            for issue in issues
+        ],
+    }
+    print(json.dumps(payload, indent=2))
+    return 0 if payload["ok"] else 1
+
+
+def command_init(args: argparse.Namespace) -> int:
+    exit_code = command_check(args)
+    if exit_code == 0:
+        print("[OK] File harness is ready.")
+        print("Next: read progress/current.md, then agent_tasks.json.")
+    return exit_code
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="File-based AI agent harness helpers.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("init", help="Check harness readiness and print next steps.").set_defaults(func=command_init)
+    subparsers.add_parser("status", help="Print task status summary as JSON.").set_defaults(func=command_status)
+    subparsers.add_parser("check", help="Validate harness files and task state.").set_defaults(func=command_check)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return int(args.func(args))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

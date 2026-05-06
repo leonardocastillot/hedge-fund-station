@@ -1,11 +1,35 @@
 import React from 'react';
-import { GoogleGenAI, Modality, ThinkingLevel, type Session } from '@google/genai';
+import {
+  GoogleGenAI,
+  Modality,
+  type LiveServerMessage,
+  type Session
+} from '@google/genai';
+import {
+  buildGeminiOrchestratorSystemContext,
+  createGeminiOrchestratorTools,
+  normalizeGeminiLiveProposal,
+  type GeminiLiveProposal,
+  type GeminiOrchestratorCapabilityContext
+} from '@/features/agents/orchestration/geminiOrchestrator';
 
-export type GeminiLiveVoiceStatus = 'idle' | 'missing-key' | 'connecting' | 'recording' | 'waiting-response' | 'responding' | 'ready' | 'error';
+export type GeminiLiveVoiceStatus =
+  | 'idle'
+  | 'missing-key'
+  | 'token'
+  | 'connecting'
+  | 'live'
+  | 'listening'
+  | 'responding'
+  | 'ready'
+  | 'error';
 
 interface UseGeminiLiveVoiceOptions {
   autoDraftOnTurnComplete?: boolean;
   onConversationReady?: (conversation: GeminiLiveConversation) => void;
+  orchestratorContext?: GeminiOrchestratorCapabilityContext;
+  onProposal?: (proposal: GeminiLiveProposal) => void;
+  onToolResponse?: (proposal: GeminiLiveProposal) => void;
 }
 
 export interface GeminiLiveConversation {
@@ -14,107 +38,81 @@ export interface GeminiLiveConversation {
   missionText: string;
 }
 
-interface LiveCloseDiagnostics {
+interface LiveDiagnostics {
   model: string;
-  closeCode?: number;
-  closeReason?: string;
-  wasClean?: boolean;
-  opened: boolean;
-  sentAudioFrames: number;
-  authMode: 'ephemeral-token';
-  stage: string;
+  fallbackModel: string;
+  fallbackUsed: boolean;
+  micPermission: 'unknown' | 'granted' | 'denied' | 'prompt';
+  sentAudioChunks: number;
+  receivedAudioChunks: number;
+  stage: GeminiLiveVoiceStatus;
+  closeCode: number | null;
+  closeReason: string;
+  lastToolProposal: string;
 }
 
-const LIVE_CONNECT_TIMEOUT_MS = 12000;
-const LIVE_OPEN_TIMEOUT_MS = 2500;
-const FIRST_AUDIO_FRAME_TIMEOUT_MS = 4500;
-const RESPONSE_TIMEOUT_MS = 8000;
+type WorkletAudioMessage = {
+  samples: Float32Array;
+  sampleRate: number;
+};
 
-function uniqueModels(models: Array<string | undefined | null>): string[] {
-  return Array.from(new Set(models.map((model) => model?.trim()).filter(Boolean) as string[]));
-}
-
-function formatLiveCloseDiagnostics(diagnostics: LiveCloseDiagnostics): string {
-  const reason = diagnostics.closeReason ? diagnostics.closeReason.slice(0, 240) : 'empty';
-  return [
-    'Gemini Live closed before the voice turn could start.',
-    `model=${diagnostics.model || 'unknown'}`,
-    `code=${diagnostics.closeCode ?? 'unknown'}`,
-    `reason=${reason}`,
-    `wasClean=${diagnostics.wasClean ?? 'unknown'}`,
-    `opened=${diagnostics.opened}`,
-    `sentAudioFrames=${diagnostics.sentAudioFrames}`,
-    `stage=${diagnostics.stage}`,
-    `auth=${diagnostics.authMode}`
-  ].join(' ');
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunkSize = 0x8000;
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize);
-    binary += String.fromCharCode(...chunk);
+const INPUT_AUDIO_RATE = 16000;
+const DEFAULT_OUTPUT_AUDIO_RATE = 24000;
+const MAX_CONNECT_ATTEMPTS = 2;
+const MIC_PERMISSION_TIMEOUT_MS = 10000;
+const RESPONSE_TIMEOUT_MS = 45000;
+const LIVE_AUDIO_WORKLET_SOURCE = `
+class GeminiLivePcmProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.frames = [];
+    this.frameCount = 0;
+    this.targetFrameCount = 2048;
   }
 
-  return btoa(binary);
+  process(inputs) {
+    const input = inputs[0];
+    const channel = input && input[0];
+    if (!channel) {
+      return true;
+    }
+
+    const frame = new Float32Array(channel.length);
+    frame.set(channel);
+    this.frames.push(frame);
+    this.frameCount += frame.length;
+
+    if (this.frameCount >= this.targetFrameCount) {
+      const samples = new Float32Array(this.frameCount);
+      let offset = 0;
+      for (const item of this.frames) {
+        samples.set(item, offset);
+        offset += item.length;
+      }
+      this.frames = [];
+      this.frameCount = 0;
+      this.port.postMessage({ samples, sampleRate }, [samples.buffer]);
+    }
+
+    return true;
+  }
 }
 
-function base64ToArrayBuffer(value: string): ArrayBuffer {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
+registerProcessor('gemini-live-pcm-processor', GeminiLivePcmProcessor);
+`;
 
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return bytes.buffer;
-}
-
-function float32ToPcm16(samples: Float32Array): ArrayBuffer {
-  const output = new ArrayBuffer(samples.length * 2);
-  const view = new DataView(output);
-
-  for (let index = 0; index < samples.length; index += 1) {
-    const clamped = Math.max(-1, Math.min(1, samples[index]));
-    view.setInt16(index * 2, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
-  }
-
-  return output;
-}
-
-function resampleFloat32(input: Float32Array, inputRate: number, outputRate: number): Float32Array {
-  if (inputRate === outputRate) {
-    return input;
-  }
-
-  const outputLength = Math.max(1, Math.round(input.length * outputRate / inputRate));
-  const output = new Float32Array(outputLength);
-  const ratio = (input.length - 1) / Math.max(1, outputLength - 1);
-
-  for (let index = 0; index < outputLength; index += 1) {
-    const sourcePosition = index * ratio;
-    const sourceIndex = Math.floor(sourcePosition);
-    const nextIndex = Math.min(input.length - 1, sourceIndex + 1);
-    const fraction = sourcePosition - sourceIndex;
-    output[index] = input[sourceIndex] + (input[nextIndex] - input[sourceIndex]) * fraction;
-  }
-
-  return output;
-}
-
-function pcm16ToFloat32(buffer: ArrayBuffer): Float32Array {
-  const view = new DataView(buffer);
-  const samples = new Float32Array(buffer.byteLength / 2);
-
-  for (let index = 0; index < samples.length; index += 1) {
-    samples[index] = view.getInt16(index * 2, true) / 0x8000;
-  }
-
-  return samples;
-}
+const initialDiagnostics: LiveDiagnostics = {
+  model: '',
+  fallbackModel: '',
+  fallbackUsed: false,
+  micPermission: 'unknown',
+  sentAudioChunks: 0,
+  receivedAudioChunks: 0,
+  stage: 'idle',
+  closeCode: null,
+  closeReason: '',
+  lastToolProposal: ''
+};
 
 function appendTranscript(current: string, next?: string): string {
   const trimmed = next?.trim();
@@ -125,39 +123,130 @@ function appendTranscript(current: string, next?: string): string {
   return [current, trimmed].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return window.btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function parseAudioRate(mimeType?: string, fallback = DEFAULT_OUTPUT_AUDIO_RATE): number {
+  const match = mimeType?.match(/rate=(\d+)/i);
+  if (!match?.[1]) {
+    return fallback;
+  }
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function resampleFloat32(input: Float32Array, inputRate: number, outputRate: number): Float32Array {
+  if (inputRate === outputRate) {
+    return input;
+  }
+
+  const ratio = inputRate / outputRate;
+  const outputLength = Math.max(1, Math.floor(input.length / ratio));
+  const output = new Float32Array(outputLength);
+
+  for (let index = 0; index < outputLength; index += 1) {
+    const sourceIndex = index * ratio;
+    const leftIndex = Math.floor(sourceIndex);
+    const rightIndex = Math.min(input.length - 1, leftIndex + 1);
+    const fraction = sourceIndex - leftIndex;
+    output[index] = input[leftIndex] + (input[rightIndex] - input[leftIndex]) * fraction;
+  }
+
+  return output;
+}
+
+function float32ToPcm16Bytes(samples: Float32Array): Uint8Array {
+  const bytes = new Uint8Array(samples.length * 2);
+  const view = new DataView(bytes.buffer);
+  for (let index = 0; index < samples.length; index += 1) {
+    const clamped = Math.max(-1, Math.min(1, samples[index]));
+    const value = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+    view.setInt16(index * 2, value, true);
+  }
+  return bytes;
+}
+
+function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const samples = new Float32Array(Math.floor(bytes.byteLength / 2));
+  for (let index = 0; index < samples.length; index += 1) {
+    samples[index] = view.getInt16(index * 2, true) / 0x8000;
+  }
+  return samples;
+}
+
+function calculateAudioLevel(samples: Float32Array): number {
+  if (samples.length === 0) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    sum += samples[index] * samples[index];
+  }
+  return Math.min(1, Math.sqrt(sum / samples.length) * 8);
+}
+
+function getAudioContextClass(): typeof AudioContext | null {
+  return window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext || null;
+}
+
 export function useGeminiLiveVoice(options: UseGeminiLiveVoiceOptions = {}) {
-  const { autoDraftOnTurnComplete = true, onConversationReady } = options;
+  const {
+    onConversationReady,
+    autoDraftOnTurnComplete = Boolean(onConversationReady),
+    orchestratorContext,
+    onProposal,
+    onToolResponse
+  } = options;
   const [status, setStatus] = React.useState<GeminiLiveVoiceStatus>('idle');
   const [inputTranscript, setInputTranscript] = React.useState('');
   const [outputTranscript, setOutputTranscript] = React.useState('');
   const [error, setError] = React.useState('');
   const [durationSeconds, setDurationSeconds] = React.useState(0);
   const [audioLevel, setAudioLevel] = React.useState(0);
+  const [proposals, setProposals] = React.useState<GeminiLiveProposal[]>([]);
+  const [diagnostics, setDiagnostics] = React.useState<LiveDiagnostics>(initialDiagnostics);
+
   const sessionRef = React.useRef<Session | null>(null);
-  const mediaStreamRef = React.useRef<MediaStream | null>(null);
-  const audioContextRef = React.useRef<AudioContext | null>(null);
-  const sourceRef = React.useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = React.useRef<ScriptProcessorNode | null>(null);
+  const inputAudioContextRef = React.useRef<AudioContext | null>(null);
+  const outputAudioContextRef = React.useRef<AudioContext | null>(null);
+  const inputStreamRef = React.useRef<MediaStream | null>(null);
+  const workletNodeRef = React.useRef<AudioWorkletNode | null>(null);
+  const inputSourceRef = React.useRef<MediaStreamAudioSourceNode | null>(null);
+  const silentGainRef = React.useRef<GainNode | null>(null);
+  const playingSourcesRef = React.useRef<Set<AudioBufferSourceNode>>(new Set());
   const playbackTimeRef = React.useRef(0);
   const timerRef = React.useRef<number | null>(null);
-  const responseTimeoutRef = React.useRef<number | null>(null);
-  const firstAudioFrameTimeoutRef = React.useRef<number | null>(null);
+  const responseTimerRef = React.useRef<number | null>(null);
+  const operationIdRef = React.useRef(0);
+  const listeningRef = React.useRef(false);
+  const closeRequestedRef = React.useRef(false);
   const inputTranscriptRef = React.useRef('');
   const outputTranscriptRef = React.useRef('');
-  const hasDeliveredRef = React.useRef(false);
-  const stoppedInputRef = React.useRef(false);
-  const closingRef = React.useRef(false);
-  const failedRef = React.useRef(false);
-  const turnCompleteRef = React.useRef(false);
-  const liveOpenedRef = React.useRef(false);
-  const sentAudioFramesRef = React.useRef(0);
-  const activeModelRef = React.useRef('');
-  const retryAttemptedRef = React.useRef(false);
-  const audioPipeStartedRef = React.useRef(false);
-  const connectionAttemptRef = React.useRef(0);
-  const manualActivityStartedRef = React.useRef(false);
-  const responseStartedRef = React.useRef(false);
-  const stageRef = React.useRef<'idle' | 'token' | 'connecting' | 'opened' | 'activity-started' | 'streaming' | 'activity-ended' | 'waiting-response'>('idle');
+  const statusRef = React.useRef<GeminiLiveVoiceStatus>('idle');
+
+  React.useEffect(() => {
+    statusRef.current = status;
+    setDiagnostics((current) => ({ ...current, stage: status }));
+  }, [status]);
 
   React.useEffect(() => {
     inputTranscriptRef.current = inputTranscript;
@@ -167,564 +256,548 @@ export function useGeminiLiveVoice(options: UseGeminiLiveVoiceOptions = {}) {
     outputTranscriptRef.current = outputTranscript;
   }, [outputTranscript]);
 
-  const stopTimer = React.useCallback(() => {
+  const setInputTranscriptAndRef = React.useCallback<React.Dispatch<React.SetStateAction<string>>>((value) => {
+    setInputTranscript((current) => {
+      const next = typeof value === 'function' ? value(current) : value;
+      inputTranscriptRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const clearResponseTimer = React.useCallback(() => {
+    if (responseTimerRef.current !== null) {
+      window.clearTimeout(responseTimerRef.current);
+      responseTimerRef.current = null;
+    }
+  }, []);
+
+  const stopDurationTimer = React.useCallback(() => {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current);
       timerRef.current = null;
     }
   }, []);
 
-  const clearResponseTimeout = React.useCallback(() => {
-    if (responseTimeoutRef.current !== null) {
-      window.clearTimeout(responseTimeoutRef.current);
-      responseTimeoutRef.current = null;
-    }
-  }, []);
-
-  const clearFirstAudioFrameTimeout = React.useCallback(() => {
-    if (firstAudioFrameTimeoutRef.current !== null) {
-      window.clearTimeout(firstAudioFrameTimeoutRef.current);
-      firstAudioFrameTimeoutRef.current = null;
-    }
+  const updateDiagnostics = React.useCallback((updates: Partial<LiveDiagnostics>) => {
+    setDiagnostics((current) => ({ ...current, ...updates }));
   }, []);
 
   const deliverConversation = React.useCallback(() => {
-    if (hasDeliveredRef.current) {
-      return;
-    }
-
     const input = inputTranscriptRef.current.trim();
     const output = outputTranscriptRef.current.trim();
     if (!input && !output) {
       return;
     }
 
-    hasDeliveredRef.current = true;
     onConversationReady?.({
       inputTranscript: input,
       outputTranscript: output,
       missionText: [
         input,
-        output ? `Gemini Live planner notes: ${output}` : ''
+        output ? `Gemini planner notes: ${output}` : ''
       ].filter(Boolean).join('\n\n')
     });
   }, [onConversationReady]);
 
-  const cleanup = React.useCallback((deliver = false) => {
-    stopTimer();
-    clearResponseTimeout();
-    clearFirstAudioFrameTimeout();
-
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current.onaudioprocess = null;
-      processorRef.current = null;
-    }
-
-    if (sourceRef.current) {
-      sourceRef.current.disconnect();
-      sourceRef.current = null;
-    }
-
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      void audioContextRef.current.close().catch(() => undefined);
-      audioContextRef.current = null;
-    }
-
-    if (sessionRef.current) {
+  const stopPlayback = React.useCallback(() => {
+    playingSourcesRef.current.forEach((source) => {
       try {
-        sessionRef.current.close();
+        source.stop();
       } catch {
-        // The SDK may already have closed the socket.
+        // The source may already have ended.
       }
-      sessionRef.current = null;
+    });
+    playingSourcesRef.current.clear();
+    if (outputAudioContextRef.current) {
+      playbackTimeRef.current = outputAudioContextRef.current.currentTime;
+    }
+  }, []);
+
+  const ensureOutputAudio = React.useCallback(async (): Promise<AudioContext> => {
+    const AudioContextClass = getAudioContextClass();
+    if (!AudioContextClass) {
+      throw new Error('Audio playback is not available in this Electron runtime.');
     }
 
-    playbackTimeRef.current = 0;
-    stoppedInputRef.current = false;
-    closingRef.current = false;
-    turnCompleteRef.current = false;
-    liveOpenedRef.current = false;
-    sentAudioFramesRef.current = 0;
-    activeModelRef.current = '';
-    retryAttemptedRef.current = false;
-    audioPipeStartedRef.current = false;
-    manualActivityStartedRef.current = false;
-    responseStartedRef.current = false;
-    stageRef.current = 'idle';
+    if (!outputAudioContextRef.current) {
+      outputAudioContextRef.current = new AudioContextClass();
+      playbackTimeRef.current = outputAudioContextRef.current.currentTime;
+    }
+
+    if (outputAudioContextRef.current.state === 'suspended') {
+      await outputAudioContextRef.current.resume();
+    }
+
+    return outputAudioContextRef.current;
+  }, []);
+
+  const playPcmAudio = React.useCallback(async (base64Audio: string, mimeType?: string) => {
+    const outputContext = await ensureOutputAudio();
+    const bytes = base64ToBytes(base64Audio);
+    const samples = pcm16BytesToFloat32(bytes);
+    const sampleRate = parseAudioRate(mimeType);
+    const buffer = outputContext.createBuffer(1, samples.length, sampleRate);
+    const audioSamples = new Float32Array(samples.length);
+    audioSamples.set(samples);
+    buffer.copyToChannel(audioSamples, 0);
+
+    const source = outputContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(outputContext.destination);
+    source.onended = () => {
+      playingSourcesRef.current.delete(source);
+    };
+    const startAt = Math.max(outputContext.currentTime + 0.02, playbackTimeRef.current);
+    source.start(startAt);
+    playbackTimeRef.current = startAt + buffer.duration;
+    playingSourcesRef.current.add(source);
+  }, [ensureOutputAudio]);
+
+  const stopAudioCapture = React.useCallback(() => {
+    listeningRef.current = false;
+    stopDurationTimer();
+
+    if (workletNodeRef.current) {
+      workletNodeRef.current.port.onmessage = null;
+      workletNodeRef.current.disconnect();
+      workletNodeRef.current = null;
+    }
+
+    if (inputSourceRef.current) {
+      inputSourceRef.current.disconnect();
+      inputSourceRef.current = null;
+    }
+
+    if (silentGainRef.current) {
+      silentGainRef.current.disconnect();
+      silentGainRef.current = null;
+    }
+
+    if (inputStreamRef.current) {
+      inputStreamRef.current.getTracks().forEach((track) => track.stop());
+      inputStreamRef.current = null;
+    }
+
+    if (inputAudioContextRef.current) {
+      void inputAudioContextRef.current.close().catch(() => undefined);
+      inputAudioContextRef.current = null;
+    }
+
     setAudioLevel(0);
+  }, [stopDurationTimer]);
 
-    if (deliver) {
-      deliverConversation();
-    }
-  }, [clearFirstAudioFrameTimeout, clearResponseTimeout, deliverConversation, stopTimer]);
+  const startResponseTimer = React.useCallback((operationId: number) => {
+    clearResponseTimer();
+    responseTimerRef.current = window.setTimeout(() => {
+      if (operationIdRef.current !== operationId || statusRef.current !== 'responding') {
+        return;
+      }
+      setError('Gemini Live took too long to respond. The session is still open; try another short turn.');
+      setStatus('live');
+    }, RESPONSE_TIMEOUT_MS);
+  }, [clearResponseTimer]);
 
-  React.useEffect(() => () => cleanup(false), [cleanup]);
-
-  const playPcmAudio = React.useCallback((base64Audio: string, sampleRate = 24000) => {
-    const context = audioContextRef.current;
-    if (!context) {
+  const handleToolCalls = React.useCallback((message: LiveServerMessage) => {
+    const functionCalls = message.toolCall?.functionCalls || [];
+    if (functionCalls.length === 0) {
       return;
     }
 
-    const samples = pcm16ToFloat32(base64ToArrayBuffer(base64Audio));
-    const audioBuffer = context.createBuffer(1, samples.length, sampleRate);
-    audioBuffer.copyToChannel(samples, 0);
+    const nextProposals = functionCalls
+      .map(normalizeGeminiLiveProposal)
+      .filter((proposal): proposal is GeminiLiveProposal => Boolean(proposal));
 
-    const source = context.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(context.destination);
+    if (nextProposals.length === 0) {
+      return;
+    }
 
-    const startAt = Math.max(context.currentTime + 0.03, playbackTimeRef.current);
-    source.start(startAt);
-    playbackTimeRef.current = startAt + audioBuffer.duration;
-  }, []);
+    setProposals((current) => [...nextProposals, ...current].slice(0, 8));
+    updateDiagnostics({ lastToolProposal: nextProposals[0].title });
+    nextProposals.forEach((proposal) => onProposal?.(proposal));
 
-  const connectWithTimeout = React.useCallback(async (promise: Promise<Session>, model: string): Promise<Session> => {
-    let timeoutId: number | null = null;
-    let timedOut = false;
-
-    promise.then((session) => {
-      if (timedOut) {
-        try {
-          session.close();
-        } catch {
-          // The late connection is already closed.
-        }
+    const functionResponses = nextProposals.map((proposal) => ({
+      id: proposal.callId || proposal.id,
+      name: proposal.type,
+      response: {
+        status: 'pending_human_approval',
+        proposalId: proposal.id,
+        message: 'Recorded as a pending UI proposal. Nothing has been executed.'
       }
-    }).catch(() => undefined);
+    }));
 
     try {
-      return await Promise.race([
-        promise,
-        new Promise<Session>((_resolve, reject) => {
-          timeoutId = window.setTimeout(() => {
-            timedOut = true;
-            reject(new Error(`Gemini Live connection timed out after ${LIVE_CONNECT_TIMEOUT_MS}ms. model=${model}`));
-          }, LIVE_CONNECT_TIMEOUT_MS);
-        })
-      ]);
-    } finally {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
+      sessionRef.current?.sendToolResponse({ functionResponses });
+      nextProposals.forEach((proposal) => onToolResponse?.(proposal));
+    } catch (toolError) {
+      setError(toolError instanceof Error ? toolError.message : 'Failed to acknowledge Gemini tool proposal.');
+    }
+  }, [onProposal, onToolResponse, updateDiagnostics]);
+
+  const handleLiveMessage = React.useCallback((message: LiveServerMessage) => {
+    handleToolCalls(message);
+
+    const content = message.serverContent;
+    if (!content) {
+      return;
+    }
+
+    if (content.interrupted) {
+      stopPlayback();
+      setStatus(listeningRef.current ? 'listening' : 'live');
+    }
+
+    if (content.inputTranscription?.text) {
+      setInputTranscriptAndRef((current) => appendTranscript(current, content.inputTranscription?.text));
+    }
+
+    if (content.outputTranscription?.text) {
+      const text = content.outputTranscription.text;
+      setOutputTranscript((current) => {
+        const next = appendTranscript(current, text);
+        outputTranscriptRef.current = next;
+        return next;
+      });
+    }
+
+    const parts = content.modelTurn?.parts || [];
+    parts.forEach((part) => {
+      const livePart = part as { inlineData?: { data?: string; mimeType?: string }; text?: string };
+      if (livePart.text) {
+        setOutputTranscript((current) => {
+          const next = appendTranscript(current, livePart.text);
+          outputTranscriptRef.current = next;
+          return next;
+        });
+      }
+      if (livePart.inlineData?.data) {
+        setDiagnostics((current) => ({ ...current, receivedAudioChunks: current.receivedAudioChunks + 1 }));
+        void playPcmAudio(livePart.inlineData.data, livePart.inlineData.mimeType).catch((audioError) => {
+          setError(audioError instanceof Error ? audioError.message : 'Failed to play Gemini audio.');
+        });
+      }
+    });
+
+    if (content.modelTurn || content.outputTranscription?.text) {
+      setStatus('responding');
+    }
+
+    if (content.turnComplete || content.generationComplete || content.waitingForInput) {
+      clearResponseTimer();
+      setStatus('live');
+      if (autoDraftOnTurnComplete) {
+        window.setTimeout(deliverConversation, 50);
       }
     }
-  }, []);
+  }, [
+    autoDraftOnTurnComplete,
+    clearResponseTimer,
+    deliverConversation,
+    handleToolCalls,
+    playPcmAudio,
+    setInputTranscriptAndRef,
+    stopPlayback,
+    updateDiagnostics
+  ]);
 
-  const start = React.useCallback(async () => {
-    if (status === 'connecting' || status === 'recording' || status === 'waiting-response' || status === 'responding') {
-      return;
+  const connectSession = React.useCallback(async (): Promise<Session> => {
+    if (sessionRef.current) {
+      return sessionRef.current;
     }
 
     if (!window.electronAPI?.voice?.createLiveToken) {
-      setError('Gemini Live voice bridge is not available in this build.');
-      setStatus('error');
-      return;
+      throw new Error('Gemini Live token bridge is not available in this build.');
     }
 
-    hasDeliveredRef.current = false;
-    stoppedInputRef.current = false;
-    closingRef.current = false;
-    failedRef.current = false;
-    turnCompleteRef.current = false;
-    liveOpenedRef.current = false;
-    sentAudioFramesRef.current = 0;
-    activeModelRef.current = '';
-    retryAttemptedRef.current = false;
-    audioPipeStartedRef.current = false;
-    manualActivityStartedRef.current = false;
-    responseStartedRef.current = false;
-    stageRef.current = 'idle';
-    setInputTranscript('');
-    setOutputTranscript('');
     setError('');
-    setDurationSeconds(0);
-    setStatus('connecting');
+    setStatus('token');
+    closeRequestedRef.current = false;
+    let lastError: unknown = null;
+    let fallbackModel = '';
 
-    try {
-      const statusResult = await window.electronAPI.voice.getLiveStatus?.();
-      if (statusResult && !statusResult.isConfigured) {
-        throw new Error('missing-key: Gemini Live is not configured. Add GEMINI_API_KEY, GOOGLE_API_KEY, or save a Gemini key in Settings.');
-      }
+    for (let attempt = 0; attempt < MAX_CONNECT_ATTEMPTS; attempt += 1) {
+      const requestedModel = attempt === 0 ? undefined : fallbackModel;
+      try {
+        const token = await window.electronAPI.voice.createLiveToken(requestedModel ? { model: requestedModel } : undefined);
+        fallbackModel = token.fallbackModel;
+        updateDiagnostics({
+          model: token.model,
+          fallbackModel: token.fallbackModel,
+          fallbackUsed: attempt > 0,
+          closeCode: null,
+          closeReason: ''
+        });
+        setStatus('connecting');
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextClass) {
-        throw new Error('AudioContext is not available in this browser runtime.');
-      }
-
-      const audioContext = new AudioContextClass();
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      audioContextRef.current = audioContext;
-      mediaStreamRef.current = stream;
-      sourceRef.current = source;
-      processorRef.current = processor;
-
-      const startManualActivity = (session: Session, model: string) => {
-        if (manualActivityStartedRef.current) {
-          return;
-        }
-
-        session.sendRealtimeInput({ activityStart: {} });
-        manualActivityStartedRef.current = true;
-        stageRef.current = 'activity-started';
-        clearFirstAudioFrameTimeout();
-        firstAudioFrameTimeoutRef.current = window.setTimeout(() => {
-          if (sentAudioFramesRef.current > 0 || stoppedInputRef.current || failedRef.current) {
-            return;
-          }
-
-          failedRef.current = true;
-          cleanup(false);
-          setError(`Gemini Live connected, but no microphone audio frames were sent within ${FIRST_AUDIO_FRAME_TIMEOUT_MS}ms. model=${model}`);
-          setStatus('error');
-        }, FIRST_AUDIO_FRAME_TIMEOUT_MS);
-      };
-
-      const startAudioPipe = () => {
-        if (audioPipeStartedRef.current) {
-          return;
-        }
-
-        audioPipeStartedRef.current = true;
-        source.connect(processor);
-        processor.connect(audioContext.destination);
-        processor.onaudioprocess = (event) => {
-          if (!sessionRef.current) {
-            return;
-          }
-
-          const samples = event.inputBuffer.getChannelData(0);
-          let sum = 0;
-          for (let index = 0; index < samples.length; index += 1) {
-            sum += samples[index] * samples[index];
-          }
-          setAudioLevel(Math.min(1, Math.sqrt(sum / samples.length) * 5.2));
-
-          try {
-            sessionRef.current.sendRealtimeInput({
-              audio: {
-                data: arrayBufferToBase64(float32ToPcm16(resampleFloat32(samples, audioContext.sampleRate, 16000))),
-                mimeType: 'audio/pcm;rate=16000'
-              }
-            });
-            if (sentAudioFramesRef.current === 0) {
-              clearFirstAudioFrameTimeout();
-              stageRef.current = 'streaming';
-            }
-            sentAudioFramesRef.current += 1;
-          } catch (audioError) {
-            failedRef.current = true;
-            const message = audioError instanceof Error ? audioError.message : 'Gemini Live rejected microphone audio.';
-            cleanup(false);
-            setError(`Gemini Live audio send failed. model=${activeModelRef.current || 'unknown'} sentAudioFrames=${sentAudioFramesRef.current} ${message}`);
-            setStatus('error');
-          }
-        };
-
-        timerRef.current = window.setInterval(() => {
-          setDurationSeconds((current) => current + 1);
-        }, 1000);
-      };
-
-      const connectLive = async (requestedModel?: string) => {
-        const attemptId = connectionAttemptRef.current + 1;
-        connectionAttemptRef.current = attemptId;
-        liveOpenedRef.current = false;
-        sentAudioFramesRef.current = 0;
-        manualActivityStartedRef.current = false;
-        clearFirstAudioFrameTimeout();
-
-        stageRef.current = 'token';
-        const token = await window.electronAPI.voice.createLiveToken({ model: requestedModel });
-        activeModelRef.current = token.model;
         const ai = new GoogleGenAI({
           apiKey: token.token,
           httpOptions: { apiVersion: 'v1alpha' }
         });
-        let resolveOpen: () => void = () => undefined;
-        const openPromise = new Promise<void>((resolve) => {
-          resolveOpen = resolve;
-        });
 
-        stageRef.current = 'connecting';
-        const session = await connectWithTimeout(ai.live.connect({
+        const session = await ai.live.connect({
           model: token.model,
-          config: {
-            responseModalities: [Modality.AUDIO],
-            temperature: 0.45,
-            realtimeInputConfig: {
-              automaticActivityDetection: {
-                disabled: true
-              }
+          callbacks: {
+            onopen: () => {
+              setStatus('live');
             },
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-            thinkingConfig: token.model.includes('3.1')
-              ? { thinkingLevel: ThinkingLevel.LOW }
-              : token.model.includes('2.5')
-                ? { thinkingBudget: 0 }
-                : undefined,
-            systemInstruction: {
-              parts: [
-                {
-                  text: [
-                    'You are the Gemini Live voice planner inside Hedge Fund Station.',
-                    'Speak naturally in Spanish unless the operator asks otherwise.',
-                    'Your job is to clarify the operator mission and prepare it for Codex CLI review.',
-                    'You must not execute commands, change files, change credentials, place trades, or imply that anything has already run.',
-                    'When the mission is clear, summarize the objective, the Codex prompt intent, suggested safe commands, guardrails, and that human approval is required before execution.'
-                  ].join(' ')
-                }
-              ]
+            onmessage: handleLiveMessage,
+            onerror: (event) => {
+              const message = event instanceof ErrorEvent && event.message ? event.message : 'Gemini Live socket error.';
+              setError(message);
             },
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: token.voiceName
-                }
+            onclose: (event) => {
+              updateDiagnostics({ closeCode: event.code, closeReason: event.reason || '' });
+              sessionRef.current = null;
+              stopAudioCapture();
+              clearResponseTimer();
+              if (!closeRequestedRef.current) {
+                setStatus('error');
+                setError(event.reason || `Gemini Live closed (${event.code}).`);
               }
             }
           },
-          callbacks: {
-            onopen: () => {
-              if (attemptId === connectionAttemptRef.current) {
-                liveOpenedRef.current = true;
-                stageRef.current = 'opened';
-                resolveOpen();
-              }
+          config: {
+            responseModalities: [Modality.AUDIO],
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
+            realtimeInputConfig: {
+              automaticActivityDetection: { disabled: true }
             },
-            onmessage: (message) => {
-              const serverContent = message.serverContent;
-
-              if (serverContent?.inputTranscription?.text) {
-                setInputTranscript((current) => appendTranscript(current, serverContent.inputTranscription?.text));
-              }
-
-              if (serverContent?.outputTranscription?.text) {
-                responseStartedRef.current = true;
-                clearResponseTimeout();
-                setOutputTranscript((current) => appendTranscript(current, serverContent.outputTranscription?.text));
-                setStatus('responding');
-              }
-
-              const parts = serverContent?.modelTurn?.parts || [];
-              for (const part of parts) {
-                const inlineData = part.inlineData;
-                if (inlineData?.data && inlineData.mimeType?.startsWith('audio/')) {
-                  responseStartedRef.current = true;
-                  clearResponseTimeout();
-                  const rateMatch = inlineData.mimeType.match(/rate=(\d+)/);
-                  playPcmAudio(inlineData.data, rateMatch ? Number(rateMatch[1]) : 24000);
-                  setStatus('responding');
-                }
-              }
-
-              if (serverContent?.turnComplete) {
-                clearResponseTimeout();
-                turnCompleteRef.current = true;
-                setStatus('ready');
-                closingRef.current = true;
-                if (sessionRef.current) {
-                  try {
-                    sessionRef.current.close();
-                  } catch {
-                    // The SDK may already have closed the socket.
-                  }
-                  sessionRef.current = null;
-                }
-                if (autoDraftOnTurnComplete) {
-                  window.setTimeout(deliverConversation, 250);
-                }
-              }
-            },
-            onerror: (event) => {
-              if (attemptId !== connectionAttemptRef.current) {
-                return;
-              }
-
-              const message = event instanceof ErrorEvent && event.message ? event.message : 'Gemini Live voice session failed.';
-              const stage = stageRef.current;
-              const model = activeModelRef.current || 'unknown';
-              const sentAudioFrames = sentAudioFramesRef.current;
-              failedRef.current = true;
-              cleanup(true);
-              setError(`${message} model=${model} sentAudioFrames=${sentAudioFrames} stage=${stage}`);
-              setStatus('error');
-            },
-            onclose: (event) => {
-              if (attemptId !== connectionAttemptRef.current || failedRef.current) {
-                return;
-              }
-
-              if (closingRef.current || turnCompleteRef.current) {
-                setStatus('ready');
-                return;
-              }
-
-              const diagnostics = formatLiveCloseDiagnostics({
-                model: token.model,
-                closeCode: event.code,
-                closeReason: event.reason,
-                wasClean: event.wasClean,
-                opened: liveOpenedRef.current,
-                sentAudioFrames: sentAudioFramesRef.current,
-                stage: stageRef.current,
-                authMode: 'ephemeral-token'
-              });
-
-              failedRef.current = true;
-              cleanup(false);
-              setError(diagnostics);
-              setStatus('error');
-            }
+            systemInstruction: buildGeminiOrchestratorSystemContext(orchestratorContext),
+            tools: createGeminiOrchestratorTools()
           }
-        }), token.model);
-
-        if (attemptId !== connectionAttemptRef.current || failedRef.current) {
-          try {
-            session.close();
-          } catch {
-            // A newer fallback attempt owns the active connection.
-          }
-          return;
-        }
+        });
 
         sessionRef.current = session;
-        if (stoppedInputRef.current) {
-          closingRef.current = true;
-          try {
-            session.close();
-          } catch {
-            // The SDK may already have closed the socket.
-          }
-          sessionRef.current = null;
-          setStatus('ready');
-          deliverConversation();
-          return;
-        }
-
-        if (!liveOpenedRef.current) {
-          await Promise.race([
-            openPromise,
-            new Promise<void>((_resolve, reject) => {
-              window.setTimeout(() => {
-                reject(new Error(`Gemini Live did not report onopen after ${LIVE_OPEN_TIMEOUT_MS}ms. model=${token.model}`));
-              }, LIVE_OPEN_TIMEOUT_MS);
-            })
-          ]);
-        }
-
-        startManualActivity(session, token.model);
-        startAudioPipe();
-        setStatus('recording');
-      };
-
-      await connectLive(statusResult?.model);
-    } catch (liveError) {
-      cleanup(false);
-      const message = liveError instanceof Error ? liveError.message : 'Gemini Live voice failed to start.';
-      if (message.startsWith('missing-key:')) {
-        setError(message.replace('missing-key: ', ''));
-        setStatus('missing-key');
-      } else {
-        failedRef.current = true;
-        setError(message);
-        setStatus('error');
+        setStatus('live');
+        return session;
+      } catch (connectError) {
+        lastError = connectError;
+        sessionRef.current = null;
       }
     }
-  }, [autoDraftOnTurnComplete, cleanup, clearFirstAudioFrameTimeout, clearResponseTimeout, connectWithTimeout, deliverConversation, playPcmAudio, status]);
 
-  const stop = React.useCallback(() => {
-    if (stoppedInputRef.current) {
+    const message = lastError instanceof Error ? lastError.message : 'Gemini Live failed to connect.';
+    throw new Error(message.includes('Gemini Live is not configured') || message.includes('Gemini API key')
+      ? 'Gemini Live is not configured. Add GEMINI_API_KEY, GOOGLE_API_KEY, or save a Gemini key in Settings.'
+      : message);
+  }, [clearResponseTimer, handleLiveMessage, orchestratorContext, stopAudioCapture, updateDiagnostics]);
+
+  const sendAudioSamples = React.useCallback((message: WorkletAudioMessage) => {
+    const session = sessionRef.current;
+    if (!session || !listeningRef.current) {
       return;
     }
 
-    stoppedInputRef.current = true;
-    if (sessionRef.current) {
-      try {
-        if (manualActivityStartedRef.current) {
-          sessionRef.current.sendRealtimeInput({ activityEnd: {} });
-          manualActivityStartedRef.current = false;
-          stageRef.current = 'activity-ended';
-        }
-      } catch (activityError) {
-        const message = activityError instanceof Error ? activityError.message : 'Gemini Live rejected activityEnd.';
-        setError(`Gemini Live turn close failed. model=${activeModelRef.current || 'unknown'} sentAudioFrames=${sentAudioFramesRef.current} ${message}`);
-        // The session may already be closed.
+    const resampled = resampleFloat32(message.samples, message.sampleRate, INPUT_AUDIO_RATE);
+    const pcmBytes = float32ToPcm16Bytes(resampled);
+    const data = bytesToBase64(pcmBytes);
+    session.sendRealtimeInput({
+      audio: {
+        data,
+        mimeType: `audio/pcm;rate=${INPUT_AUDIO_RATE}`
       }
+    });
+    setAudioLevel(calculateAudioLevel(message.samples));
+    setDiagnostics((current) => ({ ...current, sentAudioChunks: current.sentAudioChunks + 1 }));
+  }, []);
+
+  const startAudioCapture = React.useCallback(async () => {
+    const AudioContextClass = getAudioContextClass();
+    if (!AudioContextClass) {
+      throw new Error('Microphone audio capture is not available in this Electron runtime.');
     }
 
-    stopTimer();
-    clearFirstAudioFrameTimeout();
-
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current.onaudioprocess = null;
-      processorRef.current = null;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microphone access is not available in this runtime.');
     }
 
-    if (sourceRef.current) {
-      sourceRef.current.disconnect();
-      sourceRef.current = null;
+    const stream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }),
+      new Promise<MediaStream>((_resolve, reject) => {
+        window.setTimeout(() => reject(new Error('Microphone permission timed out.')), MIC_PERMISSION_TIMEOUT_MS);
+      })
+    ]);
+
+    updateDiagnostics({ micPermission: 'granted' });
+    inputStreamRef.current = stream;
+    const inputContext = new AudioContextClass();
+    inputAudioContextRef.current = inputContext;
+    if (inputContext.state === 'suspended') {
+      await inputContext.resume();
     }
 
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
+    const workletUrl = URL.createObjectURL(new Blob([LIVE_AUDIO_WORKLET_SOURCE], { type: 'text/javascript' }));
+    try {
+      await inputContext.audioWorklet.addModule(workletUrl);
+    } finally {
+      URL.revokeObjectURL(workletUrl);
     }
 
-    setAudioLevel(0);
-    stageRef.current = 'waiting-response';
-    setStatus((current) => current === 'recording' ? 'waiting-response' : current);
-    clearResponseTimeout();
-    responseTimeoutRef.current = window.setTimeout(() => {
-      if (sessionRef.current) {
-        closingRef.current = true;
-        try {
-          sessionRef.current.close();
-        } catch {
-          // The SDK may already have closed the socket.
-        }
-        sessionRef.current = null;
-      }
-      setStatus('ready');
-      deliverConversation();
-    }, RESPONSE_TIMEOUT_MS);
-  }, [clearFirstAudioFrameTimeout, clearResponseTimeout, deliverConversation, stopTimer]);
+    const source = inputContext.createMediaStreamSource(stream);
+    const workletNode = new AudioWorkletNode(inputContext, 'gemini-live-pcm-processor', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1]
+    });
+    const silentGain = inputContext.createGain();
+    silentGain.gain.value = 0;
 
-  const reset = React.useCallback(() => {
-    cleanup(false);
-    hasDeliveredRef.current = false;
-    failedRef.current = false;
-    turnCompleteRef.current = false;
-    inputTranscriptRef.current = '';
-    outputTranscriptRef.current = '';
-    setInputTranscript('');
-    setOutputTranscript('');
+    workletNode.port.onmessage = (event: MessageEvent<WorkletAudioMessage>) => {
+      sendAudioSamples(event.data);
+    };
+    source.connect(workletNode);
+    workletNode.connect(silentGain);
+    silentGain.connect(inputContext.destination);
+
+    inputSourceRef.current = source;
+    workletNodeRef.current = workletNode;
+    silentGainRef.current = silentGain;
+  }, [sendAudioSamples, updateDiagnostics]);
+
+  const start = React.useCallback(async () => {
+    if (statusRef.current === 'token' || statusRef.current === 'connecting' || statusRef.current === 'listening' || statusRef.current === 'responding') {
+      return;
+    }
+
+    const operationId = operationIdRef.current + 1;
+    operationIdRef.current = operationId;
     setError('');
     setDurationSeconds(0);
+    stopPlayback();
+
+    try {
+      await ensureOutputAudio();
+      const session = await connectSession();
+      if (operationIdRef.current !== operationId) {
+        return;
+      }
+
+      await startAudioCapture();
+      if (operationIdRef.current !== operationId) {
+        stopAudioCapture();
+        return;
+      }
+
+      session.sendRealtimeInput({ activityStart: {} });
+      listeningRef.current = true;
+      setStatus('listening');
+      timerRef.current = window.setInterval(() => {
+        setDurationSeconds((current) => current + 1);
+      }, 1000);
+    } catch (startError) {
+      stopAudioCapture();
+      const message = startError instanceof Error ? startError.message : 'Gemini Live failed to start.';
+      updateDiagnostics({ micPermission: message.includes('Microphone') ? 'denied' : diagnostics.micPermission });
+      setError(message);
+      setStatus(message.includes('Gemini Live is not configured') ? 'missing-key' : 'error');
+    }
+  }, [
+    connectSession,
+    diagnostics.micPermission,
+    ensureOutputAudio,
+    startAudioCapture,
+    stopAudioCapture,
+    stopPlayback,
+    updateDiagnostics
+  ]);
+
+  const stop = React.useCallback(() => {
+    if (statusRef.current === 'token' || statusRef.current === 'connecting') {
+      operationIdRef.current += 1;
+      stopAudioCapture();
+      setStatus(sessionRef.current ? 'live' : 'idle');
+      return;
+    }
+
+    if (statusRef.current === 'responding') {
+      stopPlayback();
+      setStatus('live');
+      return;
+    }
+
+    if (statusRef.current !== 'listening') {
+      return;
+    }
+
+    const session = sessionRef.current;
+    listeningRef.current = false;
+    stopAudioCapture();
+    setStatus('responding');
+    try {
+      session?.sendRealtimeInput({ activityEnd: {} });
+      startResponseTimer(operationIdRef.current);
+    } catch (stopError) {
+      setError(stopError instanceof Error ? stopError.message : 'Failed to end Gemini Live turn.');
+      setStatus('error');
+    }
+  }, [startResponseTimer, stopAudioCapture, stopPlayback]);
+
+  const endSession = React.useCallback(() => {
+    operationIdRef.current += 1;
+    closeRequestedRef.current = true;
+    clearResponseTimer();
+    stopDurationTimer();
+    stopAudioCapture();
+    stopPlayback();
+    if (sessionRef.current) {
+      try {
+        sessionRef.current.close();
+      } catch {
+        // The socket may already be closed.
+      }
+      sessionRef.current = null;
+    }
     setAudioLevel(0);
     setStatus('idle');
-  }, [cleanup]);
+  }, [clearResponseTimer, stopAudioCapture, stopDurationTimer, stopPlayback]);
+
+  const reset = React.useCallback(() => {
+    endSession();
+    setInputTranscript('');
+    setOutputTranscript('');
+    inputTranscriptRef.current = '';
+    outputTranscriptRef.current = '';
+    setError('');
+    setDurationSeconds(0);
+  }, [endSession]);
+
+  const approveProposal = React.useCallback((proposalId: string) => {
+    setProposals((current) => current.map((proposal) => (
+      proposal.id === proposalId ? { ...proposal, status: 'approved' } : proposal
+    )));
+  }, []);
+
+  const dismissProposal = React.useCallback((proposalId: string) => {
+    setProposals((current) => current.map((proposal) => (
+      proposal.id === proposalId ? { ...proposal, status: 'dismissed' } : proposal
+    )));
+  }, []);
+
+  React.useEffect(() => () => {
+    endSession();
+    if (outputAudioContextRef.current) {
+      void outputAudioContextRef.current.close().catch(() => undefined);
+      outputAudioContextRef.current = null;
+    }
+  }, [endSession]);
 
   return {
     status,
     transcript: inputTranscript,
     inputTranscript,
-    setTranscript: setInputTranscript,
+    setTranscript: setInputTranscriptAndRef,
     outputTranscript,
     error,
     durationSeconds,
     audioLevel,
+    proposals,
+    diagnostics,
     start,
     stop,
-    reset
+    reset,
+    cancel: reset,
+    endSession,
+    approveProposal,
+    dismissProposal
   };
 }

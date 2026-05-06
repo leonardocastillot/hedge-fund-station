@@ -4,7 +4,9 @@ The renderer is organized by product surface. Shared infrastructure stays in
 `src/services`, `src/contexts`, `src/types`, `src/hooks`, and
 `src/components/ui`.
 
-- `cockpit/` owns the main mission surface, the official BTC route, and
+- `stations/` owns fixed trading stations: Hedge Fund Station as the Research OS
+  home and Live Trading as a safe monitor/review surface.
+- `cockpit/` owns the cockpit module, the official BTC route, and
   backend-owned internal routes such as macro calendar and Polymarket review.
 - `hyperliquid/` owns market intelligence and gateway data review pages.
 - `paper/` owns paper-trade and portfolio review surfaces.
@@ -19,5 +21,10 @@ backend and expose inspectable outputs to the renderer.
 
 The visible cockpit navigation is intentionally narrow: Cockpit, BTC,
 Hyperliquid, Strategies, Paper, Liquidations, Portfolio, Data, Workbench, and
-Settings. Routes without one of those roles should be deleted or documented as
-temporary internal review surfaces before they accumulate UI logic.
+Settings. Fixed trading stations sit above that module set. Routes without one
+of those roles should be deleted or documented as temporary internal review
+surfaces before they accumulate UI logic.
+
+Use **Trading Stations** for fixed product surfaces and **Desks** for
+filesystem-backed Electron workspaces. The `Workspace` model is for desks,
+commands, terminals, agents, and vaults; it is not the source of trading truth.

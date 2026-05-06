@@ -55,6 +55,52 @@ function normalizeLaunchProfiles(
     .filter((profile): profile is NonNullable<typeof profile> => profile !== null);
 }
 
+function slugify(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || 'workspace';
+}
+
+function hasPath(...segments: string[]): boolean {
+  return fs.existsSync(path.join(...segments));
+}
+
+function readPackageScripts(workspacePath: string): Record<string, string> {
+  const packagePath = path.join(workspacePath, 'package.json');
+  if (!fs.existsSync(packagePath)) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(packagePath, 'utf-8')) as { scripts?: Record<string, string> };
+    return parsed.scripts && typeof parsed.scripts === 'object' ? parsed.scripts : {};
+  } catch {
+    return {};
+  }
+}
+
+function findObsidianVaultPath(workspacePath: string): string | undefined {
+  if (hasPath(workspacePath, '.obsidian')) {
+    return workspacePath;
+  }
+
+  try {
+    const entries = fs.readdirSync(workspacePath, { withFileTypes: true });
+    const vault = entries.find((entry) => (
+      entry.isDirectory()
+      && !entry.name.startsWith('.')
+      && hasPath(workspacePath, entry.name, '.obsidian')
+    ));
+
+    return vault ? path.join(workspacePath, vault.name) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class WorkspaceManager {
   private configPath: string;
   private config: WorkspaceConfig | null = null;
@@ -110,47 +156,34 @@ export class WorkspaceManager {
       icon: 'chart',
       color: '#22d3ee',
       default_commands: [
-        'npm run dev',
-        'npm run backend:tunnel',
-        'curl http://127.0.0.1:18500/health',
-        'curl http://127.0.0.1:18500/status',
-        'gcloud compute ssh hf-backend-01 --project=leonard-489819 --zone=us-central1-a',
-        'gcloud compute ssh hf-backend-01 --project=leonard-489819 --zone=us-central1-a --command="sudo docker logs --tail=120 alpha-engine"'
+        'git status',
+        'npm run hf:doctor',
+        'npm run backend:health',
+        'npm run gateway:probe',
+        'npm run dev'
       ],
       launch_profiles: [
         {
-          id: 'mac-dev',
-          name: 'Mac Dev Server',
+          id: 'ai-work-desk',
+          name: 'AI Work Desk',
+          steps: [
+            { command: 'agent-runtime', delayMs: 0 },
+            { command: 'git status', delayMs: 300 },
+            { command: 'npm run dev', delayMs: 700 }
+          ]
+        },
+        {
+          id: 'health-check',
+          name: 'Health Check',
+          steps: [
+            { command: 'npm run hf:doctor', delayMs: 0 }
+          ]
+        },
+        {
+          id: 'dev-server',
+          name: 'Dev Server',
           steps: [
             { command: 'npm run dev', delayMs: 0 }
-          ]
-        },
-        {
-          id: 'backend-health',
-          name: 'Backend Health',
-          steps: [
-            { command: 'curl http://127.0.0.1:18500/health && printf "\\n" && curl http://127.0.0.1:18500/status', delayMs: 0 }
-          ]
-        },
-        {
-          id: 'secure-tunnel',
-          name: 'Secure Backend Tunnel',
-          steps: [
-            { command: 'npm run backend:tunnel', delayMs: 0 }
-          ]
-        },
-        {
-          id: 'backend-ssh',
-          name: 'GCP Backend SSH',
-          steps: [
-            { command: 'gcloud compute ssh hf-backend-01 --project=leonard-489819 --zone=us-central1-a', delayMs: 0 }
-          ]
-        },
-        {
-          id: 'backend-logs',
-          name: 'Alpha Engine Logs',
-          steps: [
-            { command: 'gcloud compute ssh hf-backend-01 --project=leonard-489819 --zone=us-central1-a --command="sudo docker logs --tail=120 alpha-engine"', delayMs: 0 }
           ]
         }
       ],
@@ -187,6 +220,25 @@ export class WorkspaceManager {
     } catch {
       return false;
     }
+  }
+
+  private createUniqueWorkspaceId(name: string): string {
+    if (!this.config) {
+      return slugify(name);
+    }
+
+    const baseId = slugify(name);
+    const existingIds = new Set(this.config.workspaces.map((workspace) => workspace.id));
+    if (!existingIds.has(baseId)) {
+      return baseId;
+    }
+
+    let suffix = 2;
+    while (existingIds.has(`${baseId}-${suffix}`)) {
+      suffix += 1;
+    }
+
+    return `${baseId}-${suffix}`;
   }
 
   // Public API
@@ -244,6 +296,111 @@ export class WorkspaceManager {
     // Add workspace
     this.config.workspaces.push(workspace);
     this.saveConfig();
+  }
+
+  inferFromPath(workspacePath: string): Workspace {
+    if (!this.config) throw new Error('Config not loaded');
+
+    const normalizedPath = workspacePath.trim();
+    if (!this.validatePath(normalizedPath)) {
+      throw new Error(`Workspace path does not exist or is not a directory: ${normalizedPath}`);
+    }
+
+    const name = path.basename(normalizedPath) || 'Workspace';
+    const scripts = readPackageScripts(normalizedPath);
+    const isNodeRepo = Object.keys(scripts).length > 0;
+    const isHedgeFundStation = hasPath(normalizedPath, 'AGENTS.md')
+      || hasPath(normalizedPath, 'docs', 'project-architecture.md')
+      || hasPath(normalizedPath, 'backend', 'hyperliquid_gateway');
+    const shell = process.env.SHELL || '/bin/zsh';
+    const obsidianVaultPath = findObsidianVaultPath(normalizedPath);
+
+    if (isHedgeFundStation) {
+      return {
+        id: this.createUniqueWorkspaceId(name),
+        name,
+        path: normalizedPath,
+        icon: 'chart',
+        color: '#22d3ee',
+        shell,
+        obsidian_vault_path: obsidianVaultPath,
+        default_commands: [
+          'git status',
+          'npm run hf:doctor',
+          'npm run backend:health',
+          'npm run gateway:probe',
+          'npm run dev'
+        ],
+        launch_profiles: [
+          {
+            id: 'ai-work-desk',
+            name: 'AI Work Desk',
+            steps: [
+              { command: 'agent-runtime', delayMs: 0 },
+              { command: 'git status', delayMs: 300 },
+              { command: 'npm run hf:status', delayMs: 700 }
+            ]
+          },
+          {
+            id: 'health-check',
+            name: 'Health Check',
+            steps: [
+              { command: 'npm run hf:doctor', delayMs: 0 }
+            ]
+          },
+          {
+            id: 'dev-server',
+            name: 'Dev Server',
+            steps: [
+              { command: 'npm run dev', delayMs: 0 }
+            ]
+          }
+        ]
+      };
+    }
+
+    const defaultCommands = [
+      'git status',
+      ...(isNodeRepo && scripts.dev ? ['npm run dev'] : []),
+      ...(isNodeRepo && scripts.test ? ['npm test'] : []),
+      ...(isNodeRepo && scripts.build ? ['npm run build'] : [])
+    ];
+
+    const launchProfiles: Workspace['launch_profiles'] = [
+      {
+        id: 'ai-work-desk',
+        name: 'AI Work Desk',
+        steps: [
+          { command: 'agent-runtime', delayMs: 0 },
+          { command: 'git status', delayMs: 300 },
+          ...(isNodeRepo && scripts.dev ? [{ command: 'npm run dev', delayMs: 700 }] : []),
+          ...(isNodeRepo && scripts.test ? [{ command: 'npm test', delayMs: 1000 }] : []),
+          ...(isNodeRepo && scripts.build ? [{ command: 'npm run build', delayMs: 1300 }] : [])
+        ]
+      }
+    ];
+
+    if (isNodeRepo && scripts.dev) {
+      launchProfiles.push({
+        id: 'dev',
+        name: 'Dev',
+        steps: [
+          { command: 'npm run dev', delayMs: 0 }
+        ]
+      });
+    }
+
+    return {
+      id: this.createUniqueWorkspaceId(name),
+      name,
+      path: normalizedPath,
+      icon: isNodeRepo ? 'code' : 'folder',
+      color: '#3b82f6',
+      shell,
+      obsidian_vault_path: obsidianVaultPath,
+      default_commands: defaultCommands,
+      launch_profiles: launchProfiles
+    };
   }
 
   update(id: string, updates: Partial<Workspace>): void {

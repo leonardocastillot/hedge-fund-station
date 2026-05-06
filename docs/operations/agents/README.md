@@ -6,15 +6,21 @@ templates in Hedge Fund Station.
 ## Start Here
 
 1. `orientation.md` gets a new agent productive quickly.
-2. `harness.md` defines mission classes, permissions, checks, and artifact
+2. `file-harness.md` defines the repo-file workflow for task queue, progress,
+   role reports, and anti-telephone handoffs.
+3. `harness.md` defines mission classes, permissions, checks, and artifact
    expectations.
-3. `memory/memory-policy.md` defines how agents keep memory small and useful.
-4. `memory/README.md` explains how agents share context across runs.
-5. `templates/` contains reusable task, handoff, and change-summary contracts.
+4. `memory/memory-policy.md` defines how agents keep memory small and useful.
+5. `memory/README.md` explains how agents share context across runs.
+6. `templates/` contains reusable task, handoff, and change-summary contracts.
 
 ## Folder Contract
 
 - `harness.md`: the rules around agents before, during, and after work.
+- `file-harness.md`: the file-based queue/progress/checkpoint workflow used by
+  Codex, Claude, Gemini, external agents, and in-app mission runners.
+- `roles/`: vendor-neutral role contracts for leader, explorer, implementer,
+  and reviewer agents.
 - `automation-system.md`: recurring agent classes and safe automation defaults.
 - `research-os.md`: backend Agent Research OS contract and artifacts.
 - `workbench.md`: renderer mission-control UX contract.

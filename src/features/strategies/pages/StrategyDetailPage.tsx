@@ -5,6 +5,7 @@ import { alphaEngineApi, type EvaluationItem } from '@/services/alphaEngineApi';
 import legacyApi from '@/services/legacyTradingApi';
 import {
   hyperliquidService,
+  type HyperliquidBacktestArtifactSummary,
   type HyperliquidBacktestTrade,
   type HyperliquidDetailResponse,
   type HyperliquidLatestAgentRunResponse,
@@ -88,6 +89,9 @@ export default function StrategyDetailPage() {
   const [gatewayDetail, setGatewayDetail] = useState<HyperliquidDetailResponse | null>(null);
   const [auditDetail, setAuditDetail] = useState<HyperliquidStrategyAuditRow | null>(null);
   const [latestBacktest, setLatestBacktest] = useState<HyperliquidLatestBacktestResponse | null>(null);
+  const [backtestArtifacts, setBacktestArtifacts] = useState<HyperliquidBacktestArtifactSummary[]>([]);
+  const [selectedBacktestArtifactId, setSelectedBacktestArtifactId] = useState<string | null>(null);
+  const [loadingBacktestArtifacts, setLoadingBacktestArtifacts] = useState(false);
   const [backtestArtifactError, setBacktestArtifactError] = useState<string | null>(null);
   const [ensuringBacktest, setEnsuringBacktest] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -104,6 +108,7 @@ export default function StrategyDetailPage() {
     try {
       const latest = await hyperliquidService.getLatestBacktest(strategyId);
       setLatestBacktest(latest);
+      setSelectedBacktestArtifactId(latest.report?.artifact_id ?? null);
     } catch (err) {
       if (ensureMissing && !strategyId.startsWith('runtime:') && !autoEnsureAttemptedRef.current.has(strategyId)) {
         autoEnsureAttemptedRef.current.add(strategyId);
@@ -111,6 +116,7 @@ export default function StrategyDetailPage() {
         try {
           const ensured = await hyperliquidService.ensureBacktest(strategyId);
           setLatestBacktest(ensured);
+          setSelectedBacktestArtifactId(ensured.report?.artifact_id ?? null);
           setBacktestArtifactError(null);
           setBacktestMessage(ensured.created ? 'Backtest evidence generated automatically.' : 'Backtest evidence loaded.');
           try {
@@ -130,7 +136,41 @@ export default function StrategyDetailPage() {
         return;
       }
       setLatestBacktest(null);
+      setSelectedBacktestArtifactId(null);
       setBacktestArtifactError(err instanceof Error ? err.message : 'No backtest trade artifact found for this strategy.');
+    }
+  };
+
+  const loadBacktestArtifacts = async (strategyId: string) => {
+    if (!strategyId || strategyId.startsWith('runtime:')) {
+      setBacktestArtifacts([]);
+      setSelectedBacktestArtifactId(null);
+      return;
+    }
+    setLoadingBacktestArtifacts(true);
+    try {
+      const response = await hyperliquidService.getBacktestArtifacts(strategyId, 20);
+      setBacktestArtifacts(response.artifacts);
+      setSelectedBacktestArtifactId((current) => current ?? response.artifacts[0]?.artifactId ?? null);
+    } catch {
+      setBacktestArtifacts([]);
+    } finally {
+      setLoadingBacktestArtifacts(false);
+    }
+  };
+
+  const selectBacktestArtifact = async (strategyId: string, artifactId: string) => {
+    setLoadingBacktestArtifacts(true);
+    setBacktestArtifactError(null);
+    try {
+      const artifact = await hyperliquidService.getBacktestArtifact(strategyId, artifactId);
+      setLatestBacktest(artifact);
+      setSelectedBacktestArtifactId(artifact.report?.artifact_id ?? artifactId);
+      setBacktestMessage('Backtest artifact loaded.');
+    } catch (err) {
+      setBacktestArtifactError(err instanceof Error ? err.message : 'No se pudo cargar este artifact de backtest.');
+    } finally {
+      setLoadingBacktestArtifacts(false);
     }
   };
 
@@ -149,6 +189,8 @@ export default function StrategyDetailPage() {
       setLoading(true);
       setError(null);
       setLatestBacktest(null);
+      setBacktestArtifacts([]);
+      setSelectedBacktestArtifactId(null);
       setBacktestArtifactError(null);
       setEnsuringBacktest(false);
 
@@ -188,15 +230,18 @@ export default function StrategyDetailPage() {
           setAlphaDetail(evaluation);
           setLegacyDetail(null);
           setGatewayDetail(null);
+          let canAutoEnsureBacktest = false;
           try {
             const audit = await hyperliquidService.getStrategyAudit(500);
             const normalizedEvaluationId = normalizeIdentifier(evaluation.strategy_id);
             const evidence = audit.strategies.find((item) => normalizeIdentifier(item.strategyId) === normalizedEvaluationId);
             setAuditDetail(evidence ?? null);
+            canAutoEnsureBacktest = Boolean(evidence?.registeredForBacktest);
           } catch {
             setAuditDetail(null);
           }
-          void refreshLatestBacktest(evaluation.strategy_id, true);
+          void loadBacktestArtifacts(evaluation.strategy_id);
+          void refreshLatestBacktest(evaluation.strategy_id, canAutoEnsureBacktest);
           setLoading(false);
           return;
         }
@@ -221,7 +266,8 @@ export default function StrategyDetailPage() {
           setLegacyDetail(null);
           setAlphaDetail(null);
           setGatewayDetail(null);
-          void refreshLatestBacktest(evidence.strategyId, true);
+          void loadBacktestArtifacts(evidence.strategyId);
+          void refreshLatestBacktest(evidence.strategyId, evidence.registeredForBacktest);
           setLoading(false);
           return;
         }
@@ -269,10 +315,11 @@ export default function StrategyDetailPage() {
     setRunningBacktest(true);
     setBacktestMessage(null);
     try {
-      const result = await hyperliquidService.runBacktest(strategyId, true);
+      const result = await hyperliquidService.runBacktest(strategyId, false);
       const windowText = result.datasetStart && result.datasetEnd ? ` (${result.datasetStart.slice(0, 10)} -> ${result.datasetEnd.slice(0, 10)})` : '';
-      setBacktestMessage(`Backtest listo${windowText}: ${result.summary.total_trades} trades, retorno ${formatPercent(result.summary.return_pct)}, validacion ${result.validation?.status ?? 'N/D'}.`);
+      setBacktestMessage(`Backtest listo${windowText}: ${result.summary.total_trades} trades, retorno ${formatPercent(result.summary.return_pct)}, validacion ${result.validation?.status ?? 'N/D'}. Paper candidate queda como accion separada despues del gate.`);
       await refreshLatestBacktest(strategyId);
+      await loadBacktestArtifacts(strategyId);
       try {
         const audit = await hyperliquidService.getStrategyAudit(500);
         const normalizedName = normalizeIdentifier(strategyId);
@@ -356,6 +403,7 @@ export default function StrategyDetailPage() {
         <Hero title={alphaDetail.title} subtitle={`Alpha engine evaluation • ${alphaDetail.stage} • ${alphaDetail.promotion_state}`} onBack={() => navigate('/strategies')} />
         <BacktestAction
           strategyId={alphaDetail.strategy_id}
+          canRun={Boolean(auditDetail?.registeredForBacktest)}
           running={runningBacktest}
           message={backtestMessage}
           onRun={() => void runBackendBacktest(alphaDetail.strategy_id)}
@@ -373,6 +421,13 @@ export default function StrategyDetailPage() {
           <Metric label="Drawdown" value={alphaDetail.max_drawdown_pct === null ? 'N/D' : `${alphaDetail.max_drawdown_pct.toFixed(1)}%`} />
           <Metric label="Trades" value={String(alphaDetail.total_trades ?? 0)} />
         </div>
+        <BacktestArtifactSelector
+          strategyId={alphaDetail.strategy_id}
+          artifacts={backtestArtifacts}
+          selectedArtifactId={selectedBacktestArtifactId}
+          loading={loadingBacktestArtifacts}
+          onSelect={(artifactId) => void selectBacktestArtifact(alphaDetail.strategy_id, artifactId)}
+        />
         <TradesSection
           trades={normalizedTrades}
           expectedTrades={alphaDetail.total_trades ?? null}
@@ -406,6 +461,7 @@ export default function StrategyDetailPage() {
         <Hero title={auditDetail.displayName} subtitle={`Strategy evidence • ${auditDetail.stage.replace(/_/g, ' ')}`} onBack={() => navigate('/strategies')} />
         <BacktestAction
           strategyId={auditDetail.strategyId}
+          canRun={auditDetail.registeredForBacktest}
           running={runningBacktest}
           message={backtestMessage}
           onRun={() => void runBackendBacktest(auditDetail.strategyId)}
@@ -419,10 +475,17 @@ export default function StrategyDetailPage() {
         <div className="grid gap-3 md:grid-cols-5">
           <Metric label="Trades" value={String(auditDetail.tradeCount)} />
           <Metric label="Backtest" value={String(auditDetail.evidenceCounts.backtestTrades)} />
-          <Metric label="Paper" value={String(auditDetail.evidenceCounts.paperTrades)} />
-          <Metric label="Win Rate" value={`${auditDetail.winRate.toFixed(1)}%`} />
+          <Metric label="Fees" value={formatCurrency(Number(auditDetail.latestBacktestSummary?.fees_paid ?? 0))} />
+          <Metric label="Robust" value={auditDetail.robustAssessment?.status ?? 'N/D'} />
           <Metric label="PnL" value={formatCurrency(auditDetail.totalPnlUsd)} tone={auditDetail.totalPnlUsd >= 0 ? 'text-emerald-300' : 'text-rose-300'} />
         </div>
+        <BacktestArtifactSelector
+          strategyId={auditDetail.strategyId}
+          artifacts={backtestArtifacts}
+          selectedArtifactId={selectedBacktestArtifactId}
+          loading={loadingBacktestArtifacts}
+          onSelect={(artifactId) => void selectBacktestArtifact(auditDetail.strategyId, artifactId)}
+        />
         <TradesSection
           trades={normalizedTrades}
           expectedTrades={auditDetail.tradeCount}
@@ -431,6 +494,27 @@ export default function StrategyDetailPage() {
           loadingEvidence={ensuringBacktest}
           emptyAction="No backtest trade artifact found for this strategy. Run Backtest to generate inspectable trade evidence."
         />
+        <Panel title="Backend Artifacts">
+          <div className="grid gap-3 text-sm text-white/70 md:grid-cols-2">
+            <DetailBlock label="Strategy ID" value={auditDetail.strategyId} />
+            <DetailBlock label="Registered for Backtest" value={auditDetail.registeredForBacktest ? 'yes' : 'no'} />
+            <PathList title="Docs" paths={auditDetail.documentationPaths.length ? auditDetail.documentationPaths : [auditDetail.latestArtifactPaths.docs].filter(Boolean) as string[]} />
+            <PathList title="Artifacts" paths={[
+              auditDetail.latestArtifactPaths.spec,
+              auditDetail.latestArtifactPaths.backtest,
+              auditDetail.latestArtifactPaths.validation,
+              auditDetail.latestArtifactPaths.paper
+            ].filter(Boolean) as string[]} />
+          </div>
+        </Panel>
+        <Panel title="Robust Gate">
+          <div className="grid gap-3 md:grid-cols-2">
+            <DetailBlock label="Status" value={auditDetail.robustAssessment?.status ?? auditDetail.validationStatus ?? 'N/D'} />
+            <DetailBlock label="Policy" value={auditDetail.validationPolicy ? JSON.stringify(auditDetail.validationPolicy) : 'N/D'} />
+            <PathList title="Blockers" paths={auditDetail.robustAssessment?.blockers?.length ? auditDetail.robustAssessment.blockers : auditDetail.missingAuditItems} />
+            <PathList title="Exit Reasons" paths={Object.entries(auditDetail.exitReasonCounts).map(([reason, count]) => `${reason}: ${count}`)} />
+          </div>
+        </Panel>
         <Panel title="Evidence Sources">
           <div className="grid gap-2 text-sm text-white/70 md:grid-cols-2">
             <div>Strategy ID: {auditDetail.strategyId}</div>
@@ -650,6 +734,72 @@ function buildTradeChartData(trades: NormalizedTrade[]): TradeChartPoint[] {
       source: trade.source
     };
   });
+}
+
+function formatArtifactDate(value: number | null | undefined): string {
+  if (!value) return 'N/D';
+  return new Date(value).toLocaleString();
+}
+
+function formatArtifactPercent(value: unknown): string {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? formatPercent(numeric) : 'N/D';
+}
+
+function formatArtifactNumber(value: unknown, digits = 2): string {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(digits) : 'N/D';
+}
+
+function BacktestArtifactSelector({
+  strategyId,
+  artifacts,
+  selectedArtifactId,
+  loading,
+  onSelect
+}: {
+  strategyId: string;
+  artifacts: HyperliquidBacktestArtifactSummary[];
+  selectedArtifactId: string | null;
+  loading: boolean;
+  onSelect: (artifactId: string) => void;
+}) {
+  if (!loading && artifacts.length === 0) {
+    return null;
+  }
+
+  const selected = artifacts.find((artifact) => artifact.artifactId === selectedArtifactId) ?? artifacts[0] ?? null;
+  const summary = selected?.summary ?? {};
+  const returnPct = Number(summary.return_pct ?? 0);
+
+  return (
+    <Panel title="Backtest Artifacts">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div className="min-w-0">
+          <select
+            value={selectedArtifactId ?? ''}
+            disabled={loading || artifacts.length === 0}
+            onChange={(event) => onSelect(event.target.value)}
+            className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-sm font-semibold text-white outline-none transition focus:border-cyan-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {artifacts.map((artifact) => (
+              <option key={artifact.artifactId} value={artifact.artifactId}>
+                {formatArtifactDate(artifact.generatedAt)} | {artifact.summary.total_trades ?? 0} trades | {formatArtifactPercent(artifact.summary.return_pct)} | {artifact.robustAssessment?.status ?? 'robust N/D'}
+              </option>
+            ))}
+          </select>
+          <div className="mt-2 truncate text-xs text-white/40">
+            {selected ? selected.artifactId : loading ? `Loading artifacts for ${strategyId}` : 'No artifacts found'}
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <MiniMetric label="Return" value={formatArtifactPercent(summary.return_pct)} detail={`${summary.total_trades ?? 0} trades`} tone={returnPct >= 0 ? 'text-emerald-300' : 'text-rose-300'} />
+          <MiniMetric label="PF" value={formatArtifactNumber(summary.profit_factor)} detail={selected?.robustAssessment?.status ?? 'N/D'} />
+          <MiniMetric label="Validation" value={selected?.validationStatus ?? 'N/D'} detail={selected?.validationPath ? 'matched report' : 'not matched'} />
+        </div>
+      </div>
+    </Panel>
+  );
 }
 
 function TradesSection({
@@ -923,6 +1073,19 @@ function DetailBlock({ label, value }: { label: string; value: string | null }) 
   );
 }
 
+function PathList({ title, paths }: { title: string; paths: string[] }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-white/[0.03] p-3">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">{title}</div>
+      <div className="mt-2 grid gap-1">
+        {paths.length === 0 ? <div className="text-sm text-white/45">N/D</div> : paths.map((path) => (
+          <div key={path} className="break-all text-xs text-white/60">{path}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FilterMap({ title, items, tone }: { title: string; items: Record<string, string>; tone: string }) {
   const entries = Object.entries(items);
   return (
@@ -960,22 +1123,28 @@ function TinyChartStat({ label, value, tone = 'text-white' }: { label: string; v
 
 function BacktestAction({
   strategyId,
+  canRun = true,
   running,
   message,
   onRun
 }: {
   strategyId: string;
+  canRun?: boolean;
   running: boolean;
   message: string | null;
   onRun: () => void;
 }) {
-  const disabled = running || strategyId.startsWith('runtime:');
+  const disabled = running || strategyId.startsWith('runtime:') || !canRun;
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.06] p-3">
       <div>
         <div className="text-sm font-semibold text-cyan-100">Backend backtest API</div>
         <div className="mt-1 text-xs text-cyan-100/65">
-          {disabled && strategyId.startsWith('runtime:') ? 'Runtime setup: seed paper evidence desde Paper Lab.' : `Strategy ID: ${strategyId}`}
+          {strategyId.startsWith('runtime:')
+            ? 'Runtime setup: seed paper evidence desde Paper Lab.'
+            : canRun
+              ? `Strategy ID: ${strategyId}`
+              : 'Visible for review, but not registered for hf:backtest yet.'}
         </div>
         {message ? <div className="mt-2 text-xs text-white/70">{message}</div> : null}
       </div>

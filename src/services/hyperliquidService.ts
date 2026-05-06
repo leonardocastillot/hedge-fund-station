@@ -1,10 +1,38 @@
 import { invalidateRequestCache, withRequestCache } from './requestCache';
-import { ALPHA_ENGINE_HTTP_URL, HYPERLIQUID_GATEWAY_HTTP_URL } from './backendConfig';
+import { HYPERLIQUID_GATEWAY_HTTP_URL } from './backendConfig';
 
 const API_URL = HYPERLIQUID_GATEWAY_HTTP_URL;
-const BACKTEST_API_URL = ALPHA_ENGINE_HTTP_URL;
+const BACKTEST_API_URL = API_URL;
 const REQUEST_TIMEOUT_MS = 35_000;
 const AGENT_RUN_TIMEOUT_MS = 240_000;
+const AGENT_ENDPOINT_404_HINT = `Research OS is not exposed by the Hyperliquid gateway at ${API_URL}. Restart the local gateway so it loads the current backend, then run npm run gateway:probe.`;
+const STRATEGY_CATALOG_FALLBACK_WARNING = 'The local Hyperliquid gateway is missing the strategy catalog endpoint. Restart it so the Pipeline can use backend-derived gate fields; showing strategy-audit fallback data for now.';
+
+class HyperliquidGatewayHttpError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly status: number,
+    public readonly detail: string
+  ) {
+    super(`Hyperliquid gateway returned HTTP ${status}${detail ? `: ${detail}` : ''}.`);
+    this.name = 'HyperliquidGatewayHttpError';
+  }
+}
+
+function isAgentEndpoint(path: string): boolean {
+  return path.includes('/api/hyperliquid/agent-runs') || path.includes('/api/hyperliquid/agent-runtime/');
+}
+
+function gatewayHttpError(path: string, status: number, detail = ''): Error {
+  if (status === 404 && isAgentEndpoint(path)) {
+    return new Error(`${AGENT_ENDPOINT_404_HINT} Missing endpoint: ${path}`);
+  }
+  return new HyperliquidGatewayHttpError(path, status, detail);
+}
+
+function isHttpStatus(error: unknown, status: number): boolean {
+  return error instanceof HyperliquidGatewayHttpError && error.status === status;
+}
 
 function normalizeRequestError(error: unknown, label: string): Error {
   if (error instanceof DOMException && error.name === 'AbortError') {
@@ -110,6 +138,58 @@ export interface HyperliquidCandlesResponse {
     close: number | null;
     volume: number | null;
   }>;
+}
+
+export interface PineIndicatorGenerateRequest {
+  request: string;
+  symbol: string;
+  interval: string;
+  lookback_hours: number;
+  indicator_type?: string | null;
+}
+
+export interface PineIndicatorPreviewPoint {
+  time: number;
+  value: number;
+}
+
+export interface PineIndicatorPreviewLine {
+  name: string;
+  color: string;
+  points: PineIndicatorPreviewPoint[];
+}
+
+export interface PineIndicatorPreviewMarker {
+  time: number;
+  text: string;
+  position: 'aboveBar' | 'belowBar' | 'inBar';
+  color: string;
+  shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square';
+  price?: number;
+}
+
+export interface PineIndicatorGenerateResponse {
+  symbol: string;
+  interval: string;
+  lookbackHours: number;
+  generatedAt: number;
+  title: string;
+  description: string;
+  pineCode: string;
+  inputs: string[];
+  plots: string[];
+  alerts: string[];
+  warnings: string[];
+  previewRecipe: Record<string, unknown>;
+  ai?: Record<string, unknown>;
+  candles: HyperliquidCandlesResponse;
+  preview: {
+    supported: boolean;
+    reason: string | null;
+    overlays: PineIndicatorPreviewLine[];
+    oscillators: PineIndicatorPreviewLine[];
+    markers: PineIndicatorPreviewMarker[];
+  };
 }
 
 export interface HyperliquidDetailResponse {
@@ -227,15 +307,48 @@ export interface HyperliquidPaperTrade {
   } | null;
 }
 
+export type HyperliquidPipelineStage = 'research' | 'backtesting' | 'audit' | 'paper' | 'blocked';
+export type HyperliquidGateStatus =
+  | 'backtest-required'
+  | 'backtest-running-eligible'
+  | 'audit-eligible'
+  | 'audit-blocked'
+  | 'ready-for-paper'
+  | 'paper-active';
+
+export interface HyperliquidStrategyNextAction {
+  label: string;
+  command: string;
+  enabled: boolean;
+  targetStage: HyperliquidPipelineStage;
+}
+
 export interface HyperliquidStrategyAuditRow {
   strategyKey: string;
   strategyId: string;
   displayName: string;
-  stage: 'research' | 'backtested' | 'validated' | 'validation_blocked' | 'paper_candidate' | 'paper_runtime' | 'runtime_setup' | 'unknown';
+  stage: 'research' | 'registered' | 'backtested' | 'validated' | 'validation_blocked' | 'paper_candidate' | 'paper_runtime' | 'runtime_setup' | 'unknown';
+  pipelineStage: HyperliquidPipelineStage;
+  gateStatus: HyperliquidGateStatus;
+  gateReasons: string[];
+  nextAction: HyperliquidStrategyNextAction;
   sourceTypes: string[];
+  registeredForBacktest: boolean;
+  canBacktest: boolean;
   symbol: string | null;
   setupTag: string | null;
   side: 'long' | 'short' | 'neutral' | 'binary' | 'n/a';
+  validationPolicy: Record<string, number> | null;
+  latestBacktestSummary: (HyperliquidBacktestRunResponse['summary'] & Record<string, unknown>) | null;
+  latestBacktestConfig: Record<string, unknown> | null;
+  robustAssessment: {
+    status?: string;
+    blockers?: string[];
+    checks?: Record<string, boolean>;
+    notes?: string[];
+  } | null;
+  exitReasonCounts: Record<string, number>;
+  documentationPaths: string[];
   latestArtifactPaths: {
     docs: string | null;
     spec: string | null;
@@ -321,6 +434,7 @@ export interface HyperliquidStrategyAuditResponse {
     exists: boolean;
     sizeBytes: number;
     journalMode: string | null;
+    tableCountMode?: 'exact' | 'skipped';
     tables: Record<string, number | null>;
     indexes: Record<string, boolean>;
     recommendation: string;
@@ -328,6 +442,17 @@ export interface HyperliquidStrategyAuditResponse {
   };
   runtimeError: string | null;
   strategies: HyperliquidStrategyAuditRow[];
+}
+
+export type HyperliquidStrategyCatalogRow = Omit<HyperliquidStrategyAuditRow, 'timeline' | 'trades'>;
+
+export interface HyperliquidStrategyCatalogResponse {
+  updatedAt: number;
+  summary: HyperliquidStrategyAuditResponse['summary'];
+  runtimeError: string | null;
+  catalogSource?: 'catalog' | 'strategy-audit-fallback';
+  catalogWarning?: string | null;
+  strategies: HyperliquidStrategyCatalogRow[];
 }
 
 export interface HyperliquidGatewayHealth {
@@ -370,6 +495,34 @@ export interface HyperliquidBacktestRunResponse {
     status: string;
     blocking_reasons: string[];
   } | null;
+}
+
+export interface HyperliquidBacktestArtifactSummary {
+  artifactId: string;
+  reportPath: string;
+  validationPath: string | null;
+  generatedAt: number;
+  summary: Partial<HyperliquidBacktestRunResponse['summary']> & Record<string, unknown>;
+  robustAssessment: {
+    status?: string;
+    blockers?: string[];
+    checks?: Record<string, boolean>;
+    notes?: string[];
+  } | null;
+  validationStatus: string | null;
+}
+
+export interface HyperliquidBacktestArtifactsResponse {
+  strategyId: string;
+  artifacts: HyperliquidBacktestArtifactSummary[];
+}
+
+export interface HyperliquidValidationRunResponse {
+  success: boolean;
+  strategyId: string;
+  reportPath: string;
+  validationPath: string;
+  validation: Record<string, unknown>;
 }
 
 export interface HyperliquidBacktestTrade {
@@ -424,6 +577,15 @@ export interface HyperliquidLatestBacktestResponse {
   } | null;
   validation: Record<string, unknown> | null;
   paper: Record<string, unknown> | null;
+}
+
+export interface HyperliquidPaperCandidateBuildResponse {
+  success: boolean;
+  strategyId: string;
+  reportPath: string;
+  validationPath: string | null;
+  paperPath: string;
+  paper: Record<string, unknown>;
 }
 
 export interface HyperliquidAgentRunSummary {
@@ -567,7 +729,8 @@ async function fetchJson<T>(path: string): Promise<T> {
   try {
     const response = await fetch(`${API_URL}${path}`, { signal: controller.signal });
     if (!response.ok) {
-      throw new Error(`Hyperliquid gateway returned HTTP ${response.status}.`);
+      const detail = await response.text().catch(() => '');
+      throw gatewayHttpError(path, response.status, detail);
     }
     return response.json();
   } catch (error) {
@@ -589,7 +752,7 @@ async function postJson<T>(path: string, payload?: unknown, baseUrl = API_URL, t
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(`Hyperliquid gateway returned HTTP ${response.status}${detail ? `: ${detail}` : ''}.`);
+      throw gatewayHttpError(path, response.status, detail);
     }
     return response.json();
   } catch (error) {
@@ -606,7 +769,7 @@ async function fetchJsonFrom<T>(baseUrl: string, path: string): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, { signal: controller.signal });
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      throw new Error(`Hyperliquid gateway returned HTTP ${response.status}${detail ? `: ${detail}` : ''}.`);
+      throw gatewayHttpError(path, response.status, detail);
     }
     return response.json();
   } catch (error) {
@@ -614,6 +777,332 @@ async function fetchJsonFrom<T>(baseUrl: string, path: string): Promise<T> {
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+const PIPELINE_STAGES: HyperliquidPipelineStage[] = ['research', 'backtesting', 'audit', 'paper', 'blocked'];
+const GATE_STATUSES: HyperliquidGateStatus[] = [
+  'backtest-required',
+  'backtest-running-eligible',
+  'audit-eligible',
+  'audit-blocked',
+  'ready-for-paper',
+  'paper-active'
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isPipelineStage(value: unknown): value is HyperliquidPipelineStage {
+  return typeof value === 'string' && PIPELINE_STAGES.includes(value as HyperliquidPipelineStage);
+}
+
+function isGateStatus(value: unknown): value is HyperliquidGateStatus {
+  return typeof value === 'string' && GATE_STATUSES.includes(value as HyperliquidGateStatus);
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function numberOrDefault(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function booleanOrDefault(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function recordAt(raw: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = raw[key];
+  return isRecord(value) ? value : {};
+}
+
+function displayNameFromStrategyId(strategyId: string): string {
+  return strategyId
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ') || 'Strategy';
+}
+
+function normalizeArtifactPaths(raw: Record<string, unknown>) {
+  const artifacts = recordAt(raw, 'latestArtifactPaths');
+  return {
+    docs: stringOrNull(artifacts.docs),
+    spec: stringOrNull(artifacts.spec),
+    backtest: stringOrNull(artifacts.backtest),
+    validation: stringOrNull(artifacts.validation),
+    paper: stringOrNull(artifacts.paper)
+  };
+}
+
+function normalizeChecklist(raw: Record<string, unknown>) {
+  const checklist = recordAt(raw, 'checklist');
+  return {
+    docsExists: booleanOrDefault(checklist.docsExists),
+    specExists: booleanOrDefault(checklist.specExists),
+    backendModuleExists: booleanOrDefault(checklist.backendModuleExists),
+    backtestExists: booleanOrDefault(checklist.backtestExists),
+    validationExists: booleanOrDefault(checklist.validationExists),
+    paperCandidateExists: booleanOrDefault(checklist.paperCandidateExists),
+    paperLedgerExists: booleanOrDefault(checklist.paperLedgerExists),
+    reviewsComplete: booleanOrDefault(checklist.reviewsComplete)
+  };
+}
+
+function normalizeEvidenceCounts(raw: Record<string, unknown>) {
+  const counts = recordAt(raw, 'evidenceCounts');
+  return {
+    backtestTrades: numberOrDefault(counts.backtestTrades),
+    paperCandidates: numberOrDefault(counts.paperCandidates),
+    paperSignals: numberOrDefault(counts.paperSignals),
+    paperTrades: numberOrDefault(counts.paperTrades),
+    polymarketTrades: numberOrDefault(counts.polymarketTrades),
+    runtimeSetups: numberOrDefault(counts.runtimeSetups)
+  };
+}
+
+function robustStatus(raw: Record<string, unknown>): string | null {
+  const robust = recordAt(raw, 'robustAssessment');
+  return stringOrNull(robust.status)?.toLowerCase() ?? null;
+}
+
+function deriveFallbackPipelineStage(raw: Record<string, unknown>): HyperliquidPipelineStage {
+  if (isPipelineStage(raw.pipelineStage)) {
+    return raw.pipelineStage;
+  }
+
+  const legacyStage = stringOrNull(raw.stage);
+  const validationStatus = stringOrNull(raw.validationStatus)?.toLowerCase() ?? null;
+  const status = robustStatus(raw);
+  const artifacts = normalizeArtifactPaths(raw);
+  const checklist = normalizeChecklist(raw);
+  const counts = normalizeEvidenceCounts(raw);
+
+  if (
+    artifacts.paper ||
+    checklist.paperCandidateExists ||
+    checklist.paperLedgerExists ||
+    validationStatus === 'ready-for-paper' ||
+    legacyStage === 'paper_candidate' ||
+    legacyStage === 'paper_runtime' ||
+    counts.paperCandidates > 0 ||
+    counts.paperSignals > 0 ||
+    counts.paperTrades > 0
+  ) {
+    return 'paper';
+  }
+
+  if (
+    validationStatus === 'blocked' ||
+    validationStatus === 'validation_blocked' ||
+    validationStatus === 'failed' ||
+    legacyStage === 'validation_blocked' ||
+    status === 'fails' ||
+    status === 'failed' ||
+    status === 'blocked'
+  ) {
+    return 'blocked';
+  }
+
+  if (status === 'passes' || status === 'pass') {
+    return 'audit';
+  }
+
+  if (artifacts.backtest || checklist.backtestExists) {
+    return 'blocked';
+  }
+
+  if (booleanOrDefault(raw.registeredForBacktest) || booleanOrDefault(raw.canBacktest) || legacyStage === 'registered') {
+    return 'backtesting';
+  }
+
+  return 'research';
+}
+
+function deriveFallbackGateStatus(raw: Record<string, unknown>, pipelineStage: HyperliquidPipelineStage): HyperliquidGateStatus {
+  if (isGateStatus(raw.gateStatus)) {
+    return raw.gateStatus;
+  }
+
+  const legacyStage = stringOrNull(raw.stage);
+  const validationStatus = stringOrNull(raw.validationStatus)?.toLowerCase() ?? null;
+  const counts = normalizeEvidenceCounts(raw);
+
+  if (pipelineStage === 'paper') {
+    return legacyStage === 'paper_runtime' || counts.paperTrades > 0 || counts.paperSignals > 0
+      ? 'paper-active'
+      : 'ready-for-paper';
+  }
+  if (pipelineStage === 'audit') return 'audit-eligible';
+  if (pipelineStage === 'blocked') return 'audit-blocked';
+  if (pipelineStage === 'backtesting') return 'backtest-running-eligible';
+  if (validationStatus === 'ready-for-paper') return 'ready-for-paper';
+  return 'backtest-required';
+}
+
+function deriveFallbackGateReasons(raw: Record<string, unknown>, pipelineStage: HyperliquidPipelineStage): string[] {
+  const existing = stringArray(raw.gateReasons);
+  if (existing.length > 0) return existing;
+
+  const robust = recordAt(raw, 'robustAssessment');
+  const artifacts = normalizeArtifactPaths(raw);
+  const checklist = normalizeChecklist(raw);
+  const validationStatus = stringOrNull(raw.validationStatus);
+  const reasons = [
+    ...stringArray(robust.blockers),
+    ...stringArray(raw.missingAuditItems)
+  ];
+
+  if (pipelineStage === 'blocked' && (artifacts.backtest || checklist.backtestExists) && !stringOrNull(robust.status)) {
+    reasons.push('Latest backtest is missing a robust assessment after costs.');
+  }
+  if (pipelineStage === 'blocked' && validationStatus && validationStatus !== 'ready-for-paper') {
+    reasons.push(`Validation status is ${validationStatus}.`);
+  }
+  if (pipelineStage === 'backtesting') {
+    reasons.push('Backtest required before audit.');
+  }
+  if (pipelineStage === 'research') {
+    reasons.push('Backend strategy package or registered backtest evidence is required before audit.');
+  }
+  if (pipelineStage === 'blocked' && reasons.length === 0) {
+    reasons.push('Pipeline gate fields were missing from the gateway response.');
+  }
+
+  return uniqueStrings(reasons);
+}
+
+function normalizeNextAction(raw: Record<string, unknown>, strategyId: string, gateStatus: HyperliquidGateStatus, targetStage: HyperliquidPipelineStage): HyperliquidStrategyNextAction {
+  const action = recordAt(raw, 'nextAction');
+  const label = stringOrNull(action.label);
+  const command = stringOrNull(action.command);
+  const actionTargetStage = isPipelineStage(action.targetStage) ? action.targetStage : targetStage;
+  if (label && command && typeof action.enabled === 'boolean') {
+    return {
+      label,
+      command,
+      enabled: action.enabled,
+      targetStage: actionTargetStage
+    };
+  }
+
+  if (gateStatus === 'backtest-running-eligible') {
+    return {
+      label: 'Run Backtest',
+      command: `npm run hf:backtest -- --strategy ${strategyId}`,
+      enabled: true,
+      targetStage: 'audit'
+    };
+  }
+  if (gateStatus === 'audit-eligible') {
+    return {
+      label: 'Run Audit',
+      command: `npm run hf:agent:audit -- --strategy ${strategyId}`,
+      enabled: true,
+      targetStage: 'audit'
+    };
+  }
+  if (gateStatus === 'ready-for-paper') {
+    return {
+      label: 'Create Paper Candidate',
+      command: `npm run hf:paper -- --strategy ${strategyId}`,
+      enabled: true,
+      targetStage: 'paper'
+    };
+  }
+  if (gateStatus === 'paper-active') {
+    return {
+      label: 'Review Paper Lab',
+      command: `npm run hf:paper -- --strategy ${strategyId}`,
+      enabled: true,
+      targetStage: 'paper'
+    };
+  }
+  if (gateStatus === 'audit-blocked') {
+    return {
+      label: 'Retry Backtest',
+      command: `npm run hf:backtest -- --strategy ${strategyId}`,
+      enabled: booleanOrDefault(raw.canBacktest) || booleanOrDefault(raw.registeredForBacktest),
+      targetStage: 'backtesting'
+    };
+  }
+  return {
+    label: 'Create Strategy Spec',
+    command: `npm run hf:strategy:new -- --strategy-id ${strategyId}`,
+    enabled: false,
+    targetStage: 'backtesting'
+  };
+}
+
+function normalizeCatalogRowForPipeline(row: HyperliquidStrategyAuditRow | HyperliquidStrategyCatalogRow): HyperliquidStrategyCatalogRow {
+  const raw = row as unknown as Record<string, unknown>;
+  const strategyId = stringOrNull(raw.strategyId) ?? stringOrNull(raw.strategyKey) ?? 'unknown_strategy';
+  const pipelineStage = deriveFallbackPipelineStage(raw);
+  const gateStatus = deriveFallbackGateStatus(raw, pipelineStage);
+  const latestArtifactPaths = normalizeArtifactPaths(raw);
+  const checklist = normalizeChecklist(raw);
+  const evidenceCounts = normalizeEvidenceCounts(raw);
+  const gateReasons = deriveFallbackGateReasons(raw, pipelineStage);
+
+  return {
+    ...(row as HyperliquidStrategyCatalogRow),
+    strategyKey: stringOrNull(raw.strategyKey) ?? strategyId,
+    strategyId,
+    displayName: stringOrNull(raw.displayName) ?? displayNameFromStrategyId(strategyId),
+    stage: (stringOrNull(raw.stage) as HyperliquidStrategyAuditRow['stage'] | null) ?? 'unknown',
+    pipelineStage,
+    gateStatus,
+    gateReasons,
+    nextAction: normalizeNextAction(raw, strategyId, gateStatus, pipelineStage),
+    sourceTypes: stringArray(raw.sourceTypes),
+    registeredForBacktest: booleanOrDefault(raw.registeredForBacktest),
+    canBacktest: booleanOrDefault(raw.canBacktest),
+    symbol: stringOrNull(raw.symbol),
+    setupTag: stringOrNull(raw.setupTag),
+    side: (stringOrNull(raw.side) as HyperliquidStrategyCatalogRow['side'] | null) ?? 'n/a',
+    validationPolicy: isRecord(raw.validationPolicy) ? raw.validationPolicy as Record<string, number> : null,
+    latestBacktestSummary: isRecord(raw.latestBacktestSummary)
+      ? raw.latestBacktestSummary as HyperliquidStrategyCatalogRow['latestBacktestSummary']
+      : null,
+    latestBacktestConfig: isRecord(raw.latestBacktestConfig) ? raw.latestBacktestConfig : null,
+    robustAssessment: isRecord(raw.robustAssessment)
+      ? raw.robustAssessment as HyperliquidStrategyCatalogRow['robustAssessment']
+      : null,
+    exitReasonCounts: isRecord(raw.exitReasonCounts) ? raw.exitReasonCounts as Record<string, number> : {},
+    documentationPaths: stringArray(raw.documentationPaths),
+    latestArtifactPaths,
+    validationStatus: stringOrNull(raw.validationStatus),
+    evidenceCounts,
+    tradeCount: numberOrDefault(raw.tradeCount),
+    openTrades: numberOrDefault(raw.openTrades),
+    closedTrades: numberOrDefault(raw.closedTrades),
+    reviewableClosedTrades: numberOrDefault(raw.reviewableClosedTrades),
+    reviewedTrades: numberOrDefault(raw.reviewedTrades),
+    wins: numberOrDefault(raw.wins),
+    notionalUsd: numberOrDefault(raw.notionalUsd),
+    realizedPnlUsd: numberOrDefault(raw.realizedPnlUsd),
+    unrealizedPnlUsd: numberOrDefault(raw.unrealizedPnlUsd),
+    totalPnlUsd: numberOrDefault(raw.totalPnlUsd),
+    avgExecutionQuality: typeof raw.avgExecutionQuality === 'number' ? raw.avgExecutionQuality : null,
+    decisionLabels: isRecord(raw.decisionLabels) ? raw.decisionLabels as Record<string, number> : {},
+    openRiskUsd: numberOrDefault(raw.openRiskUsd),
+    winRate: numberOrDefault(raw.winRate),
+    reviewCoverage: numberOrDefault(raw.reviewCoverage),
+    lastActivityAt: typeof raw.lastActivityAt === 'number' ? raw.lastActivityAt : null,
+    lastActivityLabel: stringOrNull(raw.lastActivityLabel),
+    checklist,
+    missingAuditItems: stringArray(raw.missingAuditItems)
+  };
 }
 
 class HyperliquidService {
@@ -635,6 +1124,10 @@ class HyperliquidService {
         `/api/hyperliquid/detail/${encodeURIComponent(symbol)}?interval=${encodeURIComponent(interval)}&lookback_hours=${lookbackHours}`
       );
     });
+  }
+
+  async generatePineIndicator(payload: PineIndicatorGenerateRequest): Promise<PineIndicatorGenerateResponse> {
+    return postJson<PineIndicatorGenerateResponse>('/api/hyperliquid/pine/indicators/generate', payload, API_URL, AGENT_RUN_TIMEOUT_MS);
   }
 
   async getHistory(symbol: string, limit = 60): Promise<HyperliquidHistoryResponse> {
@@ -693,6 +1186,34 @@ class HyperliquidService {
     });
   }
 
+  async getStrategyCatalog(limit = 500): Promise<HyperliquidStrategyCatalogResponse> {
+    return withRequestCache(`hyperliquid:strategy-catalog:${limit}`, 5_000, async () => {
+      try {
+        const response = await fetchJson<HyperliquidStrategyCatalogResponse>(`/api/hyperliquid/strategies/catalog?limit=${limit}`);
+        return {
+          ...response,
+          catalogSource: response.catalogSource ?? 'catalog',
+          catalogWarning: response.catalogWarning ?? null,
+          strategies: response.strategies.map(normalizeCatalogRowForPipeline)
+        };
+      } catch (error) {
+        if (!isHttpStatus(error, 404)) {
+          throw error;
+        }
+        const auditLimit = Math.min(Math.max(limit, 20), 500);
+        const fallback = await fetchJson<HyperliquidStrategyAuditResponse>(`/api/hyperliquid/strategy-audit?limit=${auditLimit}`);
+        return {
+          updatedAt: fallback.updatedAt,
+          summary: fallback.summary,
+          runtimeError: fallback.runtimeError,
+          catalogSource: 'strategy-audit-fallback',
+          catalogWarning: STRATEGY_CATALOG_FALLBACK_WARNING,
+          strategies: fallback.strategies.map(normalizeCatalogRowForPipeline)
+        };
+      }
+    });
+  }
+
   async runBacktest(strategyId: string, buildPaperCandidate = false): Promise<HyperliquidBacktestRunResponse> {
     const response = await postJson<HyperliquidBacktestRunResponse>('/api/hyperliquid/backtests/run', {
       strategy_id: strategyId,
@@ -701,7 +1222,41 @@ class HyperliquidService {
       build_paper_candidate: buildPaperCandidate
     }, BACKTEST_API_URL);
     invalidateRequestCache('hyperliquid:strategy-audit:');
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
     invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
+    return response;
+  }
+
+  async buildPaperCandidate(strategyId: string): Promise<HyperliquidPaperCandidateBuildResponse> {
+    const response = await postJson<HyperliquidPaperCandidateBuildResponse>('/api/hyperliquid/paper/candidates/build', {
+      strategy_id: strategyId
+    }, BACKTEST_API_URL);
+    invalidateRequestCache('hyperliquid:strategy-audit:');
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
+    return response;
+  }
+
+  async runValidation(strategyId: string, reportPath?: string): Promise<HyperliquidValidationRunResponse> {
+    const params = new URLSearchParams();
+    if (reportPath) {
+      params.set('report_path', reportPath);
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await postJson<HyperliquidValidationRunResponse>(
+      `/api/hyperliquid/validations/${encodeURIComponent(strategyId)}/run${suffix}`,
+      undefined,
+      BACKTEST_API_URL
+    );
+    invalidateRequestCache('hyperliquid:strategy-audit:');
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
     return response;
   }
 
@@ -710,6 +1265,24 @@ class HyperliquidService {
       return fetchJsonFrom<HyperliquidLatestBacktestResponse>(
         BACKTEST_API_URL,
         `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/latest`
+      );
+    });
+  }
+
+  async getBacktestArtifacts(strategyId: string, limit = 20): Promise<HyperliquidBacktestArtifactsResponse> {
+    return withRequestCache(`hyperliquid:backtest-artifacts:${strategyId}:${limit}`, 10_000, async () => {
+      return fetchJsonFrom<HyperliquidBacktestArtifactsResponse>(
+        BACKTEST_API_URL,
+        `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/artifacts?limit=${limit}`
+      );
+    });
+  }
+
+  async getBacktestArtifact(strategyId: string, artifactId: string): Promise<HyperliquidLatestBacktestResponse> {
+    return withRequestCache(`hyperliquid:backtest-artifact:${strategyId}:${artifactId}`, 10_000, async () => {
+      return fetchJsonFrom<HyperliquidLatestBacktestResponse>(
+        BACKTEST_API_URL,
+        `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/artifacts/${encodeURIComponent(artifactId)}`
       );
     });
   }
@@ -762,12 +1335,15 @@ class HyperliquidService {
 
   async ensureBacktest(strategyId: string): Promise<HyperliquidLatestBacktestResponse> {
     const response = await postJson<HyperliquidLatestBacktestResponse>(
-      `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/ensure?run_validation=true&build_paper_candidate=true`,
+      `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/ensure?run_validation=true&build_paper_candidate=false`,
       undefined,
       BACKTEST_API_URL
     );
     invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
     invalidateRequestCache('hyperliquid:strategy-audit:');
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
+    invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
     return response;
   }
 
@@ -778,6 +1354,10 @@ class HyperliquidService {
       BACKTEST_API_URL
     );
     invalidateRequestCache('hyperliquid:strategy-audit:');
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    invalidateRequestCache('hyperliquid:latest-backtest:');
+    invalidateRequestCache('hyperliquid:backtest-artifacts:');
+    invalidateRequestCache('hyperliquid:backtest-artifact:');
     return response;
   }
 
@@ -886,4 +1466,5 @@ function invalidatePaperCaches() {
   invalidateRequestCache('hyperliquid:paper-trades:');
   invalidateRequestCache('hyperliquid:paper-signals:');
   invalidateRequestCache('hyperliquid:strategy-audit:');
+  invalidateRequestCache('hyperliquid:strategy-catalog:');
 }

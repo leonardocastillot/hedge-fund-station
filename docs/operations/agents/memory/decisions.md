@@ -12,6 +12,17 @@ needs status, date, decision, and reason.
 - Reason: agents need one obvious folder for orientation, mission contracts,
   memory, and continuity.
 
+## File-Based Agent Harness
+
+- Status: accepted
+- Date: 2026-05-05
+- Decision: repo-level agent coordination uses `agent_tasks.json`,
+  `progress/`, `CHECKPOINTS.md`, `scripts/agent_harness.py`, and
+  `docs/operations/agents/file-harness.md`.
+- Reason: Codex, Claude, Gemini, external agents, and in-app agents need one
+  vendor-neutral file contract for task ownership, progress, review, and
+  handoff.
+
 ## Backend-First Agent Evidence
 
 - Status: accepted

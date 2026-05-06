@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { AgentProvider } from '../types/agents';
+import type { MissionConsoleEvidenceRef, MissionConsoleMissionKind } from '../types/missionConsole';
 
 export type TerminalColor = 'red' | 'green' | 'blue' | 'yellow' | 'purple' | 'cyan' | 'orange' | 'pink';
 export type TerminalRuntimeState =
@@ -21,11 +22,16 @@ export interface TerminalSession {
   label: string;
   cwd: string;
   shell?: string;
+  workspaceId?: string;
   color: TerminalColor;
   rainbowEffect?: boolean;
   createdAt: number;
   autoCommand?: string;
   missionPrompt?: string;
+  missionTitle?: string;
+  missionKind?: MissionConsoleMissionKind | string;
+  handoffSummary?: string;
+  evidenceRefs?: MissionConsoleEvidenceRef[];
   currentCommand?: string;
   agentId?: string;
   agentName?: string;
@@ -52,6 +58,7 @@ interface TerminalContextValue {
     label?: string,
     autoCommand?: string,
     metadata?: Pick<TerminalSession, 'agentId' | 'agentName' | 'terminalPurpose' | 'missionPrompt'>
+      & Pick<TerminalSession, 'workspaceId' | 'missionTitle' | 'missionKind' | 'handoffSummary' | 'evidenceRefs'>
       & Pick<TerminalSession, 'runtimeProvider' | 'runId'>
   ) => string;
   closeTerminal: (id: string) => void;
@@ -185,6 +192,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     label?: string,
     autoCommand?: string,
     metadata?: Pick<TerminalSession, 'agentId' | 'agentName' | 'terminalPurpose' | 'missionPrompt'>
+      & Pick<TerminalSession, 'workspaceId' | 'missionTitle' | 'missionKind' | 'handoffSummary' | 'evidenceRefs'>
       & Pick<TerminalSession, 'runtimeProvider' | 'runId'>
   ): string => {
     const id = `terminal-${uuidv4()}`;
@@ -196,10 +204,15 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       label: label || `Terminal ${terminals.length + 1}`,
       cwd,
       shell,
+      workspaceId: metadata?.workspaceId,
       color: nextColor,
       createdAt: Date.now(),
       autoCommand,
       missionPrompt: metadata?.missionPrompt,
+      missionTitle: metadata?.missionTitle,
+      missionKind: metadata?.missionKind,
+      handoffSummary: metadata?.handoffSummary,
+      evidenceRefs: metadata?.evidenceRefs,
       currentCommand: autoCommand || undefined,
       agentId: metadata?.agentId,
       agentName: metadata?.agentName,

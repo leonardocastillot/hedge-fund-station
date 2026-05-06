@@ -71,12 +71,103 @@ export interface TerminalSnapshot {
   exitCode?: number;
 }
 
+export type MissionConsoleProvider = 'codex' | 'claude' | 'gemini';
+export type MissionConsoleRunStatus =
+  | 'shell'
+  | 'launching'
+  | 'handoff'
+  | 'ready'
+  | 'waiting-response'
+  | 'awaiting-approval'
+  | 'running'
+  | 'stalled'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface MissionConsoleEvidenceRef {
+  id: string;
+  kind: string;
+  label: string;
+  path?: string;
+  summary?: string;
+  createdAt?: number;
+}
+
+export interface MissionConsoleTemplate {
+  id: string;
+  name: string;
+  missionKind: string;
+  provider?: MissionConsoleProvider;
+  goalPlaceholder: string;
+  promptTemplate: string;
+  outputContract: string;
+  recommendedCommands: string[];
+}
+
+export interface MissionConsoleRun {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspacePath: string;
+  title: string;
+  goal: string;
+  provider: MissionConsoleProvider;
+  missionKind: string;
+  prompt: string;
+  status: MissionConsoleRunStatus;
+  terminalId?: string;
+  commands: string[];
+  outputExcerpt?: string;
+  outputCapturedAt?: number;
+  handoffSummary?: string;
+  handoffPath?: string;
+  evidenceRefs: MissionConsoleEvidenceRef[];
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
+export interface MissionConsoleListRunsParams {
+  workspaceId?: string;
+}
+
+export interface MissionConsoleSaveRunParams {
+  run: MissionConsoleRun;
+}
+
+export interface MissionConsoleAppendSnapshotParams {
+  runId: string;
+  terminalId?: string;
+  status?: MissionConsoleRunStatus;
+  outputExcerpt?: string;
+  handoffSummary?: string;
+  evidenceRefs?: MissionConsoleEvidenceRef[];
+}
+
+export interface MissionConsoleExportHandoffParams {
+  runId: string;
+  workspacePath?: string;
+  summary?: string;
+  outputExcerpt?: string;
+}
+
+export interface MissionConsoleExportHandoffResult {
+  success: boolean;
+  path: string;
+  run: MissionConsoleRun;
+}
+
 export interface WorkspaceSetActiveParams {
   id: string;
 }
 
 export interface WorkspaceCreateParams {
   workspace: Workspace;
+}
+
+export interface WorkspaceInferParams {
+  workspacePath: string;
 }
 
 export interface WorkspaceUpdateParams {
@@ -117,6 +208,7 @@ export interface VoiceTranscriptionParams {
 export interface VoiceTranscriptionResult {
   text: string;
   model: string;
+  responseText?: string;
 }
 
 export interface GeminiLiveStatus {
@@ -168,6 +260,11 @@ export interface ObsidianGetStatusParams {
   vaultPath?: string;
 }
 
+export interface ObsidianEnsureVaultParams {
+  workspacePath: string;
+  vaultPath?: string;
+}
+
 export interface ObsidianListNotesParams {
   workspacePath: string;
   vaultPath?: string;
@@ -188,6 +285,10 @@ export interface ObsidianExportMissionParams {
 
 export interface ObsidianOpenPathParams {
   path: string;
+}
+
+export interface ObsidianOpenVaultParams {
+  vaultPath: string;
 }
 
 export interface ObsidianSearchRelevantParams {
@@ -242,6 +343,27 @@ export interface DiagnosticsMissionDrillResult {
   shell: DiagnosticsShellSmokeTestResult;
   notePath?: string;
   errors: string[];
+}
+
+export interface DevServiceStatus {
+  ok: boolean;
+  url: string;
+  statusCode?: number;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface DevStatus {
+  isDevelopment: boolean;
+  rendererLive: boolean;
+  nativeRestartRequired: boolean;
+  nativeChangedPaths: string[];
+  checkedAt: string;
+  services: {
+    vite: DevServiceStatus;
+    gateway: DevServiceStatus;
+    backend: DevServiceStatus;
+  };
 }
 
 export interface AgentLoopMemoryNote {

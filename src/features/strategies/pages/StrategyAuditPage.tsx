@@ -7,7 +7,7 @@ import {
   type HyperliquidStrategyAuditRow
 } from '@/services/hyperliquidService';
 
-type StageFilter = 'all' | HyperliquidStrategyAuditRow['stage'];
+type StageFilter = 'all' | HyperliquidStrategyAuditRow['pipelineStage'];
 
 const EMPTY_SUMMARY: HyperliquidStrategyAuditResponse['summary'] = {
   strategyCount: 0,
@@ -49,23 +49,22 @@ function pnlTone(value: number): string {
   return 'text-white';
 }
 
-function stageTone(stage: HyperliquidStrategyAuditRow['stage']): string {
-  if (stage === 'paper_runtime') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100';
-  if (stage === 'runtime_setup') return 'border-cyan-400/30 bg-cyan-500/10 text-cyan-100';
-  if (stage === 'paper_candidate' || stage === 'validated') return 'border-blue-400/30 bg-blue-500/10 text-blue-100';
-  if (stage === 'validation_blocked') return 'border-amber-400/30 bg-amber-500/10 text-amber-100';
-  if (stage === 'backtested') return 'border-violet-400/30 bg-violet-500/10 text-violet-100';
+function stageTone(stage: HyperliquidStrategyAuditRow['pipelineStage']): string {
+  if (stage === 'paper') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100';
+  if (stage === 'audit') return 'border-cyan-400/30 bg-cyan-500/10 text-cyan-100';
+  if (stage === 'backtesting') return 'border-blue-400/30 bg-blue-500/10 text-blue-100';
+  if (stage === 'blocked') return 'border-amber-400/30 bg-amber-500/10 text-amber-100';
   return 'border-white/10 bg-white/[0.04] text-white/65';
 }
 
-function stageLabel(stage: HyperliquidStrategyAuditRow['stage']): string {
+function stageLabel(stage: HyperliquidStrategyAuditRow['pipelineStage']): string {
   return stage.replace(/_/g, ' ');
 }
 
 export default function StrategyAuditPage() {
   const [audit, setAudit] = useState<HyperliquidStrategyAuditResponse | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [filter, setFilter] = useState<StageFilter>('all');
+  const [filter, setFilter] = useState<StageFilter>('audit');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +86,7 @@ export default function StrategyAuditPage() {
       setError(null);
       const response = await hyperliquidService.getStrategyAudit(500);
       setAudit(response);
-      setSelectedKey((current) => current ?? response.strategies[0]?.strategyKey ?? null);
+      setSelectedKey((current) => current ?? response.strategies.find((strategy) => strategy.pipelineStage === 'audit')?.strategyKey ?? response.strategies[0]?.strategyKey ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar la auditoria de estrategias.');
     } finally {
@@ -102,7 +101,7 @@ export default function StrategyAuditPage() {
 
   const filteredStrategies = useMemo(() => {
     if (filter === 'all') return strategies;
-    return strategies.filter((strategy) => strategy.stage === filter);
+    return strategies.filter((strategy) => strategy.pipelineStage === filter);
   }, [filter, strategies]);
 
   const selectedStrategy = useMemo(() => {
@@ -147,7 +146,7 @@ export default function StrategyAuditPage() {
   };
 
   const filters = useMemo(() => {
-    const stages = Array.from(new Set(strategies.map((strategy) => strategy.stage)));
+    const stages = Array.from(new Set(strategies.map((strategy) => strategy.pipelineStage)));
     return ['all', ...stages] as StageFilter[];
   }, [strategies]);
 
@@ -164,10 +163,10 @@ export default function StrategyAuditPage() {
       <section className="border-b border-white/10 pb-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/80">Strategy Audit</div>
-            <h1 className="mt-1 text-2xl font-semibold text-white">Todas las estrategias, trades y evidencia en un solo control.</h1>
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/80">Strategy Audit Focus</div>
+            <h1 className="mt-1 text-2xl font-semibold text-white">Auditoria solo para estrategias que pasaron backtesting robusto.</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-300">
-              Une paquetes backend, docs, backtests, validaciones, paper candidates, paper ledger, Polymarket y setups runtime del gateway.
+              Esta vista parte filtrada en Audit. Para ver todo el embudo usa Strategy Pipeline; aca se revisan blockers, gaps y comandos despues del robust gate.
             </p>
           </div>
 
@@ -221,13 +220,14 @@ export default function StrategyAuditPage() {
         {selectedStrategy ? (
           <div className="grid gap-4">
             <StrategyEvidencePanel strategy={selectedStrategy} database={audit?.database ?? null} />
-            <AgenticResearchPanel
-              latest={latestAgentRun}
-              loading={agentRunLoading}
-              message={agentRunMessage}
-              onRunResearch={() => void runResearchOs('research')}
-              onRunAudit={() => void runResearchOs('audit')}
-            />
+              <AgenticResearchPanel
+                latest={latestAgentRun}
+                loading={agentRunLoading}
+                message={agentRunMessage}
+                canRunAudit={selectedStrategy.gateStatus === 'audit-eligible'}
+                onRunResearch={() => void runResearchOs('research')}
+                onRunAudit={() => void runResearchOs('audit')}
+              />
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-white/55">
@@ -270,8 +270,8 @@ function StrategyList({
                     {strategy.symbol ?? strategy.strategyId} | {strategy.sourceTypes.join(', ') || 'no source'}
                   </div>
                 </div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${stageTone(strategy.stage)}`}>
-                  {stageLabel(strategy.stage)}
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${stageTone(strategy.pipelineStage)}`}>
+                  {stageLabel(strategy.pipelineStage)}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-xs text-white/55">
@@ -279,7 +279,9 @@ function StrategyList({
                 <span>{strategy.evidenceCounts.backtestTrades} BT</span>
                 <span>{strategy.evidenceCounts.paperTrades} paper</span>
               </div>
-              {strategy.missingAuditItems.length > 0 ? (
+              {strategy.gateReasons.length > 0 ? (
+                <div className="truncate text-xs text-amber-200/75">Gate: {strategy.gateReasons.slice(0, 3).join(', ')}</div>
+              ) : strategy.missingAuditItems.length > 0 ? (
                 <div className="truncate text-xs text-amber-200/75">Missing: {strategy.missingAuditItems.slice(0, 3).join(', ')}</div>
               ) : (
                 <div className="text-xs text-emerald-200/75">Audit checklist clean</div>
@@ -307,7 +309,7 @@ function StrategyEvidencePanel({
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/40">Selected Strategy</div>
             <h2 className="mt-1 text-xl font-semibold text-white">{strategy.displayName}</h2>
             <div className="mt-1 text-sm text-white/55">
-              {strategy.strategyId} | last: {formatTime(strategy.lastActivityAt)} {strategy.lastActivityLabel ? `| ${strategy.lastActivityLabel}` : ''}
+              {strategy.strategyId} | {strategy.pipelineStage} | {strategy.gateStatus} | last: {formatTime(strategy.lastActivityAt)} {strategy.lastActivityLabel ? `| ${strategy.lastActivityLabel}` : ''}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 text-right md:grid-cols-4">
@@ -354,12 +356,14 @@ function AgenticResearchPanel({
   latest,
   loading,
   message,
+  canRunAudit,
   onRunResearch,
   onRunAudit
 }: {
   latest: HyperliquidLatestAgentRunResponse | null;
   loading: boolean;
   message: string | null;
+  canRunAudit: boolean;
   onRunResearch: () => void;
   onRunAudit: () => void;
 }) {
@@ -388,10 +392,10 @@ function AgenticResearchPanel({
           <button
             type="button"
             onClick={onRunAudit}
-            disabled={loading}
+            disabled={loading || !canRunAudit}
             className="rounded-md border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-white/80 transition hover:bg-white/[0.09] disabled:opacity-55"
           >
-            Audit
+            {canRunAudit ? 'Audit' : 'Audit Locked'}
           </button>
         </div>
       </div>
