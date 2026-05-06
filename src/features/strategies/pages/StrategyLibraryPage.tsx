@@ -33,6 +33,14 @@ const PIPELINE_COLUMNS: StrategyPipelineColumn[] = [
   { stage: 'blocked', title: 'Blocked', detail: 'Failed gates and missing evidence stay visible.', icon: AlertTriangle }
 ];
 
+const summaryGridStyle = {
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))'
+};
+
+const pipelineGridStyle = {
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 236px), 1fr))'
+};
+
 function detailPath(strategy: HyperliquidStrategyCatalogRow): string {
   return `/strategy/${encodeURIComponent(strategy.strategyId)}/${encodeURIComponent(strategy.pipelineStage)}`;
 }
@@ -193,21 +201,21 @@ export default function StrategyLibraryPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1480px] flex-col gap-4 px-4 py-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-[1480px] flex-col gap-4 px-4 py-5 sm:px-5">
       <section className="border-b border-white/10 pb-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1 basis-[min(100%,44rem)]">
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300/80">Strategy Pipeline</div>
-            <h1 className="mt-1 text-2xl font-semibold text-white">Research to Backtesting to Audit to Paper</h1>
+            <h1 className="mt-1 text-xl font-semibold leading-tight text-white sm:text-2xl">Research to Backtesting to Audit to Paper</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               Backend evidence is the source of truth. Audit only opens after a robust backtest passes costs; blocked strategies keep their exact gate reasons.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             <Link
               to="/strategy-audit"
-              className="inline-flex items-center gap-2 rounded-md border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-500/25"
+              className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-500/25 sm:flex-none"
             >
               <ShieldCheck className="h-4 w-4" />
               Audit Focus
@@ -215,7 +223,7 @@ export default function StrategyLibraryPage() {
             <button
               type="button"
               onClick={() => void loadStrategies(false)}
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.09]"
+              className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.09] sm:flex-none"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Refreshing' : 'Refresh'}
@@ -228,14 +236,14 @@ export default function StrategyLibraryPage() {
         {error ? <div className="mt-4 rounded-md border border-rose-500/25 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</div> : null}
       </section>
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid min-w-0 gap-3" style={summaryGridStyle}>
         <SummaryMetric label="Backend Strategies" value={String(summary.backendOnly)} detail="catalog evidence only" />
         <SummaryMetric label="Audit Eligible" value={String(summary.auditEligible)} detail="robust backtest passed" tone="text-cyan-200" />
         <SummaryMetric label="Paper Gate" value={String(summary.readyForPaper)} detail="ready or active" tone="text-emerald-200" />
         <SummaryMetric label="Blocked" value={String(summary.blocked)} detail="needs repair before audit" tone={summary.blocked > 0 ? 'text-amber-200' : 'text-emerald-200'} />
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-5">
+      <section className="grid min-w-0 items-start gap-3" style={pipelineGridStyle}>
         {PIPELINE_COLUMNS.map((column) => (
           <PipelineColumn
             key={column.stage}
@@ -266,8 +274,8 @@ function PipelineColumn({
 }) {
   const Icon = column.icon;
   return (
-    <div className="min-h-[520px] rounded-md border border-white/10 bg-black/25">
-      <div className="border-b border-white/10 p-3">
+    <div className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-md border border-white/10 bg-black/25">
+      <div className="shrink-0 border-b border-white/10 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Icon className="h-4 w-4 shrink-0 text-cyan-200" />
@@ -277,12 +285,12 @@ function PipelineColumn({
             {strategies.length}
           </span>
         </div>
-        <div className="mt-2 text-xs leading-5 text-white/50">{column.detail}</div>
+        <div className="mt-2 text-xs leading-5 text-white/55">{column.detail}</div>
       </div>
 
-      <div className="grid max-h-[720px] gap-2 overflow-y-auto p-2">
+      <div className="grid content-start gap-2 overflow-y-auto p-2 [max-height:min(68vh,720px)]">
         {strategies.length === 0 ? (
-          <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm text-white/45">
+          <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/45">
             No strategies in this gate.
           </div>
         ) : strategies.map((strategy) => (
@@ -316,7 +324,7 @@ function StrategyPipelineCard({
   const summary = strategy.latestBacktestSummary;
 
   return (
-    <article className="rounded-md border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-400/25 hover:bg-white/[0.055]">
+    <article className="min-w-0 rounded-md border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-400/25 hover:bg-white/[0.055]">
       <button type="button" onClick={onOpen} className="block w-full text-left">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -328,7 +336,7 @@ function StrategyPipelineCard({
           <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-white/35" />
         </div>
 
-        <div className={`mt-3 text-xs font-semibold uppercase tracking-[0.12em] ${gateTone(strategy.gateStatus)}`}>
+        <div className={`mt-3 text-xs font-semibold uppercase leading-5 tracking-[0.12em] ${gateTone(strategy.gateStatus)}`}>
           {strategy.gateStatus.replace(/-/g, ' ')}
         </div>
 
@@ -340,23 +348,27 @@ function StrategyPipelineCard({
       </button>
 
       {blockers.length > 0 ? (
-        <div className="mt-3 rounded-md border border-white/10 bg-black/25 p-2 text-xs text-white/60">
-          {blockers.slice(0, 3).join(', ')}
+        <div className="mt-3 grid gap-1 rounded-md border border-white/10 bg-black/25 p-2 text-xs leading-5 text-white/60">
+          {blockers.slice(0, 3).map((blocker) => (
+            <div key={blocker} className="break-words">
+              {blocker}
+            </div>
+          ))}
         </div>
       ) : null}
 
       <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-2">
-        <div className="break-all font-mono text-[10px] leading-4 text-white/45">{strategy.nextAction.command}</div>
+        <div className="max-h-20 overflow-y-auto break-all font-mono text-[10px] leading-4 text-white/45">{strategy.nextAction.command}</div>
       </div>
 
       <button
         type="button"
         onClick={onRun}
         disabled={actionDisabled}
-        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-cyan-400/25 bg-cyan-500/12 px-3 py-2 text-xs font-bold uppercase tracking-[0.12em] text-cyan-50 transition hover:bg-cyan-500/22 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-white/35"
+        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-400/25 bg-cyan-500/12 px-3 py-2 text-[11px] font-bold leading-4 text-cyan-50 transition hover:bg-cyan-500/22 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-white/35"
       >
         {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : strategy.nextAction.enabled ? <Play className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-        {running ? 'Running' : actionLabel(strategy)}
+        <span className="min-w-0 text-center">{running ? 'Running' : actionLabel(strategy)}</span>
       </button>
     </article>
   );
@@ -364,10 +376,10 @@ function StrategyPipelineCard({
 
 function SummaryMetric({ label, value, detail, tone = 'text-white' }: { label: string; value: string; detail: string; tone?: string }) {
   return (
-    <div className="rounded-md border border-white/10 bg-white/[0.03] p-4">
+    <div className="min-w-0 rounded-md border border-white/10 bg-white/[0.03] p-4">
       <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/35">{label}</div>
       <div className={`mt-2 text-2xl font-semibold ${tone}`}>{value}</div>
-      <div className="mt-1 truncate text-sm text-white/50">{detail}</div>
+      <div className="mt-1 break-words text-sm leading-5 text-white/50">{detail}</div>
     </div>
   );
 }

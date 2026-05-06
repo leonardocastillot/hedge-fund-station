@@ -3,26 +3,22 @@
 This file tracks the live session. Keep it short, current, and useful to the
 next agent.
 
-- Task: `strategy_pipeline_stabilization`
+- Task: `strategy_pipeline_responsive_layout`
 - Status: `review`
 - Started: 2026-05-06
 - Owner: `codex`
 
 ## Plan
 
-- Make `/api/hyperliquid/strategies/catalog` use lightweight backend evidence
-  and stop blocking on exact SQLite table counts.
-- Keep `/strategy-audit` database health visible with cheap/cached summary by
-  default and exact counts only through an explicit diagnostic path.
-- Add validation rerun API for the latest backtest artifact.
-- Add list/detail APIs for comparable backtest artifacts by `artifact_id`.
-- Update `/strategies` gate actions so validation-blocked rows rerun validation,
-  not full backtests.
-- Add compact artifact selector to Strategy Detail.
-- Run harness, focused backend tests, gateway probes, performance checks,
-  `npm run hf:status`, and `npm run build`.
-- Write `progress/impl_strategy_pipeline_stabilization.md` and append durable
-  history.
+- Inspect `/strategies` inside the Electron center-panel layout and identify
+  where viewport-based breakpoints squeeze the board.
+- Make the Strategy Pipeline board, summary metrics, cards, commands, and empty
+  states respond to available panel width without horizontal clipping.
+- Preserve backend-first evidence and action behavior; change only renderer
+  layout/structure unless verification shows a contract issue.
+- Run `npm run build`, `npm run agent:check`, and a browser smoke when practical.
+- Write `progress/impl_strategy_pipeline_responsive_layout.md` and append a
+  durable history entry.
 
 ## Log
 
@@ -121,8 +117,17 @@ next agent.
   `0.119913s` repeated on the local gateway.
 - Implementation handoff written to
   `progress/impl_strategy_pipeline_stabilization.md`.
+- Human requested a responsive/structured Strategy Pipeline view fix. New
+  follow-up task `strategy_pipeline_responsive_layout` is in progress.
+- Responsive layout fix completed in
+  `src/features/strategies/pages/StrategyLibraryPage.tsx`.
+- Verification passed: `npm run build`, `npm run agent:check`, catalog curl
+  smoke, and Electron visual smoke on `/strategies` in narrow and wide panel
+  states.
+- Implementation handoff written to
+  `progress/impl_strategy_pipeline_responsive_layout.md`.
 
 ## Next Step
 
-Review `strategy_pipeline_stabilization`; optional follow-up is a Strategy Audit
-diagnostic affordance for exact SQLite table counts.
+Review `strategy_pipeline_responsive_layout` visually in a fresh Electron dev
+session or packaged app.
