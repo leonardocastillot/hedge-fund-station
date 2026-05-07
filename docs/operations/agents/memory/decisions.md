@@ -33,6 +33,17 @@ needs status, date, decision, and reason.
 - Reason: agent conclusions should be inspectable backend artifacts, not hidden
   renderer state.
 
+## Strategy Learning Memory
+
+- Status: accepted
+- Date: 2026-05-07
+- Decision: strategy lessons, decisions, postmortems, mistakes, wins, and rule
+  changes are stored as structured backend artifacts under
+  `backend/hyperliquid_gateway/data/strategy_memory/`; Obsidian mirrors them as
+  managed notes for navigation and human review.
+- Reason: strategy learning must be durable, testable, and linked to evidence
+  instead of living only in renderer state or manual notes.
+
 ## Workbench Boundary
 
 - Status: accepted

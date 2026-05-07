@@ -3,6 +3,7 @@ export { default as TradingCockpitPage } from '@/features/cockpit/pages/TradingC
 export { default as PolymarketPage } from '@/features/cockpit/pages/PolymarketPage';
 export { default as StrategyLibraryPage } from '@/features/strategies/pages/StrategyLibraryPage';
 export { default as StrategyAuditPage } from '@/features/strategies/pages/StrategyAuditPage';
+export { default as MemoryGraphPage } from '@/features/memory/pages/MemoryGraphPage';
 export { default as PortfolioDashboardPage } from '@/features/paper/pages/PortfolioDashboardPage';
 export { default as EconomicCalendarPage } from '@/features/cockpit/pages/EconomicCalendarPage';
 export { default as LiquidationsPage } from '@/features/liquidations/pages/LiquidationsPage';

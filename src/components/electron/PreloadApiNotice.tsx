@@ -6,6 +6,8 @@ const REQUIRED_API_PATHS = [
   'obsidian.listNotes',
   'obsidian.searchRelevant',
   'obsidian.listPinned',
+  'obsidian.getGraph',
+  'obsidian.syncStrategyMemory',
   'obsidian.exportMission',
   'obsidian.openPath',
   'obsidian.openVault'

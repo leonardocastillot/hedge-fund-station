@@ -10,6 +10,7 @@ import {
   Database,
   Droplets,
   FlaskConical,
+  Network,
   ShieldCheck,
   RadioTower,
   Settings,
@@ -31,6 +32,7 @@ const PolymarketPage = React.lazy(() => import('./pages/PolymarketPage'));
 const StrategyLibraryPage = React.lazy(() => import('@/features/strategies/pages/StrategyLibraryPage'));
 const StrategyDetailPage = React.lazy(() => import('@/features/strategies/pages/StrategyDetailPage'));
 const StrategyAuditPage = React.lazy(() => import('@/features/strategies/pages/StrategyAuditPage'));
+const MemoryGraphPage = React.lazy(() => import('@/features/memory/pages/MemoryGraphPage'));
 const HyperliquidDataPage = React.lazy(() => import('@/features/hyperliquid/pages/HyperliquidDataPage'));
 const HyperliquidIntelligencePage = React.lazy(() => import('@/features/hyperliquid/pages/HyperliquidIntelligencePage'));
 const HyperliquidPaperLabPage = React.lazy(() => import('@/features/paper/pages/HyperliquidPaperLabPage'));
@@ -49,6 +51,7 @@ const navItems = [
   { path: '/hyperliquid', label: 'Hyperliquid', icon: CandlestickChart },
   { path: '/strategies', label: 'Pipeline', icon: FlaskConical },
   { path: '/strategy-audit', label: 'Audit Focus', icon: ShieldCheck },
+  { path: '/memory', label: 'Memory', icon: Network },
   { path: '/paper', label: 'Paper', icon: BarChart3 },
   { path: '/liquidations', label: 'Liquidations', icon: Droplets },
   { path: '/portfolio', label: 'Portfolio', icon: Wallet },
@@ -263,6 +266,7 @@ export const WidgetPanel: React.FC = () => {
                   <Route path="/strategies" element={<StrategyLibraryPage />} />
                   <Route path="/strategy/:strategyName/:timeframe" element={<StrategyDetailPage />} />
                   <Route path="/strategy-audit" element={<StrategyAuditPage />} />
+                  <Route path="/memory" element={<MemoryGraphPage />} />
                   <Route path="/hyperliquid" element={<HyperliquidIntelligencePage />} />
                   <Route path="/paper" element={<HyperliquidPaperLabPage />} />
                   <Route path="/polymarket" element={<PolymarketPage />} />

@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('terminal:getAllIds'),
     getSnapshot: (id: string) =>
       ipcRenderer.invoke('terminal:getSnapshot', id),
+    smokeTest: (cwd: string, shell?: string) =>
+      ipcRenderer.invoke('terminal:smokeTest', { cwd, shell }),
     onData: (id: string, callback: (data: { id: string; data: string }) => void) => {
       const channel = `terminal:data:${id}`;
       const listener = (_: any, data: { id: string; data: string }) => callback(data);
@@ -83,6 +85,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('obsidian:searchRelevant', { workspacePath, query, vaultPath, limit }),
     listPinned: (workspacePath: string, vaultPath?: string, workspaceId?: string, workspaceName?: string, limit?: number) =>
       ipcRenderer.invoke('obsidian:listPinned', { workspacePath, vaultPath, workspaceId, workspaceName, limit }),
+    getGraph: (workspacePath: string, vaultPath?: string) =>
+      ipcRenderer.invoke('obsidian:getGraph', { workspacePath, vaultPath }),
+    syncStrategyMemory: (workspacePath: string, strategies: any[], vaultPath?: string, learningEvents?: any[]) =>
+      ipcRenderer.invoke('obsidian:syncStrategyMemory', { workspacePath, vaultPath, strategies, learningEvents }),
     exportMission: (
       workspaceName: string,
       workspacePath: string,
@@ -112,8 +118,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   diagnostics: {
-    checkCommands: (commands: string[]) =>
-      ipcRenderer.invoke('diagnostics:checkCommands', { commands }),
+    checkCommands: (commands: string[], options?: { cwd?: string; shell?: string }) =>
+      ipcRenderer.invoke('diagnostics:checkCommands', { commands, ...(options || {}) }),
     shellSmokeTest: (cwd: string, shell?: string) =>
       ipcRenderer.invoke('diagnostics:shellSmokeTest', { cwd, shell }),
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) =>

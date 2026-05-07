@@ -1,0 +1,1444 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Hedge Fund Station Epic</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #020408;
+        --surface: #060a14;
+        --raised: #0e1424;
+        --panel: rgba(6, 10, 20, 0.78);
+        --panel-soft: rgba(255, 255, 255, 0.035);
+        --border: rgba(239, 68, 68, 0.18);
+        --border-soft: rgba(255, 255, 255, 0.09);
+        --text: #f0f2f5;
+        --muted: #8b95a5;
+        --subtle: #545e6e;
+        --red: #ef4444;
+        --orange: #f97316;
+        --cyan: #22d3ee;
+        --emerald: #34d399;
+        --rose: #fb7185;
+        --amber: #f59e0b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 12% 16%, rgba(239, 68, 68, 0.22), transparent 30%),
+          radial-gradient(circle at 88% 76%, rgba(34, 211, 238, 0.12), transparent 34%),
+          linear-gradient(180deg, #020408 0%, #050914 100%);
+      }
+
+      #root::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        pointer-events: none;
+        opacity: 0.16;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: linear-gradient(180deg, transparent 0%, #000 14%, #000 82%, transparent 100%);
+      }
+
+      #root::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        pointer-events: none;
+        opacity: 0.12;
+        background:
+          repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 6px),
+          radial-gradient(circle at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.52) 100%);
+        mix-blend-mode: overlay;
+      }
+
+      .clip {
+        position: absolute;
+      }
+
+      .scene {
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        padding: 74px 88px;
+        overflow: hidden;
+      }
+
+      .scene-shell {
+        position: relative;
+        z-index: 5;
+        display: grid;
+        height: 100%;
+        gap: 28px;
+      }
+
+      .route-frame {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.09);
+        border-radius: 18px;
+        background: rgba(2, 4, 8, 0.78);
+        box-shadow:
+          0 40px 120px rgba(0, 0, 0, 0.58),
+          0 0 60px rgba(239, 68, 68, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 70px;
+        padding: 0 28px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(6, 10, 20, 0.78);
+      }
+
+      .brand-lockup {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .logo-tile {
+        display: grid;
+        width: 58px;
+        height: 40px;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: 0 0 28px rgba(239, 68, 68, 0.22);
+      }
+
+      .logo-bg {
+        background:
+          linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08)),
+          url("assets/brand/logo-lc.png") center / cover no-repeat;
+      }
+
+      .brand-title {
+        font-size: 20px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .brand-subtitle {
+        margin-top: 3px;
+        color: var(--muted);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+
+      .status-pill,
+      .small-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 14px;
+        border: 1px solid rgba(52, 211, 153, 0.36);
+        border-radius: 6px;
+        background: rgba(52, 211, 153, 0.1);
+        color: #d1fae5;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .small-pill {
+        border-color: rgba(34, 211, 238, 0.28);
+        background: rgba(34, 211, 238, 0.1);
+        color: #cffafe;
+      }
+
+      .app-layout {
+        display: grid;
+        grid-template-columns: 248px 1fr 360px;
+        height: calc(100% - 70px);
+      }
+
+      .sidebar,
+      .right-dock {
+        border-right: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(4, 8, 16, 0.58);
+        padding: 22px;
+      }
+
+      .right-dock {
+        border-right: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.07);
+      }
+
+      .nav-label {
+        margin-bottom: 12px;
+        color: var(--subtle);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 45px;
+        margin-bottom: 9px;
+        padding: 0 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+        color: rgba(240, 242, 245, 0.82);
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .nav-item.active {
+        border-color: rgba(239, 68, 68, 0.42);
+        background: rgba(239, 68, 68, 0.13);
+        color: #fff;
+        box-shadow: 0 0 22px rgba(239, 68, 68, 0.16);
+      }
+
+      .center-area {
+        min-width: 0;
+        padding: 28px;
+        background:
+          radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.08), transparent 26%),
+          rgba(2, 4, 8, 0.42);
+      }
+
+      .eyebrow {
+        color: var(--cyan);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+
+      .h1 {
+        margin: 10px 0 0;
+        font-size: 58px;
+        line-height: 1.02;
+        font-weight: 800;
+      }
+
+      .lead {
+        margin-top: 16px;
+        max-width: 850px;
+        color: var(--muted);
+        font-size: 26px;
+        line-height: 1.35;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 30px;
+      }
+
+      .metric-card,
+      .panel,
+      .strategy-card,
+      .terminal-card,
+      .gate-card {
+        border: 1px solid var(--border-soft);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+
+      .metric-card {
+        padding: 20px;
+        min-height: 125px;
+      }
+
+      .metric-label,
+      .panel-label,
+      .tiny-label {
+        color: rgba(240, 242, 245, 0.45);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+
+      .metric-value {
+        margin-top: 16px;
+        font-size: 42px;
+        font-weight: 800;
+      }
+
+      .metric-detail {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 0.82fr;
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .panel {
+        padding: 20px;
+      }
+
+      .stage-row,
+      .command-row,
+      .queue-row,
+      .artifact-row {
+        display: grid;
+        align-items: center;
+        min-height: 54px;
+        margin-top: 12px;
+        padding: 0 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.22);
+      }
+
+      .stage-row {
+        grid-template-columns: 1fr 86px;
+      }
+
+      .command-row {
+        grid-template-columns: 1fr 48px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+      }
+
+      .queue-row {
+        grid-template-columns: 110px 132px 1fr 100px;
+        gap: 14px;
+      }
+
+      .stage-count {
+        color: var(--cyan);
+        font-size: 28px;
+        font-weight: 800;
+        text-align: right;
+      }
+
+      .command-play {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border-radius: 6px;
+        background: rgba(52, 211, 153, 0.16);
+        color: var(--emerald);
+      }
+
+      .dock-card {
+        margin-bottom: 16px;
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .orb {
+        width: 104px;
+        height: 104px;
+        margin: 16px auto;
+        border: 2px solid rgba(239, 68, 68, 0.3);
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(239, 68, 68, 0.34), transparent 34%),
+          radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.18), transparent 62%);
+        box-shadow: 0 0 52px rgba(239, 68, 68, 0.24);
+      }
+
+      .scene-mark {
+        position: absolute;
+        top: 38px;
+        right: 88px;
+        z-index: 10;
+        color: rgba(255, 255, 255, 0.4);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+      }
+
+      .big-title {
+        position: relative;
+        z-index: 5;
+        max-width: 1080px;
+        font-size: 104px;
+        line-height: 0.95;
+        font-weight: 800;
+      }
+
+      .big-title span {
+        color: var(--red);
+      }
+
+      .hero-copy {
+        position: relative;
+        z-index: 5;
+        margin-top: 24px;
+        max-width: 900px;
+        color: var(--muted);
+        font-size: 34px;
+        line-height: 1.35;
+      }
+
+      .hero-device {
+        position: absolute;
+        right: 78px;
+        bottom: 92px;
+        z-index: 4;
+        width: 970px;
+        height: 548px;
+        transform: perspective(1300px) rotateY(-9deg) rotateX(4deg);
+      }
+
+      .image-showcase {
+        position: relative;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.11);
+        border-radius: 18px;
+        background: rgba(2, 4, 8, 0.84);
+        box-shadow:
+          0 44px 130px rgba(0, 0, 0, 0.62),
+          0 0 70px rgba(239, 68, 68, 0.22),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .hero-shot-frame {
+        width: 1060px;
+        height: 552px;
+      }
+
+      .opening .big-title {
+        max-width: 1180px;
+      }
+
+      .opening .hero-copy {
+        max-width: 1180px;
+        font-size: 31px;
+        line-height: 1.22;
+      }
+
+      .opening .hero-device {
+        left: 88px;
+        right: auto;
+        top: 322px;
+        bottom: auto;
+        z-index: 4;
+        transform: perspective(1700px) rotateY(-1deg) rotateX(0.6deg);
+      }
+
+      .opening .hero-shot-frame {
+        width: 1420px;
+        height: 739px;
+      }
+
+      .opening .showcase-image {
+        object-fit: contain;
+        object-position: center center;
+        background: #020408;
+        filter: saturate(1.16) contrast(1.08) brightness(1.16);
+      }
+
+      .opening .shot-vignette {
+        background:
+          linear-gradient(90deg, rgba(2, 4, 8, 0.04), transparent 20%, transparent 78%, rgba(2, 4, 8, 0.1)),
+          radial-gradient(circle at 50% 48%, transparent 64%, rgba(0, 0, 0, 0.16) 100%);
+      }
+
+      .opening .system-rail {
+        top: 274px;
+        bottom: auto;
+      }
+
+      .showcase-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center top;
+        filter: saturate(1.08) contrast(1.04) brightness(0.94);
+      }
+
+      .shot-vignette {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background:
+          linear-gradient(90deg, rgba(2, 4, 8, 0.3), transparent 22%, transparent 72%, rgba(2, 4, 8, 0.42)),
+          radial-gradient(circle at 50% 42%, transparent 44%, rgba(0, 0, 0, 0.38) 100%);
+      }
+
+      .image-sheen {
+        position: absolute;
+        top: -40%;
+        bottom: -40%;
+        left: -34%;
+        width: 24%;
+        pointer-events: none;
+        transform: rotate(14deg);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+        mix-blend-mode: screen;
+      }
+
+      .shot-tag {
+        position: absolute;
+        right: 24px;
+        bottom: 22px;
+        padding: 12px 16px;
+        border: 1px solid rgba(34, 211, 238, 0.28);
+        border-radius: 7px;
+        background: rgba(2, 4, 8, 0.72);
+        color: #cffafe;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+      }
+
+      .backtest-shot-frame {
+        position: relative;
+        border-color: rgba(34, 211, 238, 0.18);
+      }
+
+      .backtest-shot {
+        height: 113%;
+        object-fit: cover;
+        object-position: center top;
+        filter: saturate(1.08) contrast(1.08) brightness(0.88);
+      }
+
+      .backtest-overlay {
+        position: absolute;
+        left: 34px;
+        top: 34px;
+        max-width: 760px;
+        padding: 22px 26px;
+        border: 1px solid rgba(34, 211, 238, 0.28);
+        border-radius: 10px;
+        background: rgba(2, 4, 8, 0.78);
+        box-shadow:
+          0 24px 64px rgba(0, 0, 0, 0.48),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      }
+
+      .backtest-overlay .eyebrow {
+        font-size: 14px;
+      }
+
+      .backtest-overlay .h1 {
+        margin-top: 8px;
+        font-size: 46px;
+      }
+
+      .backtest-overlay .lead {
+        max-width: 660px;
+        margin-top: 10px;
+        font-size: 22px;
+      }
+
+      .backtest-proof-strip {
+        position: absolute;
+        right: 34px;
+        bottom: 104px;
+        display: flex;
+        gap: 10px;
+      }
+
+      .proof-chip {
+        min-width: 150px;
+        padding: 13px 15px;
+        border: 1px solid rgba(52, 211, 153, 0.28);
+        border-radius: 7px;
+        background: rgba(2, 4, 8, 0.76);
+        color: #d1fae5;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+      }
+
+      .proof-chip strong {
+        display: block;
+        margin-top: 6px;
+        color: #fff;
+        font-family: "Outfit", sans-serif;
+        font-size: 25px;
+        letter-spacing: 0;
+        text-transform: none;
+      }
+
+      .system-rail {
+        position: absolute;
+        left: 88px;
+        bottom: 92px;
+        z-index: 5;
+        display: flex;
+        gap: 12px;
+      }
+
+      .rail-token {
+        padding: 12px 16px;
+        border: 1px solid rgba(239, 68, 68, 0.28);
+        border-radius: 6px;
+        background: rgba(239, 68, 68, 0.09);
+        color: #fecaca;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+        margin-top: 20px;
+      }
+
+      .pipeline-col {
+        min-height: 510px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.26);
+      }
+
+      .column-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+
+      .column-title {
+        font-size: 21px;
+        font-weight: 800;
+      }
+
+      .column-count {
+        padding: 6px 10px;
+        border: 1px solid rgba(34, 211, 238, 0.28);
+        border-radius: 6px;
+        background: rgba(34, 211, 238, 0.09);
+        color: #cffafe;
+        font-family: "JetBrains Mono", monospace;
+        font-weight: 800;
+      }
+
+      .strategy-card {
+        min-height: 124px;
+        margin-top: 12px;
+        padding: 14px;
+      }
+
+      .strategy-name {
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .strategy-id {
+        margin-top: 5px;
+        color: var(--subtle);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+
+      .stat-strip {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .mini-stat {
+        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.22);
+      }
+
+      .mini-stat strong {
+        display: block;
+        margin-top: 5px;
+        font-size: 16px;
+      }
+
+      .split-scene {
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        gap: 24px;
+        height: 100%;
+      }
+
+      .radar-card,
+      .graph-card,
+      .paper-card,
+      .live-card {
+        position: relative;
+        height: 100%;
+        padding: 26px;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.09);
+        border-radius: 14px;
+        background: rgba(6, 10, 20, 0.74);
+        box-shadow: 0 32px 90px rgba(0, 0, 0, 0.46);
+      }
+
+      .chart {
+        width: 100%;
+        height: 290px;
+        margin-top: 24px;
+        overflow: visible;
+      }
+
+      .chart polyline,
+      .chart path {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .market-table {
+        margin-top: 22px;
+        margin-right: 18px;
+        margin-left: 18px;
+      }
+
+      .market-row {
+        display: grid;
+        grid-template-columns: 88px 1fr 112px;
+        align-items: center;
+        gap: 14px;
+        min-height: 54px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+      }
+
+      .bar {
+        height: 12px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .bar span {
+        display: block;
+        height: 100%;
+        border-radius: 99px;
+        background: linear-gradient(90deg, var(--cyan), var(--red));
+      }
+
+      .facts-divider {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 22px;
+      }
+
+      .fact-box {
+        min-height: 118px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .memory-wrap {
+        display: grid;
+        grid-template-columns: 1.12fr 0.88fr;
+        gap: 24px;
+        height: 100%;
+      }
+
+      .graph-field {
+        position: relative;
+        height: 610px;
+        margin-top: 22px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        background:
+          linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+          rgba(0, 0, 0, 0.2);
+        background-size: 56px 56px;
+      }
+
+      .graph-image-field {
+        border-color: rgba(34, 211, 238, 0.16);
+        background: rgba(0, 0, 0, 0.28);
+        box-shadow: inset 0 0 56px rgba(34, 211, 238, 0.07);
+      }
+
+      .graph-shot {
+        object-position: 47% 48%;
+        filter: saturate(1.15) contrast(1.08) brightness(0.9);
+      }
+
+      .graph-callout {
+        position: absolute;
+        max-width: 330px;
+        padding: 12px 14px;
+        border: 1px solid rgba(52, 211, 153, 0.3);
+        border-radius: 7px;
+        background: rgba(2, 4, 8, 0.78);
+        color: #d1fae5;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.35;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+      }
+
+      .graph-callout-a {
+        left: 24px;
+        top: 24px;
+      }
+
+      .graph-callout-b {
+        right: 24px;
+        bottom: 24px;
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #fecaca;
+      }
+
+      .node {
+        position: absolute;
+        display: grid;
+        place-items: center;
+        width: 112px;
+        height: 112px;
+        border: 2px solid rgba(255, 255, 255, 0.18);
+        border-radius: 50%;
+        background: rgba(15, 118, 110, 0.66);
+        color: #ecfeff;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 800;
+        text-align: center;
+        line-height: 1.2;
+        box-shadow: 0 0 32px rgba(45, 212, 191, 0.24);
+      }
+
+      .node.core {
+        width: 146px;
+        height: 146px;
+        background: rgba(239, 68, 68, 0.72);
+        box-shadow: 0 0 46px rgba(239, 68, 68, 0.32);
+      }
+
+      .node.doc {
+        background: rgba(29, 78, 216, 0.7);
+      }
+
+      .node.backend {
+        background: rgba(14, 116, 144, 0.72);
+      }
+
+      .node.validation {
+        background: rgba(77, 124, 15, 0.74);
+      }
+
+      .node.paper {
+        background: rgba(4, 120, 87, 0.74);
+      }
+
+      .node.memory {
+        background: rgba(126, 34, 206, 0.68);
+      }
+
+      .node.live {
+        background: rgba(245, 158, 11, 0.68);
+      }
+
+      .edge {
+        position: absolute;
+        height: 2px;
+        transform-origin: left center;
+        background: linear-gradient(90deg, rgba(34, 211, 238, 0.4), rgba(239, 68, 68, 0.2));
+      }
+
+      .memory-badge-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .memory-badge {
+        min-height: 82px;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .memory-badge strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 19px;
+      }
+
+      .terminal-card {
+        min-height: 126px;
+        margin-top: 15px;
+        padding: 16px;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .prompt {
+        color: var(--emerald);
+      }
+
+      .paper-grid {
+        display: grid;
+        grid-template-columns: 1fr 0.9fr;
+        gap: 24px;
+        height: 100%;
+      }
+
+      .trade-row {
+        display: grid;
+        grid-template-columns: 100px 90px 1fr 105px;
+        align-items: center;
+        min-height: 58px;
+        margin-top: 10px;
+        padding: 0 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .gate-card {
+        display: grid;
+        grid-template-columns: 38px 1fr;
+        gap: 14px;
+        min-height: 82px;
+        margin-top: 12px;
+        padding: 14px;
+      }
+
+      .check {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border-radius: 50%;
+        background: rgba(52, 211, 153, 0.14);
+        color: var(--emerald);
+        font-weight: 900;
+      }
+
+      .warning-banner {
+        margin-top: 20px;
+        padding: 18px 20px;
+        border: 1px solid rgba(245, 158, 11, 0.34);
+        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.12);
+        color: #fde68a;
+        font-size: 22px;
+        line-height: 1.35;
+      }
+
+      .closing {
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .close-logo {
+        width: 220px;
+        height: 124px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        box-shadow: 0 0 72px rgba(239, 68, 68, 0.28);
+      }
+
+      .loop {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 44px;
+      }
+
+      .loop-step {
+        min-width: 192px;
+        padding: 18px 18px;
+        border: 1px solid rgba(239, 68, 68, 0.28);
+        border-radius: 8px;
+        background: rgba(239, 68, 68, 0.1);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 19px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .loop-step.live-step {
+        border-color: rgba(52, 211, 153, 0.36);
+        background: rgba(52, 211, 153, 0.12);
+        color: #d1fae5;
+      }
+
+      .arrow {
+        color: var(--cyan);
+        font-size: 30px;
+        font-weight: 800;
+      }
+
+      .final-note {
+        max-width: 1040px;
+        margin: 30px auto 0;
+        color: #fde68a;
+        font-size: 29px;
+        font-weight: 700;
+        line-height: 1.32;
+      }
+
+      .caption {
+        left: 220px;
+        right: 220px;
+        bottom: 82px;
+        z-index: 40;
+        display: flex;
+        justify-content: center;
+        pointer-events: none;
+      }
+
+      .caption span {
+        position: relative;
+        max-width: 1440px;
+        overflow: hidden;
+        padding: 20px 34px;
+        border: 1px solid rgba(239, 68, 68, 0.34);
+        border-radius: 8px;
+        background:
+          linear-gradient(90deg, rgba(2, 4, 8, 0.94), rgba(239, 68, 68, 0.2), rgba(2, 4, 8, 0.92)),
+          rgba(2, 4, 8, 0.9);
+        box-shadow:
+          0 26px 86px rgba(0, 0, 0, 0.52),
+          0 0 48px rgba(239, 68, 68, 0.18);
+        color: #fff;
+        font-size: 40px;
+        font-weight: 800;
+        line-height: 1.12;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        transform-origin: center;
+      }
+
+      .caption span::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 7px;
+        background: linear-gradient(180deg, var(--cyan), var(--red), var(--orange));
+      }
+
+      .caption span::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.16) 48%, transparent 62%);
+        transform: translateX(var(--caption-sheen-x, -115%));
+      }
+
+      .caption strong {
+        color: var(--cyan);
+        font-weight: 900;
+      }
+
+      .caption em {
+        color: #fecaca;
+        font-style: normal;
+        font-weight: 900;
+      }
+
+      .accent {
+        color: var(--red);
+      }
+
+      .cyan {
+        color: var(--cyan);
+      }
+
+      .emerald {
+        color: var(--emerald);
+      }
+
+      .amber {
+        color: var(--amber);
+      }
+
+      .rose {
+        color: var(--rose);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="40"
+      data-width="1920"
+      data-height="1080"
+    >
+      <audio
+        id="music-bed"
+        data-start="0"
+        data-duration="40"
+        data-track-index="20"
+        src="assets/audio/song-bed.wav"
+        data-volume="0.62"
+      ></audio>
+
+      <section id="scene-opening" class="clip scene opening" data-start="0" data-duration="4" data-track-index="1">
+        <div class="scene-mark">00 / Boot sequence</div>
+        <div class="big-title">
+          Hedge Fund <span>Station</span>
+        </div>
+        <div class="hero-copy">
+          Research OS para convertir mercado, agentes y evidencia en decisiones revisables.
+        </div>
+        <div class="system-rail">
+          <div class="rail-token">Research OS</div>
+          <div class="rail-token">Backend Evidence</div>
+          <div class="rail-token">Human Approval</div>
+        </div>
+        <div class="hero-device image-showcase hero-shot-frame" data-layout-allow-overflow>
+          <img class="showcase-image" src="renders/primera.png" alt="Primera vista de Hedge Fund Station" />
+          <div class="shot-vignette"></div>
+          <div class="image-sheen"></div>
+        </div>
+      </section>
+
+      <section id="scene-research" class="clip scene" data-start="4" data-duration="6" data-track-index="1">
+        <div class="scene-mark">01 / Backtesting evidence</div>
+        <div class="route-frame backtest-shot-frame" data-layout-allow-overflow>
+          <img class="showcase-image backtest-shot" src="renders/backtesting.png" alt="Backtesting evidence screen" />
+          <div class="shot-vignette"></div>
+          <div class="image-sheen"></div>
+          <div class="backtest-overlay">
+            <div class="eyebrow">Backtesting Evidence</div>
+            <div class="h1">La tesis se mide contra historial.</div>
+            <div class="lead">Trades, fees, PnL y validaci&oacute;n aparecen como artefactos revisables antes de Paper.</div>
+          </div>
+          <div class="backtest-proof-strip">
+            <div class="proof-chip">Trades<strong>203</strong></div>
+            <div class="proof-chip">Gate<strong>ready-for-paper</strong></div>
+            <div class="proof-chip">Ledger<strong>auditable</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-pipeline" class="clip scene" data-start="10" data-duration="6" data-track-index="1">
+        <div class="scene-mark">02 / Strategy Pipeline</div>
+        <div class="scene-shell">
+          <div>
+            <div class="eyebrow">Actionable Research to Paper Flow</div>
+            <div class="h1">Primero evidencia. Despu&eacute;s acci&oacute;n.</div>
+            <div class="lead">La pipeline solo deja avanzar estrategias con backtest, validaci&oacute;n y artefactos backend.</div>
+          </div>
+          <div class="pipeline" data-layout-allow-overflow>
+            <div class="pipeline-col">
+              <div class="column-head"><div class="column-title">Backtesting</div><div class="column-count">3</div></div>
+              <div class="strategy-card"><div class="strategy-name">Short Squeeze Continuation</div><div class="strategy-id">short_squeeze_continuation</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Trades</div><strong>84</strong></div><div class="mini-stat"><div class="tiny-label">Return</div><strong class="cyan">+4.1%</strong></div><div class="mini-stat"><div class="tiny-label">PF</div><strong>1.42</strong></div></div></div>
+              <div class="strategy-card"><div class="strategy-name">OI Expansion Failure Fade</div><div class="strategy-id">oi_expansion_failure_fade</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Next</div><strong>Run</strong></div><div class="mini-stat"><div class="tiny-label">Gate</div><strong class="amber">Test</strong></div><div class="mini-stat"><div class="tiny-label">Risk</div><strong>Low</strong></div></div></div>
+            </div>
+            <div class="pipeline-col">
+              <div class="column-head"><div class="column-title">Audit</div><div class="column-count">2</div></div>
+              <div class="strategy-card"><div class="strategy-name">BTC Failed Impulse</div><div class="strategy-id">btc_failed_impulse_reversal</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Trades</div><strong>116</strong></div><div class="mini-stat"><div class="tiny-label">Review</div><strong class="cyan">Pass</strong></div><div class="mini-stat"><div class="tiny-label">2x ETA</div><strong>Demo</strong></div></div></div>
+              <div class="strategy-card"><div class="strategy-name">Funding Exhaustion Snap</div><div class="strategy-id">funding_exhaustion_snap</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Replay</div><strong class="amber">Need</strong></div><div class="mini-stat"><div class="tiny-label">Costs</div><strong>OK</strong></div><div class="mini-stat"><div class="tiny-label">Gate</div><strong>Audit</strong></div></div></div>
+            </div>
+            <div class="pipeline-col">
+              <div class="column-head"><div class="column-title">Paper</div><div class="column-count">3</div></div>
+              <div class="strategy-card"><div class="strategy-name">BB Squeeze ADX</div><div class="strategy-id">bb_squeeze_adx</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Candidate</div><strong class="emerald">Ready</strong></div><div class="mini-stat"><div class="tiny-label">Risk</div><strong>Bound</strong></div><div class="mini-stat"><div class="tiny-label">Human</div><strong>Req</strong></div></div></div>
+              <div class="strategy-card"><div class="strategy-name">BTC Crowding Scalper</div><div class="strategy-id">btc_crowding_scalper</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Paper</div><strong class="emerald">Active</strong></div><div class="mini-stat"><div class="tiny-label">Review</div><strong>86%</strong></div><div class="mini-stat"><div class="tiny-label">Ledger</div><strong>On</strong></div></div></div>
+            </div>
+            <div class="pipeline-col">
+              <div class="column-head"><div class="column-title">Blocked</div><div class="column-count amber">2</div></div>
+              <div class="strategy-card"><div class="strategy-name">Long Flush Continuation</div><div class="strategy-id">long_flush_continuation</div><div class="stat-strip"><div class="mini-stat"><div class="tiny-label">Status</div><strong class="amber">Blocked</strong></div><div class="mini-stat"><div class="tiny-label">Next</div><strong>Audit</strong></div><div class="mini-stat"><div class="tiny-label">Live</div><strong class="rose">No</strong></div></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-market" class="clip scene" data-start="16" data-duration="6" data-track-index="1">
+        <div class="scene-mark">03 / Hyperliquid + Liquidations</div>
+        <div class="split-scene">
+          <div class="radar-card">
+            <div class="eyebrow">Hyperliquid Radar</div>
+            <div class="h1" style="font-size: 50px;">Pressure, signals, and first checks.</div>
+            <svg class="chart" viewBox="0 0 860 290" aria-hidden="true">
+              <path d="M20 238 C116 210, 160 246, 238 180 S380 110, 464 134 S620 226, 820 74" stroke="rgba(34,211,238,0.9)" stroke-width="6" />
+              <path d="M20 254 C140 250, 204 210, 286 230 S458 246, 548 162 S710 96, 820 138" stroke="rgba(239,68,68,0.82)" stroke-width="5" />
+              <polyline points="20,250 140,250 260,250 380,250 500,250 620,250 740,250 860,250" stroke="rgba(255,255,255,0.12)" stroke-width="2" />
+            </svg>
+            <div class="market-table">
+              <div class="market-row"><strong>BTC</strong><div class="bar"><span style="width: 86%"></span></div><span class="emerald">Watch now</span></div>
+              <div class="market-row"><strong>ETH</strong><div class="bar"><span style="width: 72%"></span></div><span class="amber">Wait trigger</span></div>
+              <div class="market-row"><strong>SOL</strong><div class="bar"><span style="width: 64%"></span></div><span class="rose">Avoid</span></div>
+            </div>
+          </div>
+          <div class="radar-card">
+            <div class="eyebrow">Liquidation Decision Queue</div>
+            <div class="lead" style="font-size: 24px;">Ranked by pressure, matching bias, funding crowding and price stress.</div>
+            <div class="queue-row"><strong>BTC</strong><span class="emerald">watch</span><span>shorts at risk</span><span>$--</span></div>
+            <div class="queue-row"><strong>ETH</strong><span class="amber">wait</span><span>balanced pressure</span><span>$--</span></div>
+            <div class="queue-row"><strong>SOL</strong><span class="rose">avoid</span><span>low quality</span><span>$--</span></div>
+            <div class="facts-divider">
+              <div class="fact-box"><div class="panel-label">Backend facts</div><p>Gateway-derived pressure estimates and snapshots.</p></div>
+              <div class="fact-box"><div class="panel-label">UI inference</div><p>Review guidance separated from source data.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-memory" class="clip scene" data-start="22" data-duration="7" data-track-index="1">
+        <div class="scene-mark">04 / Agents + Memory</div>
+        <div class="memory-wrap">
+          <div class="graph-card">
+            <div class="eyebrow">Strategy Memory Graph</div>
+            <div class="h1" style="font-size: 52px;">Memoria viva de cada estrategia.</div>
+            <div class="graph-field graph-image-field" data-layout-allow-overflow>
+              <img class="showcase-image graph-shot" src="renders/grafo.png" alt="Strategy Memory Graph real app capture" />
+              <div class="shot-vignette"></div>
+              <div class="image-sheen"></div>
+              <div class="graph-callout graph-callout-a">Docs, code, backtests y validaci&oacute;n quedan conectados.</div>
+              <div class="graph-callout graph-callout-b">Paper y Live readiness nacen desde evidencia revisable.</div>
+            </div>
+            <div class="memory-badge-grid">
+              <div class="memory-badge"><div class="tiny-label">Trace</div><strong>docs → code</strong></div>
+              <div class="memory-badge"><div class="tiny-label">Evidence</div><strong>backtest → paper</strong></div>
+              <div class="memory-badge"><div class="tiny-label">Learning</div><strong>handoff → next run</strong></div>
+            </div>
+          </div>
+          <div class="graph-card">
+            <div class="eyebrow">Mission Workbench</div>
+            <div class="h1" style="font-size: 48px;">Agentes proponen. El operador aprueba.</div>
+            <div class="terminal-card"><span class="prompt">$</span> hf:agent research<br /><span class="cyan">tesis y evidencia quedan linkeadas</span></div>
+            <div class="terminal-card"><span class="prompt">$</span> hf:backtest → hf:validate<br /><span class="amber">cada gate deja un artefacto revisable</span></div>
+            <div class="terminal-card"><span class="prompt">$</span> hf:paper → live-readiness<br /><span class="emerald">solo avanza con riesgo y aprobaci&oacute;n</span></div>
+            <div class="warning-banner">La memoria evita empezar de cero: cada sesi&oacute;n mejora la siguiente.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-paper" class="clip scene" data-start="29" data-duration="7" data-track-index="1">
+        <div class="scene-mark">05 / Paper + Live Monitor</div>
+        <div class="paper-grid">
+          <div class="paper-card">
+            <div class="eyebrow">Paper Lab</div>
+            <div class="h1" style="font-size: 52px;">Paper antes de Live.</div>
+            <svg class="chart" viewBox="0 0 860 290" aria-hidden="true">
+              <path d="M26 220 C116 208, 174 140, 266 154 S420 250, 510 118 S690 88, 834 58" stroke="rgba(52,211,153,0.9)" stroke-width="6" />
+              <path d="M26 244 L834 244" stroke="rgba(255,255,255,0.12)" stroke-width="2" />
+              <path d="M420 56 L420 252" stroke="rgba(239,68,68,0.55)" stroke-width="3" stroke-dasharray="12 12" />
+            </svg>
+            <div class="trade-row"><strong>BTC</strong><span>SHORT</span><span>failed impulse replay</span><span class="emerald">reviewed</span></div>
+            <div class="trade-row"><strong>ETH</strong><span>LONG</span><span>crowding setup</span><span class="amber">queued</span></div>
+            <div class="trade-row"><strong>SOL</strong><span>WAIT</span><span>trigger not confirmed</span><span class="rose">blocked</span></div>
+          </div>
+          <div class="live-card">
+            <div class="eyebrow">Live Trading Station</div>
+            <div class="h1" style="font-size: 50px;">Live viene al final.</div>
+            <div class="warning-banner">Ejecuci&oacute;n real solo despu&eacute;s de paper, risk review, kill switches y aprobaci&oacute;n humana.</div>
+            <div class="gate-card"><div class="check">✓</div><div><strong>Gateway fresh</strong><br /><span class="muted">sanitized demo snapshot</span></div></div>
+            <div class="gate-card"><div class="check">✓</div><div><strong>Paper ledger visible</strong><br /><span class="muted">review surface active</span></div></div>
+            <div class="gate-card"><div class="check">✓</div><div><strong>Execution disabled</strong><br /><span class="muted">operator boundary intact</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scene-close" class="clip scene closing" data-start="36" data-duration="4" data-track-index="1">
+        <div>
+          <div class="close-logo logo-bg" aria-label="LC logo"></div>
+          <div class="h1" style="margin-top: 42px; font-size: 72px;">Hedge Fund Station</div>
+          <div class="lead" style="margin-left: auto; margin-right: auto;">El flujo completo: de investigaci&oacute;n a operaci&oacute;n controlada.</div>
+          <div class="loop">
+            <div class="loop-step">Research</div><div class="arrow">→</div>
+            <div class="loop-step">Backtest</div><div class="arrow">→</div>
+            <div class="loop-step">Validate</div><div class="arrow">→</div>
+            <div class="loop-step">Paper</div><div class="arrow">→</div>
+            <div class="loop-step live-step">Live</div>
+          </div>
+          <div class="final-note">Live no es el comienzo. Es el resultado de evidencia, riesgo y aprobaci&oacute;n.</div>
+        </div>
+      </section>
+
+      <div id="caption-1" class="clip caption" data-start="1.1" data-duration="3.5" data-track-index="10">
+        <span><strong>Hedge Fund Station:</strong> mercado → <em>evidencia</em> → decisi&oacute;n.</span>
+      </div>
+      <div id="caption-2" class="clip caption" data-start="5.1" data-duration="4.4" data-track-index="10">
+        <span><strong>Backtesting:</strong> evidencia antes de Paper, siempre.</span>
+      </div>
+      <div id="caption-3" class="clip caption" data-start="10.7" data-duration="4.8" data-track-index="10">
+        <span>No avanza por hype. Avanza por <em>prueba</em>.</span>
+      </div>
+      <div id="caption-4" class="clip caption" data-start="16.3" data-duration="4.9" data-track-index="10">
+        <span><strong>Radar Hyperliquid:</strong> presi&oacute;n, riesgo y se&ntilde;ales separados.</span>
+      </div>
+      <div id="caption-5" class="clip caption" data-start="22.3" data-duration="5.5" data-track-index="10">
+        <span><strong>Strategy Memory Graph:</strong> cada decisi&oacute;n queda conectada.</span>
+      </div>
+      <div id="caption-6" class="clip caption" data-start="29.2" data-duration="5.8" data-track-index="10">
+        <span><strong>Paper primero.</strong> Live despu&eacute;s: gates, riesgo y aprobaci&oacute;n humana.</span>
+      </div>
+      <div id="caption-7" class="clip caption" data-start="36.1" data-duration="3.4" data-track-index="10">
+        <span><strong>Research</strong> → Backtest → Validate → Paper → <em>Live</em>.</span>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.from("#scene-opening .big-title", { y: 70, opacity: 0, duration: 0.7, ease: "power3.out" }, 0.2)
+        .from("#scene-opening .hero-copy", { y: 36, opacity: 0, duration: 0.6, ease: "power2.out" }, 0.65)
+        .from("#scene-opening .hero-device", { x: 74, y: 42, rotateY: -7, opacity: 0, duration: 0.9, ease: "expo.out" }, 0.8)
+        .from("#scene-opening .showcase-image", { scale: 1.1, filter: "blur(10px) saturate(1.2) contrast(1.08)", duration: 0.95, ease: "expo.out" }, 0.86)
+        .to("#scene-opening .image-sheen", { x: 1480, duration: 0.95, ease: "power2.inOut" }, 1.18)
+        .from("#scene-opening .rail-token", { y: 26, opacity: 0, stagger: 0.08, duration: 0.42, ease: "power2.out" }, 1.4)
+        .to("#scene-opening .hero-device", { y: -10, duration: 2.6, ease: "sine.inOut" }, 1.1);
+
+      tl.from("#scene-research .route-frame", { scale: 0.94, opacity: 0, filter: "blur(12px)", duration: 0.55, ease: "power3.out" }, 4)
+        .from("#scene-research .backtest-shot", { scale: 1.08, filter: "blur(10px) saturate(1.18) contrast(1.12)", duration: 0.78, ease: "expo.out" }, 4.12)
+        .to("#scene-research .image-sheen", { x: 1720, duration: 0.92, ease: "power2.inOut" }, 4.65)
+        .from("#scene-research .backtest-overlay", { x: -42, opacity: 0, duration: 0.52, ease: "power3.out" }, 4.75)
+        .from("#scene-research .proof-chip", { y: 32, opacity: 0, stagger: 0.1, duration: 0.44, ease: "back.out(1.5)" }, 5.2)
+        .to("#scene-research .backtest-shot", { scale: 1.02, duration: 4.6, ease: "sine.inOut" }, 4.8);
+
+      tl.from("#scene-pipeline .eyebrow, #scene-pipeline .h1, #scene-pipeline .lead", { y: 38, opacity: 0, stagger: 0.08, duration: 0.48, ease: "power3.out" }, 10.1)
+        .from("#scene-pipeline .pipeline-col", { y: 80, opacity: 0, stagger: 0.1, duration: 0.64, ease: "power3.out" }, 10.75)
+        .from("#scene-pipeline .strategy-card", { y: 24, opacity: 0, stagger: 0.04, duration: 0.34, ease: "power2.out" }, 11.35)
+        .to("#scene-pipeline .column-count", { boxShadow: "0 0 24px rgba(34,211,238,0.28)", duration: 0.5, repeat: 4, yoyo: true, ease: "sine.inOut" }, 12.2);
+
+      tl.from("#scene-market .radar-card", { y: 80, opacity: 0, stagger: 0.12, duration: 0.62, ease: "power3.out" }, 16.05)
+        .from("#scene-market .chart path", { strokeDasharray: 900, strokeDashoffset: 900, duration: 1.2, stagger: 0.12, ease: "power2.out" }, 16.62)
+        .from("#scene-market .market-row, #scene-market .queue-row", { x: -40, opacity: 0, stagger: 0.06, duration: 0.34, ease: "power2.out" }, 17.4)
+        .from("#scene-market .bar span", { scaleX: 0, transformOrigin: "left center", duration: 0.7, stagger: 0.1, ease: "power3.out" }, 17.75)
+        .from("#scene-market .fact-box", { y: 30, opacity: 0, stagger: 0.08, duration: 0.44, ease: "power2.out" }, 18.4);
+
+      tl.from("#scene-memory .graph-card", { y: 80, opacity: 0, stagger: 0.12, duration: 0.62, ease: "power3.out" }, 22.05)
+        .from("#scene-memory .graph-shot", { scale: 1.12, opacity: 0, filter: "blur(12px) saturate(1.22) contrast(1.12)", duration: 0.72, ease: "expo.out" }, 22.55)
+        .from("#scene-memory .graph-callout", { y: 24, opacity: 0, stagger: 0.16, duration: 0.42, ease: "back.out(1.6)" }, 23.15)
+        .to("#scene-memory .image-sheen", { x: 1260, duration: 0.86, ease: "power2.inOut" }, 23.0)
+        .from("#scene-memory .memory-badge", { y: 26, opacity: 0, stagger: 0.08, duration: 0.36, ease: "power2.out" }, 23.42)
+        .from("#scene-memory .terminal-card", { x: 50, opacity: 0, stagger: 0.12, duration: 0.42, ease: "power2.out" }, 23.5)
+        .to("#scene-memory .graph-shot", { scale: 1.04, duration: 4.4, ease: "sine.inOut" }, 23.45);
+
+      tl.from("#scene-paper .paper-card, #scene-paper .live-card", { y: 90, opacity: 0, stagger: 0.12, duration: 0.66, ease: "power3.out" }, 29.05)
+        .from("#scene-paper .chart path", { strokeDasharray: 900, strokeDashoffset: 900, duration: 1.1, stagger: 0.1, ease: "power2.out" }, 29.72)
+        .from("#scene-paper .trade-row", { x: -44, opacity: 0, stagger: 0.08, duration: 0.38, ease: "power2.out" }, 30.3)
+        .from("#scene-paper .gate-card", { x: 44, opacity: 0, stagger: 0.1, duration: 0.42, ease: "power2.out" }, 30.55)
+        .from("#scene-paper .warning-banner", { y: 30, opacity: 0, duration: 0.5, ease: "power2.out" }, 31.1);
+
+      tl.from("#scene-close .close-logo", { scale: 0.72, opacity: 0, duration: 0.58, ease: "back.out(1.8)" }, 36.05)
+        .from("#scene-close .h1, #scene-close .lead", { y: 42, opacity: 0, stagger: 0.12, duration: 0.55, ease: "power3.out" }, 36.35)
+        .from("#scene-close .loop-step", { y: 42, opacity: 0, stagger: 0.08, duration: 0.44, ease: "power2.out" }, 37.0)
+        .from("#scene-close .arrow", { scale: 0.2, opacity: 0, stagger: 0.08, duration: 0.28, ease: "power2.out" }, 37.2)
+        .to("#scene-close .loop-step", { boxShadow: "0 0 34px rgba(239,68,68,0.28)", duration: 0.7, repeat: 2, yoyo: true, ease: "sine.inOut" }, 37.9);
+
+      [
+        ["#caption-1 span", 1.1, 3.5],
+        ["#caption-2 span", 5.1, 4.4],
+        ["#caption-3 span", 10.7, 4.8],
+        ["#caption-4 span", 16.3, 4.9],
+        ["#caption-5 span", 22.3, 5.5],
+        ["#caption-6 span", 29.2, 5.8],
+        ["#caption-7 span", 36.1, 3.4],
+      ].forEach(([selector, start, duration]) => {
+        tl.fromTo(
+          selector,
+          { y: 54, opacity: 0, scale: 0.92, filter: "blur(12px)", clipPath: "inset(0 48% 0 48%)" },
+          { y: 0, opacity: 1, visibility: "visible", scale: 1, filter: "blur(0px)", clipPath: "inset(0 0% 0 0%)", duration: 0.42, ease: "back.out(1.65)" },
+          start
+        );
+        tl.fromTo(
+          selector,
+          { "--caption-sheen-x": "-115%" },
+          { "--caption-sheen-x": "115%", duration: 0.72, ease: "power2.inOut" },
+          start + 0.14
+        );
+        tl.to(
+          selector,
+          { y: -28, opacity: 0, scale: 0.98, filter: "blur(8px)", duration: 0.28, ease: "power2.in" },
+          start + duration - 0.34
+        );
+        tl.set(selector, { opacity: 0, visibility: "hidden" }, start + duration);
+      });
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

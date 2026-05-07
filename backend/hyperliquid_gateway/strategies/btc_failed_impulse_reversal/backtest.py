@@ -18,13 +18,11 @@ except ImportError:
     from backtesting.engine import BacktestConfig, calculate_trade_fee
     from backtesting.filters import build_snapshot_filter
     from backtesting.metrics import build_summary
-from .logic import calculate_funding_percentile, evaluate_signal
+from .logic import calculate_funding_percentile, evaluate_signal, signal_params
 from .risk import (
-    COOLDOWN_MINUTES,
-    MAX_HOLD_MINUTES,
-    POST_LOSS_COOLDOWN_MINUTES,
     build_risk_plan,
     calculate_position_size,
+    risk_params,
 )
 from .scoring import calculate_execution_quality, score_setup
 
@@ -47,6 +45,30 @@ FAILED_IMPULSE_ROBUST_GATE = {
 
 
 def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
+    return run_backtest_with_params(dataset_path, config, params=None, variant_id="default")
+
+
+def failed_impulse_variant_params(overrides: dict[str, Any] | None = None) -> dict[str, float]:
+    resolved = {
+        **signal_params(),
+        **risk_params(),
+    }
+    for key, value in (overrides or {}).items():
+        if key in resolved and isinstance(value, (int, float)):
+            resolved[key] = float(value)
+    return resolved
+
+
+def run_backtest_with_params(
+    dataset_path: Path,
+    config: BacktestConfig,
+    *,
+    params: dict[str, Any] | None = None,
+    variant_id: str = "default",
+) -> dict[str, Any]:
+    resolved_params = failed_impulse_variant_params(params)
+    resolved_signal_params = signal_params(resolved_params)
+    resolved_risk_params = risk_params(resolved_params)
     sampled_rows, replay_filter = load_sampled_snapshots(dataset_path, config)
     equity = config.initial_equity
     equity_curve: list[dict[str, float | int | str]] = []
@@ -68,7 +90,11 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
                 equity += float(maybe_trade.get("equity_delta", maybe_trade["net_pnl"]))
                 fees_paid += float(maybe_trade["fees"]) - float(open_position["entry_fee"])
                 trades.append(maybe_trade)
-                cooldown_minutes = POST_LOSS_COOLDOWN_MINUTES if float(maybe_trade["net_pnl"]) < 0 else COOLDOWN_MINUTES
+                cooldown_minutes = int(
+                    resolved_risk_params["post_loss_cooldown_minutes"]
+                    if float(maybe_trade["net_pnl"]) < 0
+                    else resolved_risk_params["cooldown_minutes"]
+                )
                 cooldown_until_by_symbol[symbol] = int(market_data["timestamp_ms"]) + (cooldown_minutes * 60 * 1000)
                 open_position = None
 
@@ -79,7 +105,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             continue
 
         market_data["cooldownUntilMs"] = cooldown_until_by_symbol[symbol]
-        signal_eval = evaluate_signal(market_data)
+        signal_eval = evaluate_signal(market_data, params=resolved_signal_params)
         if signal_eval.get("signal") not in {"long", "short"}:
             continue
 
@@ -90,6 +116,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             market_data=market_data,
             current_positions=[open_position] if open_position is not None else [],
             signal_eval=signal_eval,
+            params=resolved_risk_params,
         )
         if not sizing.get("can_enter"):
             continue
@@ -100,7 +127,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
         if size_usd <= 0:
             continue
 
-        risk_plan = build_risk_plan({**market_data, "price": entry_price, "side": side}, side=side)
+        risk_plan = build_risk_plan({**market_data, "price": entry_price, "side": side}, side=side, params=resolved_risk_params)
         entry_fee_result = calculate_trade_fee(notional_usd=size_usd, config=config)
         entry_fee = float(entry_fee_result["fee"])
         equity -= entry_fee
@@ -171,7 +198,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             "end": sampled_rows[-1]["timestamp"] if sampled_rows else None,
         },
         "summary": summary,
-        "latest_signal": build_latest_signal(symbol_histories),
+        "latest_signal": build_latest_signal(symbol_histories, params=resolved_signal_params),
         "trades": trades,
         "equity_curve": equity_curve,
         "symbol_leaderboard": diagnostics["symbol_leaderboard"],
@@ -182,6 +209,11 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             "Default universe is BTC unless symbols or universe=all is explicitly provided.",
             "Passing validation only permits paper review; this is not a live-trading route.",
         ],
+        "variant": {
+            "variant_id": variant_id,
+            "params": resolved_params,
+            "research_only": variant_id != "default",
+        },
     }
 
 
@@ -290,8 +322,10 @@ def maybe_close_position(position: dict[str, Any], market_data: dict[str, Any], 
         if price <= float(position["take_profit"]):
             return close_position(position, market_data["timestamp"], apply_slippage(price, side, execution_quality, True), "take_profit", config)
 
+    risk_plan = position.get("risk_plan") if isinstance(position.get("risk_plan"), dict) else {}
+    max_hold_minutes = int(risk_plan.get("max_hold_minutes") or risk_params()["max_hold_minutes"])
     held_ms = int(market_data["timestamp_ms"]) - int(position["createdAt"])
-    if held_ms >= MAX_HOLD_MINUTES * 60 * 1000:
+    if held_ms >= max_hold_minutes * 60 * 1000:
         return close_position(position, market_data["timestamp"], apply_slippage(price, side, execution_quality, True), "time_stop", config)
     return None
 
@@ -330,13 +364,13 @@ def close_position(position: dict[str, Any], exit_timestamp: str, exit_price: fl
     }
 
 
-def build_latest_signal(symbol_histories: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+def build_latest_signal(symbol_histories: dict[str, list[dict[str, Any]]], params: dict[str, Any] | None = None) -> dict[str, Any]:
     candidates = []
     for history in symbol_histories.values():
         if not history:
             continue
         market_data = history[-1]
-        signal_eval = evaluate_signal(market_data)
+        signal_eval = evaluate_signal(market_data, params=params)
         setup_score = score_setup(market_data, signal_eval)
         candidates.append((setup_score["rank_score"], market_data, signal_eval, setup_score))
     if not candidates:

@@ -1020,7 +1020,6 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
 
   const cancelDraft = React.useCallback((draft: MissionDraft) => {
     draft.terminalIds?.forEach((terminalId) => {
-      window.electronAPI.terminal.kill(terminalId);
       closeTerminal(terminalId);
     });
     if (draft.runId) {

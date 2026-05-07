@@ -12,6 +12,23 @@ LONG_MIN_FAILED_FOLLOWTHROUGH_15M_PCT = -0.08
 SHORT_MAX_FAILED_FOLLOWTHROUGH_15M_PCT = -0.18
 MAX_ABS_4H_EXTENSION_PCT = 5.0
 
+SIGNAL_PARAM_DEFAULTS = {
+    "min_volume_usd": MIN_VOLUME_USD,
+    "min_open_interest_usd": MIN_OPEN_INTEREST_USD,
+    "min_impulse_1h_pct": MIN_IMPULSE_1H_PCT,
+    "long_min_failed_followthrough_15m_pct": LONG_MIN_FAILED_FOLLOWTHROUGH_15M_PCT,
+    "short_max_failed_followthrough_15m_pct": SHORT_MAX_FAILED_FOLLOWTHROUGH_15M_PCT,
+    "max_abs_4h_extension_pct": MAX_ABS_4H_EXTENSION_PCT,
+}
+
+
+def signal_params(overrides: dict[str, Any] | None = None) -> dict[str, float]:
+    params = {key: float(value) for key, value in SIGNAL_PARAM_DEFAULTS.items()}
+    for key, value in (overrides or {}).items():
+        if key in params and isinstance(value, (int, float)):
+            params[key] = float(value)
+    return params
+
 
 def calculate_funding_percentile(current_funding: float, funding_history: list[float]) -> float:
     if not funding_history:
@@ -21,7 +38,8 @@ def calculate_funding_percentile(current_funding: float, funding_history: list[f
     return round((count_below / len(sorted_history)) * 100, 2)
 
 
-def evaluate_signal(market_data: dict[str, Any]) -> dict[str, Any]:
+def evaluate_signal(market_data: dict[str, Any], params: dict[str, Any] | None = None) -> dict[str, Any]:
+    resolved_params = signal_params(params)
     symbol = str(market_data.get("symbol", "") or "")
     price = float(market_data.get("price", 0.0) or 0.0)
     volume_24h = float(market_data.get("volume24h", 0.0) or 0.0)
@@ -43,19 +61,19 @@ def evaluate_signal(market_data: dict[str, Any]) -> dict[str, Any]:
     common_filters = {
         "btc_symbol": symbol == "BTC",
         "valid_price": price > 0,
-        "liquid_volume": volume_24h >= MIN_VOLUME_USD,
-        "meaningful_open_interest": open_interest >= MIN_OPEN_INTEREST_USD,
-        "not_extreme_4h_extension": abs(change_4h) <= MAX_ABS_4H_EXTENSION_PCT,
+        "liquid_volume": volume_24h >= resolved_params["min_volume_usd"],
+        "meaningful_open_interest": open_interest >= resolved_params["min_open_interest_usd"],
+        "not_extreme_4h_extension": abs(change_4h) <= resolved_params["max_abs_4h_extension_pct"],
     }
     long_filters = {
         **common_filters,
-        "downside_impulse_1h": change_1h <= -MIN_IMPULSE_1H_PCT,
-        "downside_followthrough_failed_15m": change_15m >= LONG_MIN_FAILED_FOLLOWTHROUGH_15M_PCT,
+        "downside_impulse_1h": change_1h <= -resolved_params["min_impulse_1h_pct"],
+        "downside_followthrough_failed_15m": change_15m >= resolved_params["long_min_failed_followthrough_15m_pct"],
     }
     short_filters = {
         **common_filters,
-        "upside_impulse_1h": change_1h >= MIN_IMPULSE_1H_PCT,
-        "upside_followthrough_reversed_15m": change_15m <= SHORT_MAX_FAILED_FOLLOWTHROUGH_15M_PCT,
+        "upside_impulse_1h": change_1h >= resolved_params["min_impulse_1h_pct"],
+        "upside_followthrough_reversed_15m": change_15m <= resolved_params["short_max_failed_followthrough_15m_pct"],
     }
 
     long_confidence = confidence_from_filters(long_filters, abs(change_1h), abs(change_15m))
@@ -95,6 +113,7 @@ def evaluate_signal(market_data: dict[str, Any]) -> dict[str, Any]:
             "short_squeeze_score": round(short_squeeze_score, 2),
             "long_flush_score": round(long_flush_score, 2),
             "fade_score": round(fade_score, 2),
+            "variant_params": resolved_params,
         },
         "reasons": [
             f"1h impulse {change_1h:.2f}%, 15m follow-through {change_15m:.2f}%, 5m {change_5m:.2f}%",

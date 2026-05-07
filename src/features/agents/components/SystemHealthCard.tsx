@@ -1,6 +1,6 @@
 import React from 'react';
 import type { AgentProvider } from '@/types/agents';
-import type { Workspace, DiagnosticsCommandStatus, DiagnosticsShellSmokeTestResult } from '@/types/electron';
+import type { Workspace, DiagnosticsCommandStatus, DiagnosticsShellSmokeTestResult, TerminalSmokeTestResult } from '@/types/electron';
 import { getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
 
 type CheckState = 'idle' | 'running' | 'done' | 'error';
@@ -28,16 +28,20 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
   const [checkState, setCheckState] = React.useState<CheckState>('idle');
   const [commands, setCommands] = React.useState<DiagnosticsCommandStatus[]>([]);
   const [shellResult, setShellResult] = React.useState<DiagnosticsShellSmokeTestResult | null>(null);
+  const [ptyResult, setPtyResult] = React.useState<TerminalSmokeTestResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const runtimeShell = React.useMemo(
+    () => workspace ? resolveAgentRuntimeShell(workspace.shell) : undefined,
+    [workspace]
+  );
 
   const runtimeCommands = React.useMemo(() => {
     if (!workspace) {
       return [];
     }
 
-    const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
     return Array.from(new Set(providers.map((provider) => resolveAgentRuntimeCommand(provider, runtimeShell))));
-  }, [providers, workspace]);
+  }, [providers, runtimeShell, workspace]);
 
   const runCheck = React.useCallback(async () => {
     if (!workspace) {
@@ -45,9 +49,10 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
     }
 
     if (typeof window.electronAPI.diagnostics?.checkCommands !== 'function'
-      || typeof window.electronAPI.diagnostics?.shellSmokeTest !== 'function') {
+      || typeof window.electronAPI.diagnostics?.shellSmokeTest !== 'function'
+      || typeof window.electronAPI.terminal?.smokeTest !== 'function') {
       setCheckState('error');
-      setError('Preload diagnostics API not available. Reload the app.');
+      setError('Preload diagnostics or terminal smoke API not available. Restart the Electron shell.');
       return;
     }
 
@@ -56,24 +61,27 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
 
     try {
       const [commandStatuses, shellSmoke] = await Promise.all([
-        window.electronAPI.diagnostics.checkCommands(runtimeCommands),
-        window.electronAPI.diagnostics.shellSmokeTest(workspace.path, workspace.shell)
+        window.electronAPI.diagnostics.checkCommands(runtimeCommands, { cwd: workspace.path, shell: runtimeShell }),
+        window.electronAPI.diagnostics.shellSmokeTest(workspace.path, runtimeShell)
       ]);
+      const ptySmoke = await window.electronAPI.terminal.smokeTest(workspace.path, runtimeShell);
 
       setCommands(commandStatuses);
       setShellResult(shellSmoke);
-      setCheckState(shellSmoke.success ? 'done' : 'error');
-      if (!shellSmoke.success) {
-        setError(shellSmoke.error || 'Shell check failed');
+      setPtyResult(ptySmoke);
+      const hasMissingCommand = commandStatuses.some((item) => !item.available);
+      setCheckState(shellSmoke.success && ptySmoke.success && !hasMissingCommand ? 'done' : 'error');
+      if (!shellSmoke.success || !ptySmoke.success || hasMissingCommand) {
+        setError(shellSmoke.error || ptySmoke.error || (hasMissingCommand ? 'One or more runtime commands are missing.' : 'Shell or PTY check failed'));
       }
     } catch (caught) {
       setCheckState('error');
       setError(caught instanceof Error ? caught.message : 'Diagnostics failed');
     }
-  }, [runtimeCommands, workspace]);
+  }, [runtimeCommands, runtimeShell, workspace]);
 
   const missingCommands = commands.filter((item) => !item.available);
-  const ready = commands.length > 0 && missingCommands.length === 0 && shellResult?.success;
+  const ready = commands.length > 0 && missingCommands.length === 0 && shellResult?.success && ptyResult?.success;
 
   return (
     <div style={cardStyle}>
@@ -144,6 +152,22 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
       </div>
 
       <div style={sectionBlockStyle}>
+        <div style={subLabelStyle}>PTY Probe</div>
+        <div style={probeBoxStyle}>
+          <div style={{ color: '#f8fafc', fontSize: '12px', fontWeight: 700 }}>
+            {runtimeShell || workspace?.shell || 'No shell configured'}
+          </div>
+          <div style={{ color: ptyResult?.success ? '#6ee7b7' : '#94a3b8', fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
+            {ptyResult
+              ? (ptyResult.success
+                  ? 'node-pty spawned a real shell and returned output.'
+                  : ptyResult.error || ptyResult.output || 'PTY smoke failed')
+              : 'Runs an invisible node-pty smoke test before mission launch.'}
+          </div>
+        </div>
+      </div>
+
+      <div style={sectionBlockStyle}>
         <div style={subLabelStyle}>Launch Probe</div>
         <div style={{ color: '#94a3b8', fontSize: '11px', lineHeight: 1.45 }}>
           Open a real terminal using the same runtime command path the agent launch flow uses.
@@ -180,6 +204,12 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
       {missingCommands.length > 0 ? (
         <div style={warningStyle}>
           Missing commands will leave a mission opened without an AI runtime. Install or fix the PATH before launching.
+        </div>
+      ) : null}
+
+      {ptyResult && !ptyResult.success ? (
+        <div style={warningStyle}>
+          In-app terminals need a working node-pty helper. Run `npm run terminal:doctor`, then restart the Electron shell.
         </div>
       ) : null}
     </div>

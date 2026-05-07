@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .doubling import build_doubling_stability_audit, build_paper_baseline
 from .engine import BacktestConfig
 from .registry import (
     available_strategies,
@@ -210,6 +211,12 @@ def build_paper_workflow(
         "validation": validation_payload,
     }
     candidate = definition.paper_candidate_builder(candidate_input)
+    paper_baseline = build_paper_baseline(
+        report_payload,
+        validation_payload=validation_payload,
+        paper_candidate=candidate,
+        report_path=resolved_report,
+    )
     artifact_id = build_artifact_id("paper_candidate", strategy_id)
     production_assessment = build_production_candidate_assessment(
         strategy_id=strategy_id,
@@ -231,6 +238,7 @@ def build_paper_workflow(
         "summary": report_payload.get("summary"),
         "latest_signal": report_payload.get("latest_signal"),
         "paper_candidate": candidate,
+        "paper_baseline": paper_baseline,
         "production_candidate_assessment": production_assessment,
         "promotion_path": {
             "current_stage": "paper_candidate",
@@ -250,6 +258,92 @@ def build_paper_workflow(
     destination = output_path or PAPER_ROOT / f"{strategy_id}-{timestamp_slug()}.json"
     write_json(destination, payload)
     return {"paper_path": destination, "payload": payload}
+
+
+def build_doubling_stability_workflow(
+    *,
+    strategy_id: str,
+    report_path: Path | None = None,
+    validation_path: Path | None = None,
+    output_path: Path | None = None,
+    slice_count: int = 3,
+) -> dict[str, Any]:
+    resolved_report = report_path if report_path is not None else latest_json(REPORTS_ROOT, f"{strategy_id}-")
+    if resolved_report is None or not resolved_report.exists():
+        raise ValueError("No backtest report found. Run hf backtest first or pass --report.")
+
+    report_payload = json.loads(resolved_report.read_text(encoding="utf-8"))
+    resolved_validation = validation_path if validation_path is not None else latest_matching_validation(
+        strategy_id=strategy_id,
+        report_path=resolved_report,
+        report_artifact_id=report_payload.get("artifact_id"),
+    )
+    validation_payload = json.loads(resolved_validation.read_text(encoding="utf-8")) if resolved_validation and resolved_validation.exists() else None
+    audit = build_doubling_stability_audit(
+        report_payload,
+        report_path=resolved_report,
+        validation_payload=validation_payload,
+        slice_count=slice_count,
+    )
+    artifact_id = build_artifact_id("doubling_stability_audit", strategy_id)
+    payload = {
+        "artifact_id": artifact_id,
+        "generated_at": now_iso(),
+        "artifact_type": "doubling_stability_audit",
+        "strategy_id": strategy_id,
+        "report_path": str(resolved_report),
+        "validation_path": str(resolved_validation) if resolved_validation else None,
+        "report_artifact_id": report_payload.get("artifact_id"),
+        "validation_artifact_id": validation_payload.get("artifact_id") if validation_payload else None,
+        "audit": audit,
+        "lineage": {
+            "stage": "doubling_stability_audit",
+            "parents": [item for item in [report_payload.get("artifact_id"), validation_payload.get("artifact_id") if validation_payload else None] if item],
+            "children": ["paper_review"],
+        },
+    }
+    destination = output_path or AUDITS_ROOT / f"{strategy_id}-doubling-stability-{timestamp_slug()}.json"
+    write_json(destination, payload)
+    return {"audit_path": destination, "payload": payload}
+
+
+def build_btc_variant_optimizer_workflow(
+    *,
+    strategy_id: str,
+    dataset_path: Path | None,
+    config: BacktestConfig,
+    output_path: Path | None = None,
+    max_variants: int | None = None,
+) -> dict[str, Any]:
+    if strategy_id != "btc_failed_impulse_reversal":
+        raise ValueError("BTC variant optimizer currently supports btc_failed_impulse_reversal only.")
+    try:
+        from ..strategies.btc_failed_impulse_reversal.optimizer import build_variant_optimizer_report
+    except ImportError:
+        from strategies.btc_failed_impulse_reversal.optimizer import build_variant_optimizer_report
+
+    resolved_dataset = dataset_path if dataset_path is not None else resolve_default_dataset(strategy_id)
+    report = build_variant_optimizer_report(
+        dataset_path=resolved_dataset,
+        config=config,
+        max_variants=max_variants,
+    )
+    artifact_id = build_artifact_id("btc_failed_impulse_variant_optimizer", strategy_id)
+    payload = {
+        "artifact_id": artifact_id,
+        "generated_at": now_iso(),
+        "artifact_type": "btc_failed_impulse_variant_optimizer",
+        "strategy_id": strategy_id,
+        **report,
+        "lineage": {
+            "stage": "strategy_optimizer",
+            "parents": [],
+            "children": ["backtest_report", "validation_report", "paper_candidate"],
+        },
+    }
+    destination = output_path or AUDITS_ROOT / f"{strategy_id}-variant-optimizer-{timestamp_slug()}.json"
+    write_json(destination, payload)
+    return {"audit_path": destination, "payload": payload}
 
 
 def normalize_strategy_id(value: str) -> str:

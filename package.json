@@ -17,6 +17,7 @@
     "dev": "electron-vite dev --watch",
     "dev:mac": "./open-hedge-fund-station-dev.command",
     "build": "electron-vite build",
+    "terminal:doctor": "node scripts/fix-node-pty-permissions.mjs --smoke",
     "mission:drill": "node scripts/mission-drill.mjs --workspace .",
     "agent:init": "python3 scripts/agent_harness.py init",
     "agent:status": "python3 scripts/agent_harness.py status",
@@ -26,6 +27,11 @@
     "hf:backtest": "python3 scripts/hf.py backtest",
     "hf:validate": "python3 scripts/hf.py validate",
     "hf:paper": "python3 scripts/hf.py paper",
+    "hf:paper:tick": "python3 scripts/hf.py paper-runtime-tick",
+    "hf:paper:loop": "python3 scripts/hf.py paper-runtime-loop",
+    "hf:paper:supervisor": "bash scripts/btc-paper-runtime-loop.sh",
+    "hf:doubling:stability": "python3 scripts/hf.py doubling-stability",
+    "hf:btc:optimize": "python3 scripts/hf.py btc-optimize",
     "hf:agent:research": "python3 scripts/hf.py agent research",
     "hf:agent:audit": "python3 scripts/hf.py agent audit",
     "hf:agent:status": "python3 scripts/hf.py agent status",
@@ -53,7 +59,7 @@
     "dist:win": "npm run build && electron-builder --win",
     "dist:portable": "npm run build && electron-builder --win portable",
     "dist:dir": "npm run build && electron-builder --dir",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps && node scripts/fix-node-pty-permissions.mjs"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.14.4",

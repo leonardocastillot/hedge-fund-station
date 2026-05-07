@@ -47,6 +47,97 @@ export interface ObsidianRelevantNote {
   pinned?: boolean;
 }
 
+export type ObsidianGraphNodeType =
+  | 'strategy'
+  | 'strategy-doc'
+  | 'backend-package'
+  | 'backtest-artifact'
+  | 'validation-artifact'
+  | 'paper-artifact'
+  | 'learning-event'
+  | 'agent-memory'
+  | 'progress-handoff'
+  | 'obsidian-note'
+  | 'repo-path';
+
+export interface ObsidianGraphNode {
+  id: string;
+  type: ObsidianGraphNodeType;
+  label: string;
+  path?: string;
+  repoPath?: string;
+  updatedAt?: number | null;
+  strategyId?: string | null;
+  pipelineStage?: string | null;
+  gateStatus?: string | null;
+  summary?: string | null;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface ObsidianGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  type: 'wiki-link' | 'repo-path' | 'strategy-doc' | 'backend-package' | 'artifact' | 'related-note' | 'learning-link';
+  label?: string;
+}
+
+export interface ObsidianGraphResponse {
+  generatedAt: string;
+  vaultPath: string | null;
+  notesPath: string | null;
+  nodes: ObsidianGraphNode[];
+  edges: ObsidianGraphEdge[];
+  warnings: string[];
+}
+
+export interface ObsidianStrategyMemoryInput {
+  strategyId: string;
+  displayName?: string;
+  pipelineStage?: string;
+  gateStatus?: string;
+  gateReasons?: string[];
+  sourceTypes?: string[];
+  registeredForBacktest?: boolean;
+  canBacktest?: boolean;
+  documentationPaths?: string[];
+  latestArtifactPaths?: Record<string, string | null | undefined>;
+  latestBacktestSummary?: Record<string, unknown> | null;
+  validationStatus?: string | null;
+  evidenceCounts?: Record<string, number>;
+  checklist?: Record<string, boolean>;
+  missingAuditItems?: string[];
+  doublingEstimate?: Record<string, unknown> | null;
+}
+
+export interface ObsidianStrategyLearningEventInput {
+  eventId: string;
+  strategyId: string;
+  kind: 'hypothesis' | 'decision' | 'lesson' | 'postmortem' | 'rule_change';
+  outcome: 'win' | 'loss' | 'mixed' | 'unknown';
+  stage?: string | null;
+  title: string;
+  summary?: string;
+  evidencePaths?: string[];
+  lesson?: string | null;
+  ruleChange?: string | null;
+  nextAction?: string | null;
+  generatedAt?: string | null;
+  path?: string | null;
+}
+
+export interface ObsidianSyncStrategyMemoryResult {
+  vaultPath: string;
+  notesPath: string;
+  created: number;
+  updated: number;
+  skipped: number;
+  writtenFiles: string[];
+  skippedFiles: string[];
+  warnings: string[];
+}
+
 export interface DiagnosticsCommandStatus {
   command: string;
   available: boolean;
@@ -296,6 +387,14 @@ export interface TerminalSnapshot {
   exitCode?: number;
 }
 
+export interface TerminalSmokeTestResult {
+  success: boolean;
+  shell: string;
+  cwd: string;
+  output: string;
+  error?: string;
+}
+
 export interface ElectronAPI {
   terminal: {
     create: (id: string, cwd: string, shell?: string, autoCommand?: string) => Promise<{ success: boolean; error?: string }>;
@@ -305,6 +404,7 @@ export interface ElectronAPI {
     exists: (id: string) => Promise<boolean>;
     getAllIds: () => Promise<string[]>;
     getSnapshot?: (id: string) => Promise<TerminalSnapshot | null>;
+    smokeTest: (cwd: string, shell?: string) => Promise<TerminalSmokeTestResult>;
     onData: (id: string, callback: (data: { id: string; data: string }) => void) => () => void;
     onExit: (id: string, callback: (data: { id: string; exitCode: number }) => void) => () => void;
   };
@@ -346,6 +446,13 @@ export interface ElectronAPI {
     listNotes: (workspacePath: string, vaultPath?: string, limit?: number) => Promise<ObsidianNoteSummary[]>;
     searchRelevant: (workspacePath: string, query: string, vaultPath?: string, limit?: number) => Promise<ObsidianRelevantNote[]>;
     listPinned: (workspacePath: string, vaultPath?: string, workspaceId?: string, workspaceName?: string, limit?: number) => Promise<ObsidianRelevantNote[]>;
+    getGraph: (workspacePath: string, vaultPath?: string) => Promise<ObsidianGraphResponse>;
+    syncStrategyMemory: (
+      workspacePath: string,
+      strategies: ObsidianStrategyMemoryInput[],
+      vaultPath?: string,
+      learningEvents?: ObsidianStrategyLearningEventInput[]
+    ) => Promise<ObsidianSyncStrategyMemoryResult>;
     exportMission: (
       workspaceName: string,
       workspacePath: string,
@@ -361,7 +468,7 @@ export interface ElectronAPI {
     openVault: (vaultPath: string) => Promise<{ success: boolean; fallback: boolean }>;
   };
   diagnostics: {
-    checkCommands: (commands: string[]) => Promise<DiagnosticsCommandStatus[]>;
+    checkCommands: (commands: string[], options?: { cwd?: string; shell?: string }) => Promise<DiagnosticsCommandStatus[]>;
     shellSmokeTest: (cwd: string, shell?: string) => Promise<DiagnosticsShellSmokeTestResult>;
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) => Promise<DiagnosticsMissionDrillResult>;
     launchCodexLogin: () => Promise<{ success: boolean; command: string; error?: string }>;

@@ -1,85 +1,46 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { LayoutList, Library, RefreshCw, ShieldCheck } from 'lucide-react';
+import { StrategyInventory } from '../components/StrategyInventory';
+import { StrategyPipelineBoard } from '../components/StrategyPipelineBoard';
 import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  ClipboardCheck,
-  FileText,
-  FlaskConical,
-  Play,
-  RefreshCw,
-  ShieldCheck
-} from 'lucide-react';
+  groupActionableStrategies,
+  sortInventoryStrategies,
+  summarizeStrategyPipeline
+} from '../strategyPipelineModel';
 import {
   hyperliquidService,
-  type HyperliquidGateStatus,
-  type HyperliquidPipelineStage,
   type HyperliquidStrategyCatalogRow
 } from '@/services/hyperliquidService';
 
-type StrategyPipelineColumn = {
-  stage: HyperliquidPipelineStage;
-  title: string;
-  detail: string;
-  icon: typeof FileText;
-};
-
-const PIPELINE_COLUMNS: StrategyPipelineColumn[] = [
-  { stage: 'research', title: 'Research', detail: 'Docs, specs, and backend packages before evidence.', icon: FileText },
-  { stage: 'backtesting', title: 'Backtesting', detail: 'Registered strategies waiting for deterministic tests.', icon: FlaskConical },
-  { stage: 'audit', title: 'Audit', detail: 'Only robust backtest passes after costs enter here.', icon: ShieldCheck },
-  { stage: 'paper', title: 'Paper', detail: 'Ready candidates and paper runtime evidence.', icon: ClipboardCheck },
-  { stage: 'blocked', title: 'Blocked', detail: 'Failed gates and missing evidence stay visible.', icon: AlertTriangle }
-];
+type StrategyLibraryView = 'pipeline' | 'inventory';
 
 const summaryGridStyle = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))'
 };
 
-const pipelineGridStyle = {
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 236px), 1fr))'
+const SAFE_BACKTEST_OPTIONS = {
+  lookbackDays: 3,
+  runValidation: true,
+  buildPaperCandidate: false
 };
 
 function detailPath(strategy: HyperliquidStrategyCatalogRow): string {
   return `/strategy/${encodeURIComponent(strategy.strategyId)}/${encodeURIComponent(strategy.pipelineStage)}`;
 }
 
-function formatPercent(value: unknown): string {
-  const numeric = Number(value ?? 0);
-  return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(2)}%`;
-}
-
-function formatNumber(value: unknown, digits = 2): string {
-  const numeric = Number(value ?? 0);
-  return Number.isFinite(numeric) ? numeric.toFixed(digits) : '0.00';
-}
-
-function stageTone(stage: HyperliquidPipelineStage): string {
-  if (stage === 'paper') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100';
-  if (stage === 'audit') return 'border-cyan-400/30 bg-cyan-500/10 text-cyan-100';
-  if (stage === 'backtesting') return 'border-blue-400/30 bg-blue-500/10 text-blue-100';
-  if (stage === 'blocked') return 'border-amber-400/30 bg-amber-500/10 text-amber-100';
-  return 'border-white/10 bg-white/[0.04] text-white/70';
-}
-
-function gateTone(status: HyperliquidGateStatus): string {
-  if (status === 'paper-active' || status === 'ready-for-paper') return 'text-emerald-200';
-  if (status === 'audit-eligible' || status === 'backtest-running-eligible') return 'text-cyan-200';
-  if (status === 'audit-blocked') return 'text-amber-200';
-  return 'text-white/60';
-}
-
-function actionLabel(strategy: HyperliquidStrategyCatalogRow): string {
-  if (strategy.gateStatus === 'ready-for-paper') {
-    return strategy.latestArtifactPaths.paper ? 'Review Paper Candidate' : 'Create Paper Candidate';
-  }
-  if (strategy.gateStatus === 'paper-active') return 'Review Paper Lab';
-  return strategy.nextAction?.label || 'Review Evidence';
+function formatDoublingDays(value: unknown): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return 'N/A';
+  if (numeric < 1) return '<1d';
+  if (numeric < 100) return `${numeric.toFixed(1)}d`;
+  return `${Math.round(numeric)}d`;
 }
 
 export default function StrategyLibraryPage() {
   const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<StrategyLibraryView>('pipeline');
   const [strategies, setStrategies] = useState<HyperliquidStrategyCatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,26 +74,9 @@ export default function StrategyLibraryPage() {
     void loadStrategies(true);
   }, []);
 
-  const grouped = useMemo(() => {
-    return PIPELINE_COLUMNS.reduce<Record<HyperliquidPipelineStage, HyperliquidStrategyCatalogRow[]>>((acc, column) => {
-      acc[column.stage] = strategies.filter((strategy) => strategy.pipelineStage === column.stage);
-      return acc;
-    }, {
-      research: [],
-      backtesting: [],
-      audit: [],
-      paper: [],
-      blocked: []
-    });
-  }, [strategies]);
-
-  const summary = useMemo(() => {
-    const auditEligible = strategies.filter((strategy) => strategy.gateStatus === 'audit-eligible').length;
-    const readyForPaper = strategies.filter((strategy) => strategy.gateStatus === 'ready-for-paper' || strategy.gateStatus === 'paper-active').length;
-    const blocked = strategies.filter((strategy) => strategy.pipelineStage === 'blocked').length;
-    const backendOnly = strategies.filter((strategy) => !strategy.strategyId.startsWith('runtime:')).length;
-    return { auditEligible, readyForPaper, blocked, backendOnly };
-  }, [strategies]);
+  const grouped = useMemo(() => groupActionableStrategies(strategies), [strategies]);
+  const inventory = useMemo(() => sortInventoryStrategies(strategies), [strategies]);
+  const summary = useMemo(() => summarizeStrategyPipeline(strategies), [strategies]);
 
   const runStrategyAction = async (strategy: HyperliquidStrategyCatalogRow) => {
     const actionKey = `${strategy.strategyId}:${strategy.gateStatus}`;
@@ -141,7 +85,7 @@ export default function StrategyLibraryPage() {
     setError(null);
     try {
       if (strategy.gateStatus === 'backtest-running-eligible') {
-        const result = await hyperliquidService.runBacktest(strategy.strategyId, false);
+        const result = await hyperliquidService.runBacktest(strategy.strategyId, SAFE_BACKTEST_OPTIONS);
         setMessage(`Backtest complete for ${strategy.displayName}: ${result.summary.total_trades} trades, validation ${result.validation?.status ?? 'not run'}.`);
         await loadStrategies(false);
         return;
@@ -178,7 +122,7 @@ export default function StrategyLibraryPage() {
           await loadStrategies(false);
           return;
         }
-        const result = await hyperliquidService.runBacktest(strategy.strategyId, false);
+        const result = await hyperliquidService.runBacktest(strategy.strategyId, SAFE_BACKTEST_OPTIONS);
         setMessage(`Gate re-run complete for ${strategy.displayName}: ${result.summary.total_trades} trades, validation ${result.validation?.status ?? 'not run'}.`);
         await loadStrategies(false);
         return;
@@ -206,9 +150,9 @@ export default function StrategyLibraryPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1 basis-[min(100%,44rem)]">
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300/80">Strategy Pipeline</div>
-            <h1 className="mt-1 text-xl font-semibold leading-tight text-white sm:text-2xl">Research to Backtesting to Audit to Paper</h1>
+            <h1 className="mt-1 text-xl font-semibold leading-tight text-white sm:text-2xl">Actionable Research to Paper Flow</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Backend evidence is the source of truth. Audit only opens after a robust backtest passes costs; blocked strategies keep their exact gate reasons.
+              The default board shows only strategies with a real next step or evidence gate. Research-only and docs-only rows stay available in All Strategies.
             </p>
           </div>
 
@@ -237,140 +181,54 @@ export default function StrategyLibraryPage() {
       </section>
 
       <section className="grid min-w-0 gap-3" style={summaryGridStyle}>
-        <SummaryMetric label="Backend Strategies" value={String(summary.backendOnly)} detail="catalog evidence only" />
+        <SummaryMetric label="Pipeline Rows" value={String(summary.actionableCount)} detail={`${summary.inventoryOnly} in inventory only`} />
+        <SummaryMetric label="All Strategies" value={String(strategies.length)} detail={`${summary.registered} registered`} />
         <SummaryMetric label="Audit Eligible" value={String(summary.auditEligible)} detail="robust backtest passed" tone="text-cyan-200" />
         <SummaryMetric label="Paper Gate" value={String(summary.readyForPaper)} detail="ready or active" tone="text-emerald-200" />
+        <SummaryMetric
+          label="Fastest 2x"
+          value={formatDoublingDays(summary.fastestDoubling?.doublingEstimate?.projectedDaysToDouble)}
+          detail={summary.fastestDoubling ? summary.fastestDoubling.displayName : 'no validated positive BTC artifact'}
+          tone={summary.fastestDoubling ? 'text-emerald-200' : 'text-white/60'}
+        />
         <SummaryMetric label="Blocked" value={String(summary.blocked)} detail="needs repair before audit" tone={summary.blocked > 0 ? 'text-amber-200' : 'text-emerald-200'} />
       </section>
 
-      <section className="grid min-w-0 items-start gap-3" style={pipelineGridStyle}>
-        {PIPELINE_COLUMNS.map((column) => (
-          <PipelineColumn
-            key={column.stage}
-            column={column}
-            strategies={grouped[column.stage]}
+      <section className="flex flex-wrap gap-2">
+        <ViewToggle
+          active={activeView === 'pipeline'}
+          icon={<LayoutList className="h-4 w-4" />}
+          label="Pipeline"
+          detail={`${summary.actionableCount} actionable`}
+          onClick={() => setActiveView('pipeline')}
+        />
+        <ViewToggle
+          active={activeView === 'inventory'}
+          icon={<Library className="h-4 w-4" />}
+          label="All Strategies"
+          detail={`${strategies.length} total`}
+          onClick={() => setActiveView('inventory')}
+        />
+      </section>
+
+      {activeView === 'pipeline' ? (
+        <>
+          {summary.inventoryOnly > 0 ? (
+            <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-white/55">
+              {summary.inventoryOnly} research-only catalog row{summary.inventoryOnly === 1 ? '' : 's'} are intentionally kept out of the main pipeline. Open All Strategies to inspect docs-only work.
+            </div>
+          ) : null}
+          <StrategyPipelineBoard
+            grouped={grouped}
             runningAction={runningAction}
             onOpen={(strategy) => navigate(detailPath(strategy))}
             onRun={(strategy) => void runStrategyAction(strategy)}
           />
-        ))}
-      </section>
+        </>
+      ) : (
+        <StrategyInventory strategies={inventory} onOpen={(strategy) => navigate(detailPath(strategy))} />
+      )}
     </div>
-  );
-}
-
-function PipelineColumn({
-  column,
-  strategies,
-  runningAction,
-  onOpen,
-  onRun
-}: {
-  column: StrategyPipelineColumn;
-  strategies: HyperliquidStrategyCatalogRow[];
-  runningAction: string | null;
-  onOpen: (strategy: HyperliquidStrategyCatalogRow) => void;
-  onRun: (strategy: HyperliquidStrategyCatalogRow) => void;
-}) {
-  const Icon = column.icon;
-  return (
-    <div className="flex min-h-[360px] min-w-0 flex-col overflow-hidden rounded-md border border-white/10 bg-black/25">
-      <div className="shrink-0 border-b border-white/10 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Icon className="h-4 w-4 shrink-0 text-cyan-200" />
-            <div className="truncate text-sm font-semibold text-white">{column.title}</div>
-          </div>
-          <span className={`rounded-md border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${stageTone(column.stage)}`}>
-            {strategies.length}
-          </span>
-        </div>
-        <div className="mt-2 text-xs leading-5 text-white/55">{column.detail}</div>
-      </div>
-
-      <div className="grid content-start gap-2 overflow-y-auto p-2 [max-height:min(68vh,720px)]">
-        {strategies.length === 0 ? (
-          <div className="rounded-md border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-white/45">
-            No strategies in this gate.
-          </div>
-        ) : strategies.map((strategy) => (
-          <StrategyPipelineCard
-            key={strategy.strategyKey}
-            strategy={strategy}
-            running={runningAction === `${strategy.strategyId}:${strategy.gateStatus}`}
-            onOpen={() => onOpen(strategy)}
-            onRun={() => onRun(strategy)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StrategyPipelineCard({
-  strategy,
-  running,
-  onOpen,
-  onRun
-}: {
-  strategy: HyperliquidStrategyCatalogRow;
-  running: boolean;
-  onOpen: () => void;
-  onRun: () => void;
-}) {
-  const canRunAudit = strategy.gateStatus !== 'audit-eligible' || strategy.nextAction.enabled;
-  const actionDisabled = running || !strategy.nextAction.enabled || !canRunAudit;
-  const blockers = strategy.gateReasons.length ? strategy.gateReasons : strategy.missingAuditItems;
-  const summary = strategy.latestBacktestSummary;
-
-  return (
-    <article className="min-w-0 rounded-md border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-400/25 hover:bg-white/[0.055]">
-      <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-white">{strategy.displayName}</div>
-            <div className="mt-1 truncate text-[10px] uppercase tracking-[0.14em] text-white/35">
-              {strategy.strategyId}
-            </div>
-          </div>
-          <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-white/35" />
-        </div>
-
-        <div className={`mt-3 text-xs font-semibold uppercase leading-5 tracking-[0.12em] ${gateTone(strategy.gateStatus)}`}>
-          {strategy.gateStatus.replace(/-/g, ' ')}
-        </div>
-
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <TinyMetric label="Trades" value={String(summary?.total_trades ?? strategy.tradeCount)} />
-          <TinyMetric label="Return" value={formatPercent(summary?.return_pct)} />
-          <TinyMetric label="PF" value={formatNumber(summary?.profit_factor)} />
-        </div>
-      </button>
-
-      {blockers.length > 0 ? (
-        <div className="mt-3 grid gap-1 rounded-md border border-white/10 bg-black/25 p-2 text-xs leading-5 text-white/60">
-          {blockers.slice(0, 3).map((blocker) => (
-            <div key={blocker} className="break-words">
-              {blocker}
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mt-3 rounded-md border border-white/10 bg-black/20 p-2">
-        <div className="max-h-20 overflow-y-auto break-all font-mono text-[10px] leading-4 text-white/45">{strategy.nextAction.command}</div>
-      </div>
-
-      <button
-        type="button"
-        onClick={onRun}
-        disabled={actionDisabled}
-        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-400/25 bg-cyan-500/12 px-3 py-2 text-[11px] font-bold leading-4 text-cyan-50 transition hover:bg-cyan-500/22 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-white/35"
-      >
-        {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : strategy.nextAction.enabled ? <Play className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-        <span className="min-w-0 text-center">{running ? 'Running' : actionLabel(strategy)}</span>
-      </button>
-    </article>
   );
 }
 
@@ -384,11 +242,32 @@ function SummaryMetric({ label, value, detail, tone = 'text-white' }: { label: s
   );
 }
 
-function TinyMetric({ label, value }: { label: string; value: string }) {
+function ViewToggle({
+  active,
+  icon,
+  label,
+  detail,
+  onClick
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  detail: string;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5">
-      <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">{label}</div>
-      <div className="mt-1 truncate text-xs font-semibold text-white">{value}</div>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex min-h-11 items-center gap-3 rounded-md border px-3 py-2 text-left transition ${
+        active ? 'border-cyan-300/40 bg-cyan-400/15 text-cyan-50' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.07]'
+      }`}
+    >
+      {icon}
+      <span>
+        <span className="block text-sm font-semibold">{label}</span>
+        <span className="block text-xs text-white/40">{detail}</span>
+      </span>
+    </button>
   );
 }

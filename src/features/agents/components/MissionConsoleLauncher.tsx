@@ -128,7 +128,10 @@ export const MissionConsoleLauncher: React.FC<MissionConsoleLauncherProps> = ({ 
 
     const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
     const runtimeCommand = resolveAgentRuntimeCommand(provider, runtimeShell);
-    const commandStatus = await window.electronAPI.diagnostics.checkCommands([runtimeCommand]);
+    const commandStatus = await window.electronAPI.diagnostics.checkCommands([runtimeCommand], {
+      cwd: workspace.path,
+      shell: runtimeShell
+    });
     const runtimeAvailable = commandStatus[0]?.available;
     const runId = createRunId();
     const prompt = buildWorkspaceCapsulePrompt({

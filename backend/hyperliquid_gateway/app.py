@@ -4,11 +4,12 @@ import asyncio
 import json
 import os
 import sqlite3
+import subprocess
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
+    from .backtesting.doubling import build_doubling_estimate, build_paper_readiness
     from .backtesting.engine import BacktestConfig, normalize_symbols
     from .backtesting.registry import available_strategies, get_strategy_definition
     from .backtesting.workflow import (
@@ -38,7 +40,12 @@ try:
         run_agent_research,
     )
     from .pine_lab import build_preview, generate_pine_indicator
+    from .strategies.btc_failed_impulse_reversal.paper import (
+        SETUP_TAGS as BTC_FAILED_IMPULSE_SETUP_TAGS,
+        build_paper_runtime_plan as build_btc_failed_impulse_paper_runtime_plan,
+    )
 except ImportError:
+    from backtesting.doubling import build_doubling_estimate, build_paper_readiness
     from backtesting.engine import BacktestConfig, normalize_symbols
     from backtesting.registry import available_strategies, get_strategy_definition
     from backtesting.workflow import (
@@ -61,6 +68,10 @@ except ImportError:
         run_agent_research,
     )
     from pine_lab import build_preview, generate_pine_indicator
+    from strategies.btc_failed_impulse_reversal.paper import (
+        SETUP_TAGS as BTC_FAILED_IMPULSE_SETUP_TAGS,
+        build_paper_runtime_plan as build_btc_failed_impulse_paper_runtime_plan,
+    )
 
 try:
     from .ai_provider import provider_status
@@ -93,6 +104,8 @@ OVERVIEW_CACHE_MS = int(os.getenv("HYPERLIQUID_OVERVIEW_CACHE_MS", "8000"))
 REFRESH_LOOP_SECONDS = float(os.getenv("HYPERLIQUID_REFRESH_LOOP_SECONDS", "8"))
 MAX_HISTORY_POINTS = int(os.getenv("HYPERLIQUID_MAX_HISTORY_POINTS", "120"))
 MAX_ALERTS = int(os.getenv("HYPERLIQUID_MAX_ALERTS", "160"))
+PAPER_RUNTIME_HISTORY_LIMIT = int(os.getenv("HYPERLIQUID_PAPER_RUNTIME_HISTORY_LIMIT", "2000"))
+PAPER_RUNTIME_LOOKBACK_MS = 4 * 60 * 60 * 1000
 DB_PATH_OVERRIDE = os.getenv("HYPERLIQUID_DB_PATH")
 BACKEND_ROOT = Path(__file__).resolve().parent
 if BACKEND_ROOT.name == "hyperliquid_gateway" and BACKEND_ROOT.parent.name == "backend":
@@ -102,10 +115,17 @@ else:
 DATA_ROOT = Path(os.getenv("HYPERLIQUID_DATA_ROOT", str(BACKEND_ROOT / "data"))).expanduser()
 DB_PATH = DB_PATH_OVERRIDE or str(DATA_ROOT / "hyperliquid.db")
 REPORTS_ROOT = DATA_ROOT / "backtests"
+AUDITS_ROOT = DATA_ROOT / "audits"
 VALIDATIONS_ROOT = DATA_ROOT / "validations"
 PAPER_ROOT = DATA_ROOT / "paper"
+STRATEGY_MEMORY_ROOT = DATA_ROOT / "strategy_memory"
 DOCS_STRATEGIES_ROOT = REPO_ROOT / "docs" / "strategies"
 STRATEGIES_ROOT = BACKEND_ROOT / "strategies"
+PAPER_LOOP_LOG_DIR = REPO_ROOT / ".tmp"
+PAPER_LOOP_PID_FILE = PAPER_LOOP_LOG_DIR / "btc-paper-runtime-loop.pid"
+PAPER_LOOP_LOG_FILE = PAPER_LOOP_LOG_DIR / "btc-paper-runtime-loop.log"
+PAPER_LOOP_META_FILE = PAPER_LOOP_LOG_DIR / "btc-paper-runtime-loop.meta"
+PAPER_LOOP_SCREEN_SESSION = os.getenv("BTC_PAPER_LOOP_SCREEN_SESSION", "btc-paper-runtime-loop")
 
 app = FastAPI(title="Hyperliquid Gateway", version="1.0.0")
 app.add_middleware(
@@ -193,6 +213,19 @@ class PaperCandidateCreate(BaseModel):
     strategy_id: str
     report_path: Optional[str] = None
     validation_path: Optional[str] = None
+
+
+class StrategyLearningEventCreate(BaseModel):
+    strategy_id: str = Field(min_length=2, max_length=160)
+    kind: Literal["hypothesis", "decision", "lesson", "postmortem", "rule_change"] = "lesson"
+    outcome: Literal["win", "loss", "mixed", "unknown"] = "unknown"
+    stage: Optional[str] = Field(default=None, max_length=120)
+    title: str = Field(min_length=3, max_length=180)
+    summary: str = Field(default="", max_length=4000)
+    evidence_paths: List[str] = Field(default_factory=list)
+    lesson: Optional[str] = Field(default=None, max_length=4000)
+    rule_change: Optional[str] = Field(default=None, max_length=4000)
+    next_action: Optional[str] = Field(default=None, max_length=1200)
 
 
 class AgentRunCreate(BaseModel):
@@ -354,6 +387,11 @@ def backtest_artifact_summaries(normalized_strategy_id: str, limit: int = 20) ->
             report_artifact_id=payload.get("artifact_id"),
         )
         validation_payload = safe_load_json(validation_path) if validation_path else None
+        doubling_estimate = build_doubling_estimate(
+            payload,
+            report_path=path,
+            validation_payload=validation_payload,
+        )
         summaries.append(
             {
                 "artifactId": payload.get("artifact_id") or path.stem,
@@ -363,6 +401,7 @@ def backtest_artifact_summaries(normalized_strategy_id: str, limit: int = 20) ->
                 "summary": payload.get("summary") or {},
                 "robustAssessment": payload.get("robust_assessment"),
                 "validationStatus": validation_payload.get("status") if validation_payload else None,
+                "doublingEstimate": doubling_estimate,
             }
         )
 
@@ -747,6 +786,69 @@ def current_price_map() -> dict[str, float]:
     }
 
 
+def paper_runtime_history_entries(symbol: str, limit: int = PAPER_RUNTIME_HISTORY_LIMIT) -> list[dict[str, Any]]:
+    normalized_symbol = symbol.upper()
+    memory_entries = list(market_history[normalized_symbol])[-limit:]
+    if history_span_ms(memory_entries) >= PAPER_RUNTIME_LOOKBACK_MS:
+        return memory_entries
+
+    with db_connection() as connection:
+        latest_row = connection.execute(
+            """
+            SELECT MAX(timestamp_ms) AS latest_ms
+            FROM market_snapshots
+            WHERE symbol = ?
+            """,
+            (normalized_symbol,),
+        ).fetchone()
+        latest_ms = int(latest_row["latest_ms"] or 0) if latest_row else 0
+        since_ms = max(0, latest_ms - PAPER_RUNTIME_LOOKBACK_MS)
+        rows = connection.execute(
+            """
+            SELECT *
+            FROM (
+                SELECT *
+                FROM market_snapshots
+                WHERE symbol = ?
+                  AND timestamp_ms >= ?
+                ORDER BY timestamp_ms DESC
+                LIMIT ?
+            )
+            ORDER BY timestamp_ms ASC
+            """,
+            (normalized_symbol, since_ms, limit),
+        ).fetchall()
+    db_entries = [
+        {
+            "time": row["timestamp_ms"],
+            "timestamp": iso_timestamp(row["timestamp_ms"]),
+            "symbol": row["symbol"],
+            "price": row["price"],
+            "change24hPct": row["change24h_pct"],
+            "openInterestUsd": row["open_interest_usd"],
+            "volume24h": row["volume24h"],
+            "fundingRate": row["funding_rate"],
+            "opportunityScore": row["opportunity_score"],
+            "signalLabel": row["signal_label"],
+            "riskLabel": row["risk_label"],
+            "estimatedTotalLiquidationUsd": row["estimated_total_liquidation_usd"],
+            "crowdingBias": row["crowding_bias"],
+            "primarySetup": row["primary_setup"],
+            "setupScores": json.loads(row["setup_scores_json"] or "{}"),
+        }
+        for row in rows
+    ]
+    return db_entries if history_span_ms(db_entries) > history_span_ms(memory_entries) else memory_entries
+
+
+def history_span_ms(entries: list[dict[str, Any]]) -> int:
+    if len(entries) < 2:
+        return 0
+    first = int(entries[0].get("time") or entries[0].get("timestamp_ms") or 0)
+    last = int(entries[-1].get("time") or entries[-1].get("timestamp_ms") or 0)
+    return max(0, last - first)
+
+
 def trade_mark_to_market(row: sqlite3.Row, prices: dict[str, float]) -> dict[str, Any]:
     entry = float(row["entry_price"])
     current = row["exit_price"] if row["status"] == "closed" and row["exit_price"] is not None else prices.get(row["symbol"])
@@ -841,6 +943,332 @@ def paper_trade_payloads_without_mark_to_market(limit: int = 100, status: str = 
         payload["review"] = reviews.get(payload["id"])
         trades_payload.append(payload)
     return trades_payload
+
+
+def paper_trade_matches_baseline(trade: dict[str, Any], baseline: dict[str, Any]) -> bool:
+    match = baseline.get("paperTradeMatch") if isinstance(baseline.get("paperTradeMatch"), dict) else {}
+    expected_symbol = str(match.get("symbol") or "").strip().upper()
+    setup_tags = {
+        str(item).strip().lower()
+        for item in (match.get("setupTags") if isinstance(match.get("setupTags"), list) else [])
+        if str(item).strip()
+    }
+    trade_symbol = str(trade.get("symbol") or "").strip().upper()
+    trade_setup = str(trade.get("setupTag") or "").strip().lower()
+    if expected_symbol and trade_symbol != expected_symbol:
+        return False
+    return bool(setup_tags and trade_setup in setup_tags)
+
+
+def read_supervisor_metadata(path: Path | None = None) -> dict[str, str]:
+    path = path or PAPER_LOOP_META_FILE
+    metadata: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return metadata
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if not separator:
+            continue
+        key = key.strip()
+        if key:
+            metadata[key] = value.strip()
+    return metadata
+
+
+def supervisor_screen_pid(session_name: str = PAPER_LOOP_SCREEN_SESSION) -> str | None:
+    try:
+        result = subprocess.run(
+            ["screen", "-ls"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    suffix = f".{session_name}"
+    for line in result.stdout.splitlines():
+        token = line.strip().split(maxsplit=1)[0] if line.strip() else ""
+        if token.endswith(suffix):
+            return token.split(".", 1)[0]
+    return None
+
+
+def supervisor_pid_file_value(path: Path | None = None) -> str | None:
+    path = path or PAPER_LOOP_PID_FILE
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return value or None
+
+
+def process_is_running(pid: str | None) -> bool:
+    if not pid or not pid.isdigit():
+        return False
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    return True
+
+
+def read_log_tail(path: Path | None = None, line_count: int = 20) -> list[str]:
+    path = path or PAPER_LOOP_LOG_FILE
+    if line_count <= 0:
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    return lines[-line_count:]
+
+
+def parsed_json_log_events(lines: list[str]) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    for line in lines:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            events.append(payload)
+    return events
+
+
+def file_modified_at_ms(path: Path) -> int | None:
+    try:
+        return int(path.stat().st_mtime * 1000)
+    except OSError:
+        return None
+
+
+def supervisor_stale_after_seconds(interval_seconds: float | None) -> float:
+    if interval_seconds is None or interval_seconds <= 0:
+        return 900.0
+    return max(900.0, interval_seconds * 3.0)
+
+
+def meta_bool(metadata: dict[str, str], key: str) -> bool | None:
+    value = metadata.get(key)
+    if value is None:
+        return None
+    lowered = value.strip().lower()
+    if lowered in {"true", "1", "yes"}:
+        return True
+    if lowered in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def meta_float(metadata: dict[str, str], key: str) -> float | None:
+    try:
+        return float(metadata[key])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def meta_int(metadata: dict[str, str], key: str) -> int | None:
+    try:
+        return int(float(metadata[key]))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def build_paper_runtime_supervisor_status(strategy_id: str, tail_lines: int = 20) -> dict[str, Any]:
+    metadata = read_supervisor_metadata()
+    screen_pid = supervisor_screen_pid()
+    pid_file_value = supervisor_pid_file_value()
+    fallback_pid = pid_file_value if process_is_running(pid_file_value) else None
+    pid = screen_pid or fallback_pid
+    log_tail = read_log_tail(line_count=tail_lines)
+    events = parsed_json_log_events(log_tail)
+    last_tick = next((event for event in reversed(events) if event.get("event") == "paper_runtime_tick"), None)
+    last_event = events[-1] if events else None
+    metadata_strategy = normalize_strategy_id(metadata.get("strategy", "")) if metadata.get("strategy") else None
+    running = bool(pid)
+    mode = "screen" if screen_pid else "pid" if fallback_pid else "stopped"
+    supported = strategy_id == "btc_failed_impulse_reversal"
+    strategy_matches = metadata_strategy in {None, strategy_id}
+    interval_seconds = meta_float(metadata, "interval_seconds")
+    stale_after_seconds = supervisor_stale_after_seconds(interval_seconds)
+    last_log_at_ms = file_modified_at_ms(PAPER_LOOP_LOG_FILE)
+    now_ms = int(time.time() * 1000)
+    last_log_age_seconds = round((now_ms - last_log_at_ms) / 1000, 3) if last_log_at_ms else None
+    dry_run = meta_bool(metadata, "dry_run")
+    stale = bool(running and last_log_age_seconds is not None and last_log_age_seconds > stale_after_seconds)
+    health_blockers: list[str] = []
+    if not supported:
+        health_blockers.append("unsupported_strategy")
+    if not running:
+        health_blockers.append("supervisor_not_running")
+    if not strategy_matches:
+        health_blockers.append("supervisor_strategy_mismatch")
+    if dry_run is True:
+        health_blockers.append("dry_run_enabled")
+    if running and not PAPER_LOOP_LOG_FILE.exists():
+        health_blockers.append("log_missing")
+    if running and not last_tick:
+        health_blockers.append("no_runtime_tick_seen")
+    if stale:
+        health_blockers.append("runtime_tick_stale")
+    if isinstance(last_event, dict) and last_event.get("event") == "paper_runtime_tick_error":
+        health_blockers.append("last_tick_error")
+    if not supported:
+        health_status = "unsupported"
+    elif not running:
+        health_status = "stopped"
+    elif stale:
+        health_status = "stale"
+    elif health_blockers:
+        health_status = "degraded"
+    else:
+        health_status = "healthy"
+    return {
+        "strategyId": strategy_id,
+        "supported": supported,
+        "running": running,
+        "healthStatus": health_status,
+        "healthBlockers": health_blockers,
+        "healthChecks": {
+            "supported": supported,
+            "running": running,
+            "strategyMatches": strategy_matches,
+            "paperWriteMode": dry_run is False,
+            "logExists": PAPER_LOOP_LOG_FILE.exists(),
+            "hasRuntimeTick": bool(last_tick),
+            "notStale": not stale,
+        },
+        "mode": mode,
+        "screenSession": PAPER_LOOP_SCREEN_SESSION,
+        "pid": pid,
+        "pidFileValue": pid_file_value,
+        "strategyMatches": strategy_matches,
+        "metadata": metadata,
+        "gatewayUrl": metadata.get("gateway_url"),
+        "intervalSeconds": interval_seconds,
+        "maxTicks": meta_int(metadata, "max_ticks"),
+        "dryRun": dry_run,
+        "failFast": meta_bool(metadata, "fail_fast"),
+        "portfolioValue": meta_float(metadata, "portfolio_value"),
+        "startedAt": metadata.get("started_at"),
+        "logPath": str(PAPER_LOOP_LOG_FILE),
+        "logExists": PAPER_LOOP_LOG_FILE.exists(),
+        "lastLogAtMs": last_log_at_ms,
+        "lastLogAt": iso_timestamp(last_log_at_ms) if last_log_at_ms else None,
+        "lastLogAgeSeconds": last_log_age_seconds,
+        "staleAfterSeconds": stale_after_seconds,
+        "logTail": log_tail,
+        "lastEvent": last_event,
+        "lastTick": last_tick,
+    }
+
+
+def apply_btc_failed_impulse_paper_runtime_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    closed_trade_ids: list[int] = []
+    opened_trade_id: int | None = None
+    created_signal_id: int | None = None
+    skipped_entry_reason: str | None = None
+    now = int(time.time() * 1000)
+    setup_tags = tuple(tag.lower() for tag in BTC_FAILED_IMPULSE_SETUP_TAGS)
+
+    with db_connection() as connection:
+        for action in plan.get("exitActions") or []:
+            trade_id = int(action.get("tradeId") or 0)
+            if trade_id <= 0:
+                continue
+            cursor = connection.execute(
+                """
+                UPDATE paper_trades
+                SET status = 'closed', closed_at_ms = ?, exit_price = ?, realized_pnl_usd = ?
+                WHERE id = ? AND status = 'open'
+                """,
+                (
+                    int(action.get("closedAt") or now),
+                    float(action.get("exitPrice") or 0.0),
+                    float(action.get("realizedPnlUsd") or 0.0),
+                    trade_id,
+                ),
+            )
+            if cursor.rowcount:
+                closed_trade_ids.append(trade_id)
+
+        entry = plan.get("entry") if isinstance(plan.get("entry"), dict) else {}
+        trade_payload = entry.get("tradePayload") if isinstance(entry.get("tradePayload"), dict) else None
+        signal_payload = entry.get("signalPayload") if isinstance(entry.get("signalPayload"), dict) else None
+        if trade_payload:
+            placeholders = ",".join("?" for _ in setup_tags)
+            existing = connection.execute(
+                f"""
+                SELECT 1 FROM paper_trades
+                WHERE symbol = 'BTC'
+                  AND status = 'open'
+                  AND lower(setup_tag) IN ({placeholders})
+                LIMIT 1
+                """,
+                setup_tags,
+            ).fetchone()
+            if existing:
+                skipped_entry_reason = "matching_open_trade"
+            else:
+                if signal_payload:
+                    signal_cursor = connection.execute(
+                        """
+                        INSERT INTO paper_signals (
+                            created_at_ms, symbol, setup_tag, direction, confidence, thesis, entry_price, invalidation,
+                            decision_label, trigger_plan, execution_quality, status
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+                        """,
+                        (
+                            now,
+                            str(signal_payload["symbol"]).upper(),
+                            signal_payload["setup_tag"],
+                            signal_payload["direction"],
+                            int(signal_payload["confidence"]),
+                            signal_payload["thesis"],
+                            signal_payload.get("entry_price"),
+                            signal_payload.get("invalidation"),
+                            signal_payload.get("decision_label"),
+                            signal_payload.get("trigger_plan"),
+                            signal_payload.get("execution_quality"),
+                        ),
+                    )
+                    created_signal_id = signal_cursor.lastrowid
+                trade_cursor = connection.execute(
+                    """
+                    INSERT INTO paper_trades (
+                        created_at_ms, symbol, side, setup_tag, thesis, entry_price, size_usd, stop_loss_pct, take_profit_pct,
+                        decision_label, trigger_plan, invalidation_plan, execution_quality, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+                    """,
+                    (
+                        now,
+                        str(trade_payload["symbol"]).upper(),
+                        trade_payload["side"],
+                        trade_payload["setup_tag"],
+                        trade_payload["thesis"],
+                        trade_payload["entry_price"],
+                        trade_payload["size_usd"],
+                        trade_payload.get("stop_loss_pct"),
+                        trade_payload.get("take_profit_pct"),
+                        trade_payload.get("decision_label"),
+                        trade_payload.get("trigger_plan"),
+                        trade_payload.get("invalidation_plan"),
+                        trade_payload.get("execution_quality"),
+                    ),
+                )
+                opened_trade_id = trade_cursor.lastrowid
+
+        connection.commit()
+
+    return {
+        "closedTradeIds": closed_trade_ids,
+        "openedTradeId": opened_trade_id,
+        "createdSignalId": created_signal_id,
+        "skippedEntryReason": skipped_entry_reason,
+    }
 
 
 def paper_signal_payloads(limit: int = 500) -> list[dict[str, Any]]:
@@ -956,6 +1384,9 @@ def make_strategy_row(strategy_id: str, *, display_name: str | None = None) -> d
         "registeredForBacktest": False,
         "canBacktest": False,
         "validationPolicy": None,
+        "doublingEstimate": None,
+        "doublingStability": None,
+        "btcOptimization": None,
         "latestBacktestSummary": None,
         "latestBacktestConfig": None,
         "robustAssessment": None,
@@ -967,6 +1398,8 @@ def make_strategy_row(strategy_id: str, *, display_name: str | None = None) -> d
             "backtest": None,
             "validation": None,
             "paper": None,
+            "doublingStability": None,
+            "btcOptimization": None,
         },
         "validationStatus": None,
         "evidenceCounts": {
@@ -1073,6 +1506,120 @@ def latest_artifacts(root: Path) -> dict[str, tuple[Path, dict[str, Any]]]:
         if current is None or path.stat().st_mtime > current[0].stat().st_mtime:
             latest[strategy_id] = (path, payload)
     return latest
+
+
+def latest_artifacts_by_type(root: Path, artifact_type: str) -> dict[str, tuple[Path, dict[str, Any]]]:
+    latest: dict[str, tuple[Path, dict[str, Any]]] = {}
+    if not root.exists():
+        return latest
+    for path in root.glob("*.json"):
+        payload = safe_load_json(path)
+        if not payload or payload.get("artifact_type") != artifact_type:
+            continue
+        strategy_id = normalize_strategy_id(str(payload.get("strategy_id") or path.stem.split("-")[0]))
+        current = latest.get(strategy_id)
+        if current is None or path.stat().st_mtime > current[0].stat().st_mtime:
+            latest[strategy_id] = (path, payload)
+    return latest
+
+
+def filename_slug(value: str, fallback: str = "event") -> str:
+    slug = "".join(character.lower() if character.isalnum() else "-" for character in value)
+    slug = "-".join(part for part in slug.split("-") if part)
+    return slug[:72] or fallback
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def clean_learning_evidence_paths(paths: list[str]) -> list[str]:
+    clean: list[str] = []
+    seen: set[str] = set()
+    for value in paths:
+        candidate = str(value or "").strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        clean.append(candidate)
+        if len(clean) >= 20:
+            break
+    return clean
+
+
+def learning_event_sort_key(event: dict[str, Any]) -> int:
+    return parse_time_ms(event.get("generated_at")) or parse_time_ms(event.get("updated_at")) or 0
+
+
+def load_strategy_learning_event(path: Path) -> dict[str, Any] | None:
+    payload = safe_load_json(path)
+    if not payload:
+        return None
+    if payload.get("artifact_type") not in {None, "strategy_learning_event"}:
+        return None
+    strategy_id = normalize_strategy_id(str(payload.get("strategy_id") or path.parent.name))
+    payload["strategy_id"] = strategy_id
+    payload["event_id"] = str(payload.get("event_id") or path.stem)
+    payload["path"] = str(path)
+    payload["evidence_paths"] = clean_learning_evidence_paths(payload.get("evidence_paths") or [])
+    return payload
+
+
+def list_strategy_learning_events(strategy_id: str | None = None, limit: int = 100) -> dict[str, Any]:
+    normalized_strategy_id = normalize_strategy_id(strategy_id) if strategy_id else None
+    paths: list[Path] = []
+    if STRATEGY_MEMORY_ROOT.exists():
+        if normalized_strategy_id:
+            paths = list((STRATEGY_MEMORY_ROOT / normalized_strategy_id).glob("*.json"))
+        else:
+            paths = list(STRATEGY_MEMORY_ROOT.glob("*/*.json"))
+
+    events = [
+        event for event in (load_strategy_learning_event(path) for path in paths)
+        if event is not None and (normalized_strategy_id is None or event["strategy_id"] == normalized_strategy_id)
+    ]
+    events.sort(key=learning_event_sort_key, reverse=True)
+    bounded_limit = max(1, min(limit, 500))
+    return {
+        "updatedAt": int(time.time() * 1000),
+        "strategyId": normalized_strategy_id,
+        "count": min(len(events), bounded_limit),
+        "events": events[:bounded_limit],
+    }
+
+
+def write_strategy_learning_event(payload: StrategyLearningEventCreate) -> dict[str, Any]:
+    strategy_id = normalize_strategy_id(payload.strategy_id)
+    if not strategy_id:
+        raise HTTPException(status_code=400, detail="strategy_id is required")
+
+    generated_at = utc_now_iso()
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    event_id = f"{strategy_id}-{timestamp}-{time.time_ns()}-{filename_slug(payload.title)}"
+    directory = STRATEGY_MEMORY_ROOT / strategy_id
+    directory.mkdir(parents=True, exist_ok=True)
+    file_path = directory / f"{event_id}.json"
+
+    event = {
+        "artifact_id": "strategy_learning_event",
+        "artifact_type": "strategy_learning_event",
+        "event_id": event_id,
+        "strategy_id": strategy_id,
+        "kind": payload.kind,
+        "outcome": payload.outcome,
+        "stage": (payload.stage or "").strip() or None,
+        "title": payload.title.strip(),
+        "summary": payload.summary.strip(),
+        "evidence_paths": clean_learning_evidence_paths(payload.evidence_paths),
+        "lesson": (payload.lesson or "").strip() or None,
+        "rule_change": (payload.rule_change or "").strip() or None,
+        "next_action": (payload.next_action or "").strip() or None,
+        "generated_at": generated_at,
+        "updated_at": generated_at,
+        "path": str(file_path),
+    }
+    file_path.write_text(json.dumps(event, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return event
 
 
 def first_markdown_heading(path: Path) -> str | None:
@@ -1389,10 +1936,21 @@ async def build_strategy_evidence(
             summary = payload.get("summary") or {}
             if artifact_type == "backtest":
                 trades = payload.get("trades") or []
+                validation_path = latest_strategy_validation_path(
+                    strategy_id=strategy_id,
+                    report_path=path,
+                    report_artifact_id=payload.get("artifact_id"),
+                )
+                validation_payload = safe_load_json(validation_path) if validation_path else None
                 row["checklist"]["backtestExists"] = True
                 row["latestBacktestSummary"] = summary
                 row["latestBacktestConfig"] = payload.get("config") or {}
                 row["robustAssessment"] = payload.get("robust_assessment")
+                row["doublingEstimate"] = build_doubling_estimate(
+                    payload,
+                    report_path=path,
+                    validation_payload=validation_payload,
+                )
                 row["exitReasonCounts"] = payload.get("exit_reason_counts") or {}
                 row["evidenceCounts"]["backtestTrades"] = len(trades)
                 row["tradeCount"] += len(trades)
@@ -1454,6 +2012,72 @@ async def build_strategy_evidence(
                         "path": str(path),
                     },
                 )
+
+    for strategy_id, (path, payload) in latest_artifacts_by_type(AUDITS_ROOT, "doubling_stability_audit").items():
+        audit = payload.get("audit") if isinstance(payload.get("audit"), dict) else payload
+        row = get_row(strategy_id)
+        add_source(row, "doubling_stability_audit")
+        row["latestArtifactPaths"]["doublingStability"] = str(path)
+        generated_at = parse_time_ms(payload.get("generated_at")) or int(path.stat().st_mtime * 1000)
+        row["doublingStability"] = {
+            "status": audit.get("status"),
+            "artifactId": payload.get("artifact_id"),
+            "reportArtifactId": payload.get("report_artifact_id"),
+            "validationArtifactId": payload.get("validation_artifact_id"),
+            "positiveSliceRatioPct": audit.get("positiveSliceRatioPct"),
+            "largestPositiveSlicePnlSharePct": audit.get("largestPositiveSlicePnlSharePct"),
+            "activeSliceCount": audit.get("activeSliceCount"),
+            "sliceCount": audit.get("sliceCount"),
+            "blockers": audit.get("blockers") or [],
+        }
+        add_timeline(
+            row,
+            {
+                "id": f"doubling-stability:{strategy_id}:{generated_at}",
+                "type": "doubling_stability_audit",
+                "source": "json_artifact",
+                "timestampMs": generated_at,
+                "title": f"Doubling stability {audit.get('status') or 'unknown'}",
+                "subtitle": ", ".join(audit.get("blockers") or []) or audit.get("interpretation") or "stability audit recorded",
+                "status": audit.get("status") or "unknown",
+                "path": str(path),
+            },
+        )
+
+    for strategy_id, (path, payload) in latest_artifacts_by_type(AUDITS_ROOT, "btc_failed_impulse_variant_optimizer").items():
+        top = payload.get("topVariant") if isinstance(payload.get("topVariant"), dict) else {}
+        row = get_row(strategy_id)
+        add_source(row, "btc_variant_optimizer")
+        row["latestArtifactPaths"]["btcOptimization"] = str(path)
+        generated_at = parse_time_ms(payload.get("generated_at")) or int(path.stat().st_mtime * 1000)
+        row["btcOptimization"] = {
+            "status": payload.get("status"),
+            "artifactId": payload.get("artifact_id"),
+            "variantCount": payload.get("variantCount"),
+            "stableCandidateCount": payload.get("stableCandidateCount"),
+            "fragileCandidateCount": payload.get("fragileCandidateCount"),
+            "topVariantId": top.get("variantId"),
+            "topReviewStatus": top.get("reviewStatus"),
+            "topProjectedDaysToDouble": top.get("projectedDaysToDouble"),
+            "topReturnPct": top.get("returnPct"),
+            "topTotalTrades": top.get("totalTrades"),
+            "topStabilityStatus": top.get("stabilityStatus"),
+            "topStabilityBlockers": top.get("stabilityBlockers") or [],
+            "topLargestPositiveSlicePnlSharePct": top.get("largestPositiveSlicePnlSharePct"),
+        }
+        add_timeline(
+            row,
+            {
+                "id": f"btc-optimizer:{strategy_id}:{generated_at}",
+                "type": "btc_variant_optimizer",
+                "source": "json_artifact",
+                "timestampMs": generated_at,
+                "title": f"BTC optimizer {payload.get('status') or 'unknown'}",
+                "subtitle": top.get("variantId") or "variant optimizer recorded",
+                "status": payload.get("status") or "unknown",
+                "path": str(path),
+            },
+        )
 
     paper_signals = paper_signal_payloads(limit=limit)
     for signal in paper_signals:
@@ -1666,6 +2290,9 @@ def strategy_catalog_card(row: dict[str, Any]) -> dict[str, Any]:
         "side": row.get("side"),
         "validationStatus": row.get("validationStatus"),
         "validationPolicy": row.get("validationPolicy"),
+        "doublingEstimate": row.get("doublingEstimate"),
+        "doublingStability": row.get("doublingStability"),
+        "btcOptimization": row.get("btcOptimization"),
         "latestArtifactPaths": row.get("latestArtifactPaths") or {},
         "documentationPaths": row.get("documentationPaths") or [],
         "evidenceCounts": row.get("evidenceCounts") or {},
@@ -3061,6 +3688,84 @@ async def paper_trades(status: str = Query(default="all")) -> dict[str, Any]:
     return {"trades": await paper_trade_payloads(status=status)}
 
 
+@app.get("/api/hyperliquid/paper/readiness/{strategy_id}")
+async def paper_readiness(
+    strategy_id: str,
+    limit: int = Query(default=500, ge=20, le=1000),
+) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    paper_path = latest_json(PAPER_ROOT, f"{normalized}-")
+    if paper_path is None:
+        raise HTTPException(status_code=404, detail=f"No paper candidate artifact found for {normalized}.")
+    paper_payload = safe_load_json(paper_path)
+    if not paper_payload:
+        raise HTTPException(status_code=404, detail=f"Paper candidate artifact for {normalized} could not be loaded.")
+    baseline = paper_payload.get("paper_baseline")
+    if not isinstance(baseline, dict):
+        raise HTTPException(status_code=404, detail=f"Paper candidate artifact for {normalized} does not include paper_baseline.")
+
+    trades = paper_trade_payloads_without_mark_to_market(limit=limit)
+    matching_trades = [trade for trade in trades if paper_trade_matches_baseline(trade, baseline)]
+    return {
+        "strategyId": normalized,
+        "paperPath": str(paper_path),
+        "paperArtifactId": paper_payload.get("artifact_id"),
+        "paperGeneratedAt": paper_payload.get("generated_at"),
+        "paperBaseline": baseline,
+        "tradeMatch": baseline.get("paperTradeMatch") or {},
+        "readiness": build_paper_readiness(baseline=baseline, trades=matching_trades),
+    }
+
+
+@app.get("/api/hyperliquid/paper/runtime/{strategy_id}/supervisor")
+async def paper_runtime_supervisor_status(
+    strategy_id: str,
+    tail_lines: int = Query(default=20, ge=0, le=200),
+) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    return build_paper_runtime_supervisor_status(strategy_id=normalized, tail_lines=tail_lines)
+
+
+@app.post("/api/hyperliquid/paper/runtime/{strategy_id}/tick")
+async def paper_runtime_tick(
+    strategy_id: str,
+    dry_run: bool = Query(default=False),
+    portfolio_value: float = Query(default=100_000.0, gt=0),
+) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    if normalized != "btc_failed_impulse_reversal":
+        raise HTTPException(status_code=400, detail=f"Paper runtime tick is not implemented for {normalized}.")
+
+    await ensure_overview_data()
+    history_entries = paper_runtime_history_entries("BTC")
+    open_trades = paper_trade_payloads_without_mark_to_market(limit=100, status="open")
+    plan = build_btc_failed_impulse_paper_runtime_plan(
+        history_entries=history_entries,
+        open_trades=open_trades,
+        portfolio_value=portfolio_value,
+    )
+    applied = {
+        "closedTradeIds": [],
+        "openedTradeId": None,
+        "createdSignalId": None,
+        "skippedEntryReason": "dry_run" if dry_run else None,
+    }
+    if not dry_run:
+        applied = apply_btc_failed_impulse_paper_runtime_plan(plan)
+
+    return {
+        "success": True,
+        "strategyId": normalized,
+        "dryRun": dry_run,
+        "status": plan.get("status"),
+        "closedTradeIds": applied.get("closedTradeIds") or [],
+        "openedTradeId": applied.get("openedTradeId"),
+        "createdSignalId": applied.get("createdSignalId"),
+        "skippedEntryReason": applied.get("skippedEntryReason"),
+        "plan": plan,
+    }
+
+
 @app.get("/api/hyperliquid/strategy-audit")
 async def strategy_audit(
     limit: int = 200,
@@ -3081,6 +3786,23 @@ async def strategies_catalog(
         mark_paper_trades=False,
     )
     return strategy_catalog_payload(evidence)
+
+
+@app.get("/api/hyperliquid/strategies/learning")
+async def strategy_learning(
+    strategy_id: Optional[str] = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, Any]:
+    return list_strategy_learning_events(strategy_id=strategy_id, limit=limit)
+
+
+@app.post("/api/hyperliquid/strategies/learning")
+async def create_strategy_learning(payload: StrategyLearningEventCreate) -> dict[str, Any]:
+    event = write_strategy_learning_event(payload)
+    return {
+        "created": True,
+        "event": event,
+    }
 
 
 @app.post("/api/hyperliquid/paper/trades")
