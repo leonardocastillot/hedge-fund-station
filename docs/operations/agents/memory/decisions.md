@@ -61,6 +61,15 @@ needs status, date, decision, and reason.
 - Reason: memory should reduce context load for agents, not become an
   unbounded log.
 
+## Graphify And Obsidian Split
+
+- Status: accepted
+- Date: 2026-05-08
+- Decision: Graphify is the repo navigation map, Obsidian is curated durable
+  memory, and the file harness is the live task and evidence state.
+- Reason: agents need fast orientation without treating generated graphs as
+  canonical truth or turning memory into an artifact dump.
+
 ## VM Owns Heavy Runtime Evidence
 
 - Status: accepted

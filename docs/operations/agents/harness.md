@@ -42,14 +42,17 @@ Use this loop for agent work:
 3. For broad architecture, harness, or memory questions, read
    `graphify-out/GRAPH_REPORT.md` first when it exists, then verify findings
    against source files and canonical docs.
-4. Classify the mission.
-5. Inspect before changing code or docs.
-6. Produce a plan, report, or focused patch.
-7. Run the relevant checks.
-8. Leave a handoff.
-9. Update, promote, archive, or intentionally leave memory unchanged according
+4. For Graphify, Obsidian, or cross-layer memory work, follow
+   `graph-memory-operating-system.md`: file harness owns active state, Graphify
+   owns repo navigation, and Obsidian owns curated durable memory.
+5. Classify the mission.
+6. Inspect before changing code or docs.
+7. Produce a plan, report, or focused patch.
+8. Run the relevant checks.
+9. Leave a handoff.
+10. Update, promote, archive, or intentionally leave memory unchanged according
    to `memory/memory-policy.md`.
-10. Update backlog when the work changes the improvement queue.
+11. Update backlog when the work changes the improvement queue.
 
 If a mission cannot complete a step, the handoff must say why.
 
@@ -145,6 +148,8 @@ Use these docs for standard outputs:
 - `templates/tasks.md` for mission prompts and scope
 - `templates/change-summary.md` for reviewable change summaries
 - `orientation.md` for first-run orientation
+- `graph-memory-operating-system.md` for the Graphify, Obsidian, and harness
+  operating model
 - `memory/` for shared facts, decisions, mission history, and open questions
 - `memory/memory-policy.md` for memory size limits, promotion, and cleanup
 

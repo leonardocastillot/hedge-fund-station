@@ -27,9 +27,13 @@ SQLite databases, temporary payloads, and cache files should stay out of git.
 Cleanup policy:
 
 - keep `*-smoke.json` examples when they are useful for regression review
-- keep one latest non-smoke artifact only when a strategy has no smoke example
+- keep `market_data/one_bitcoin_btc_usd_daily.json` as the curated small dataset
+  required by the One Bitcoin default backtest
+- keep non-smoke artifacts out of git by default; handoffs may link to local,
+  VM, or external archive paths when historical evidence matters
 - do not commit `agent_runs/`, checkpoints, `tmp-*.json`, SQLite files, WAL/SHM
-  files, local exports, or cache files
+  files, macro calendar cache files, timestamped reports, local exports, or
+  cache files
 - run `npm run hf:status` to inspect what curated evidence remains
 
 Source code belongs outside this folder. Strategy logic belongs under

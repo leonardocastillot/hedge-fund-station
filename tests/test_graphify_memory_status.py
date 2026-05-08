@@ -13,15 +13,29 @@ class GraphifyMemoryStatusTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.original_root = gateway_app.GRAPHIFY_OUT_ROOT
+        self.original_git_value = gateway_app.graphify_git_value
+        self.original_has_uncommitted_changes = gateway_app.graphify_has_uncommitted_changes
+        self.original_changed_paths_since_built = gateway_app.graphify_changed_paths_since_built
         gateway_app.GRAPHIFY_OUT_ROOT = Path(self.tempdir.name) / "graphify-out"
+        gateway_app.graphify_git_value = lambda _args: "abc12345"
+        gateway_app.graphify_has_uncommitted_changes = lambda: False
+        gateway_app.graphify_changed_paths_since_built = (
+            lambda built, current: [] if built == current else ["src/features/memory/pages/MemoryGraphPage.tsx"]
+        )
 
     def tearDown(self) -> None:
         gateway_app.GRAPHIFY_OUT_ROOT = self.original_root
+        gateway_app.graphify_git_value = self.original_git_value
+        gateway_app.graphify_has_uncommitted_changes = self.original_has_uncommitted_changes
+        gateway_app.graphify_changed_paths_since_built = self.original_changed_paths_since_built
         self.tempdir.cleanup()
 
-    def write_required_files(self, graph_payload: object) -> None:
+    def write_required_files(self, graph_payload: object, built_commit: str = "abc12345") -> None:
         gateway_app.GRAPHIFY_OUT_ROOT.mkdir(parents=True, exist_ok=True)
-        (gateway_app.GRAPHIFY_OUT_ROOT / "GRAPH_REPORT.md").write_text("# Repo Graph\n", encoding="utf-8")
+        (gateway_app.GRAPHIFY_OUT_ROOT / "GRAPH_REPORT.md").write_text(
+            f"# Repo Graph\n\n## Graph Freshness\n- Built from commit: `{built_commit}`\n",
+            encoding="utf-8",
+        )
         (gateway_app.GRAPHIFY_OUT_ROOT / "graph.html").write_text("<!doctype html>\n", encoding="utf-8")
         (gateway_app.GRAPHIFY_OUT_ROOT / "graph.json").write_text(
             json.dumps(graph_payload) + "\n",
@@ -42,6 +56,11 @@ class GraphifyMemoryStatusTest(unittest.TestCase):
         self.assertIsNone(response["nodeCount"])
         self.assertIsNone(response["edgeCount"])
         self.assertIsNone(response["communityCount"])
+        self.assertIsNone(response["builtCommit"])
+        self.assertEqual(response["currentCommit"], "abc12345")
+        self.assertEqual(response["freshness"], "missing")
+        self.assertFalse(response["hasUncommittedChanges"])
+        self.assertEqual(response["recommendedCommand"], "npm run graph:build")
         self.assertEqual(len(response["warnings"]), 3)
         self.assertIn("npm run graph:build", response["warnings"][0])
 
@@ -68,7 +87,47 @@ class GraphifyMemoryStatusTest(unittest.TestCase):
         self.assertEqual(response["nodeCount"], 4)
         self.assertEqual(response["edgeCount"], 2)
         self.assertEqual(response["communityCount"], 3)
+        self.assertEqual(response["builtCommit"], "abc12345")
+        self.assertEqual(response["currentCommit"], "abc12345")
+        self.assertEqual(response["freshness"], "fresh")
+        self.assertFalse(response["hasUncommittedChanges"])
+        self.assertEqual(response["recommendedCommand"], "npm run graph:check")
         self.assertEqual(response["warnings"], [])
+
+    def test_available_graphify_artifacts_report_stale_commit(self) -> None:
+        self.write_required_files({"nodes": [], "edges": []}, built_commit="old12345")
+
+        response = gateway_app.graphify_status_payload()
+
+        self.assertTrue(response["available"])
+        self.assertEqual(response["builtCommit"], "old12345")
+        self.assertEqual(response["currentCommit"], "abc12345")
+        self.assertEqual(response["freshness"], "stale")
+        self.assertEqual(response["recommendedCommand"], "npm run graph:build")
+
+    def test_available_graphify_artifacts_allow_generated_graph_delta(self) -> None:
+        gateway_app.graphify_changed_paths_since_built = lambda _built, _current: [
+            "graphify-out/GRAPH_REPORT.md",
+            "graphify-out/graph.json",
+        ]
+        self.write_required_files({"nodes": [], "edges": []}, built_commit="old12345")
+
+        response = gateway_app.graphify_status_payload()
+
+        self.assertTrue(response["available"])
+        self.assertEqual(response["freshness"], "fresh")
+        self.assertEqual(response["recommendedCommand"], "npm run graph:check")
+
+    def test_available_graphify_artifacts_report_dirty_worktree(self) -> None:
+        gateway_app.graphify_has_uncommitted_changes = lambda: True
+        self.write_required_files({"nodes": [], "edges": []})
+
+        response = gateway_app.graphify_status_payload()
+
+        self.assertTrue(response["available"])
+        self.assertEqual(response["freshness"], "dirty")
+        self.assertTrue(response["hasUncommittedChanges"])
+        self.assertEqual(response["recommendedCommand"], "npm run graph:build")
 
     def test_status_endpoint_returns_graphify_payload(self) -> None:
         self.write_required_files({"nodes": [], "links": [], "communities": []})

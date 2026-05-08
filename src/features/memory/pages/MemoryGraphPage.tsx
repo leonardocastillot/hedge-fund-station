@@ -477,6 +477,36 @@ function formatGraphUpdatedAt(value: number | null): string {
   });
 }
 
+function formatGraphCommit(value: string | null | undefined): string {
+  return value?.trim() || 'N/A';
+}
+
+function formatGraphWorktree(value: boolean | null | undefined): string {
+  if (typeof value !== 'boolean') return 'Unknown';
+  return value ? 'Dirty' : 'Clean';
+}
+
+function graphFreshnessSummary(status: HyperliquidGraphifyStatus | null): { label: string; tone: string } {
+  if (!status) {
+    return { label: 'Checking Graphify', tone: 'text-white/60' };
+  }
+  if (!status.available) {
+    return { label: 'Build pending', tone: 'text-amber-200' };
+  }
+  switch (status.freshness) {
+    case 'fresh':
+      return { label: 'Fresh', tone: 'text-emerald-200' };
+    case 'dirty':
+      return { label: 'Working tree changed', tone: 'text-amber-200' };
+    case 'stale':
+      return { label: 'Stale commit', tone: 'text-rose-200' };
+    case 'missing':
+      return { label: 'Build pending', tone: 'text-amber-200' };
+    default:
+      return { label: 'Freshness unknown', tone: 'text-white/60' };
+  }
+}
+
 function statusLabel(strategy: HyperliquidStrategyCatalogRow): string {
   if (strategy.gateStatus === 'paper-active') return 'Paper Active';
   if (strategy.gateStatus === 'ready-for-paper' || strategy.pipelineStage === 'paper') return 'Paper Ready';
@@ -1450,6 +1480,7 @@ function RepoGraphPanel({
   const warnings = status?.warnings || [];
   const isLoading = status === null;
   const iframeSrc = available ? status?.explorerUrl || status?.htmlUrl || null : null;
+  const freshness = graphFreshnessSummary(status);
 
   return (
     <section className="overflow-hidden rounded-md border border-white/10 bg-black/20">
@@ -1460,8 +1491,8 @@ function RepoGraphPanel({
             <Network className="h-4 w-4 text-cyan-200" />
             Repo Graph
           </div>
-          <div className={`mt-1 text-xs font-semibold ${available ? 'text-emerald-200' : 'text-amber-200'}`}>
-            {isLoading ? 'Checking Graphify' : available ? 'Graphify artifacts ready' : 'Graphify build pending'}
+          <div className={`mt-1 text-xs font-semibold ${freshness.tone}`}>
+            {freshness.label}
           </div>
           <div className="mt-1 truncate text-xs text-white/40">
             {status?.outputDir || 'graphify-out'}
@@ -1503,6 +1534,10 @@ function RepoGraphPanel({
         <TinyMetric label="Edges" value={formatGraphCount(status?.edgeCount ?? null)} />
         <TinyMetric label="Communities" value={formatGraphCount(status?.communityCount ?? null)} />
         <TinyMetric label="Updated" value={formatGraphUpdatedAt(status?.updatedAt ?? null)} />
+        <TinyMetric label="Built" value={formatGraphCommit(status?.builtCommit)} />
+        <TinyMetric label="HEAD" value={formatGraphCommit(status?.currentCommit)} />
+        <TinyMetric label="Tree" value={formatGraphWorktree(status?.hasUncommittedChanges)} />
+        <TinyMetric label="Command" value={status?.recommendedCommand || (isLoading ? 'Checking' : 'N/A')} />
       </div>
 
       {warnings.length > 0 ? (
@@ -2192,7 +2227,7 @@ function TinyMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-white/10 bg-black/25 px-2 py-1.5">
       <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">{label}</div>
-      <div className="mt-1 truncate text-xs font-semibold text-white">{value}</div>
+      <div className="mt-1 truncate text-xs font-semibold text-white" title={value}>{value}</div>
     </div>
   );
 }

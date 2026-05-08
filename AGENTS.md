@@ -15,10 +15,13 @@ agent's job easier.
    architecture, harness, or memory orientation, read it as a navigation map
    before wide searches. Treat Graphify as a guide to inspect, not a source of
    truth.
-5. Read only the docs relevant to the mission class, starting from
+5. For work that touches agent memory, Graphify, Obsidian, or repo orientation,
+   read `docs/operations/agents/graph-memory-operating-system.md` to keep the
+   three layers in their intended roles.
+6. Read only the docs relevant to the mission class, starting from
    `docs/operations/agents/file-harness.md`.
-6. Before editing, write or update the active plan in `progress/current.md`.
-7. After meaningful work, write a report in `progress/` and leave a handoff.
+7. Before editing, write or update the active plan in `progress/current.md`.
+8. After meaningful work, write a report in `progress/` and leave a handoff.
 
 ## File-Based Harness
 
@@ -41,6 +44,9 @@ Core files:
   `npm run graph:build`, `npm run graph:update`, `npm run graph:query`,
   `npm run graph:explain`, and `npm run graph:path` explicitly; do not install
   assistant hooks over this curated `AGENTS.md` without human approval.
+- `docs/operations/agents/graph-memory-operating-system.md` defines how
+  Graphify, Obsidian, and the file harness work together without duplicating
+  each other.
 
 Hard harness rules:
 
@@ -61,7 +67,9 @@ Hard harness rules:
   `docs/operations/product-objective.md`,
   `docs/operations/agents/harness.md`,
   `docs/operations/agents/file-harness.md`, and
-  `skills/hedge-fund-repo-architect/SKILL.md`.
+  `skills/hedge-fund-repo-architect/SKILL.md`. If the work touches Graphify,
+  Obsidian, shared memory, or repo orientation, also read
+  `docs/operations/agents/graph-memory-operating-system.md`.
 - Strategy work: also read `docs/hedge-fund-agent-operating-model.md`,
   `docs/hyperliquid-strategy-roadmap.md`, `docs/strategies/README.md`, and
   `backend/hyperliquid_gateway/strategies/README.md`.

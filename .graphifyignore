@@ -9,6 +9,10 @@ out/
 .tmp/
 .obsidian/
 hedge-station/.obsidian/
+.claude/
+videos/
+renders/
+bugzil.la/
 graphify-out/
 coverage/
 .nyc_output/
@@ -26,6 +30,12 @@ backend/hyperliquid_gateway/data/audits/
 backend/hyperliquid_gateway/data/backtests/
 backend/hyperliquid_gateway/data/paper/
 backend/hyperliquid_gateway/data/validations/
+backend/hyperliquid_gateway/data/market_data/
+backend/hyperliquid_gateway/data/macro_calendar_latest.json
 backend/hyperliquid_gateway/data/hyperliquid.db
 backend/hyperliquid_gateway/data/hyperliquid.db-shm
 backend/hyperliquid_gateway/data/hyperliquid.db-wal
+
+progress/explore_*.md
+progress/impl_*.md
+progress/review_*.md

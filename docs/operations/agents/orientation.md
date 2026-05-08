@@ -17,6 +17,9 @@ Read these before changing anything:
 9. `docs/operations/agents/automation-system.md` for recurring or autonomous work
 10. the relevant skill under `skills/`
 
+If the mission needs broad repo orientation, memory work, Graphify, or Obsidian,
+also read `docs/operations/agents/graph-memory-operating-system.md`.
+
 For strategy work, also read:
 
 - `docs/hedge-fund-agent-operating-model.md`
@@ -34,17 +37,21 @@ For strategy work, also read:
 - `docs/operations/agents/`: agent harness, templates, backlog, and shared memory
 - `skills/`: repeatable agent workflows
 - `scripts/`: stable command entrypoints
+- `graphify-out/`: generated repo graph artifacts for fast navigation; verify
+  every lead against source before changing behavior
 
 ## Default Operating Loop
 
 1. Classify the mission.
 2. Identify the trading lifecycle stage: research, backtesting, evaluation, or
    production.
-3. Inspect before changing.
-4. Keep changes small and reviewable.
-5. Preserve backend-first strategy ownership.
-6. Use stable commands for milestone evidence.
-7. Leave a handoff.
+3. Use Graphify first for broad repo topology when artifacts exist.
+4. Check curated memory only for durable decisions, lessons, and open questions.
+5. Inspect source before changing.
+6. Keep changes small and reviewable.
+7. Preserve backend-first strategy ownership.
+8. Use stable commands for milestone evidence.
+9. Leave a handoff.
 
 ## Common Mission Classes
 

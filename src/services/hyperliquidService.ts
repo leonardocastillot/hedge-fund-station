@@ -681,6 +681,11 @@ export interface HyperliquidGraphifyStatus {
   nodeCount: number | null;
   edgeCount: number | null;
   communityCount: number | null;
+  builtCommit?: string | null;
+  currentCommit?: string | null;
+  freshness?: 'fresh' | 'dirty' | 'stale' | 'missing' | 'unknown' | string;
+  hasUncommittedChanges?: boolean | null;
+  recommendedCommand?: string | null;
   warnings: string[];
 }
 

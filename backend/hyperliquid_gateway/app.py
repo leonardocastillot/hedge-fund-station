@@ -1646,6 +1646,98 @@ def graphify_display_path(path: Path) -> str:
         return str(path)
 
 
+def graphify_git_value(args: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def graphify_built_commit(report_path: Path) -> str | None:
+    if not report_path.exists():
+        return None
+    try:
+        for line in report_path.read_text(encoding="utf-8").splitlines():
+            if "Built from commit:" not in line:
+                continue
+            value = line.split("Built from commit:", 1)[1].strip()
+            return value.strip("`").strip() or None
+    except OSError:
+        return None
+    return None
+
+
+def graphify_has_uncommitted_changes() -> bool | None:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return bool(result.stdout.strip())
+
+
+def graphify_changed_paths_since_built(built_commit: str | None, current_commit: str | None) -> list[str] | None:
+    if not built_commit or not current_commit or built_commit == current_commit:
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{built_commit}..{current_commit}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def graphify_only_generated_changes(paths: list[str] | None) -> bool:
+    if paths is None:
+        return False
+    return len(paths) > 0 and all(path == "graphify-out" or path.startswith("graphify-out/") for path in paths)
+
+
+def graphify_freshness(
+    available: bool,
+    built_commit: str | None,
+    current_commit: str | None,
+    has_uncommitted_changes: bool | None,
+    changed_paths_since_built: list[str] | None = None,
+) -> str:
+    if not available:
+        return "missing"
+    if has_uncommitted_changes:
+        return "dirty"
+    if built_commit and current_commit:
+        if built_commit == current_commit or graphify_only_generated_changes(changed_paths_since_built):
+            return "fresh"
+        return "stale"
+    return "unknown"
+
+
 def graphify_collection(payload: dict[str, Any], primary: str, fallback: str | None = None) -> list[Any]:
     value = payload.get(primary)
     if isinstance(value, list):
@@ -2782,6 +2874,19 @@ def graphify_status_payload() -> dict[str, Any]:
         except (OSError, json.JSONDecodeError) as error:
             warnings.append(f"Could not read graphify-out/graph.json: {error}")
 
+    built_commit = graphify_built_commit(required_paths["reportPath"])
+    current_commit = graphify_git_value(["rev-parse", "--short=8", "HEAD"])
+    has_uncommitted_changes = graphify_has_uncommitted_changes()
+    changed_paths_since_built = graphify_changed_paths_since_built(built_commit, current_commit)
+    freshness = graphify_freshness(
+        available,
+        built_commit,
+        current_commit,
+        has_uncommitted_changes,
+        changed_paths_since_built,
+    )
+    recommended_command = "npm run graph:build" if freshness in {"missing", "stale", "dirty"} else "npm run graph:check"
+
     return {
         "available": available,
         "updatedAt": graphify_mtime_ms(list(required_paths.values())),
@@ -2794,6 +2899,11 @@ def graphify_status_payload() -> dict[str, Any]:
         "nodeCount": node_count,
         "edgeCount": edge_count,
         "communityCount": community_count,
+        "builtCommit": built_commit,
+        "currentCommit": current_commit,
+        "freshness": freshness,
+        "hasUncommittedChanges": has_uncommitted_changes,
+        "recommendedCommand": recommended_command,
         "warnings": warnings,
     }
 

@@ -799,3 +799,61 @@ entries unless the human explicitly asks for cleanup.
   Browser direct search/focus smoke, gateway probe, focused tests, graph
   build/check/query, and app build passed; current graph check reports `4528`
   nodes, `8852` edges, and `245` communities.
+
+---
+
+## 2026-05-08 - Repo Cleanup Harness Simplification
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Simplified the file harness queue from 29 stale review/blocked tasks
+  to 7 focused tasks, moved bulky media/local editor state/generated evidence
+  out of the tracked source surface, kept only curated backend fixtures, pruned
+  unused direct dependencies, and regenerated Graphify against the cleaned
+  corpus.
+- Evidence:
+  `agent_tasks.json`, `.gitignore`, `.graphifyignore`,
+  `docs/operations/media-artifact-archive.md`,
+  `backend/hyperliquid_gateway/data/README.md`, `package.json`,
+  `graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.json`,
+  `graphify-out/graph.html`, and
+  `progress/impl_repo_cleanup_harness_simplification.md`.
+- Verification: `npm run agent:check`, `npm run agent:status`,
+  `npm run build`, `npm run perf:budget`,
+  `python3 -m unittest discover tests`, `npm run hf:doctor`,
+  `npm run hf:backtest -- --strategy one_bitcoin`, `npm run graph:build`,
+  `npm run graph:check`, and
+  `npm run graph:query -- "what are the core repo surfaces after cleanup?"`
+  passed before final diff check.
+- Status: done. No backend API, IPC, strategy logic, renderer route,
+  credentials, or order-routing behavior changed. `progress/current.md` is idle
+  and recommends `confirm_hyperliquid_gateway_port_story` as the next task.
+
+---
+
+## 2026-05-08 - Graph Memory Operating System
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Defined the Graphify, Obsidian, and file harness split as the agent
+  memory operating model; added Graphify freshness metadata to the backend and
+  `/memory`; created an Obsidian `Agent Navigation Index.md` during vault setup;
+  and regenerated Graphify.
+- Evidence:
+  `docs/operations/agents/graph-memory-operating-system.md`, `AGENTS.md`,
+  `docs/operations/agents/harness.md`,
+  `docs/operations/agents/orientation.md`,
+  `docs/operations/agents/memory/`, `backend/hyperliquid_gateway/app.py`,
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/services/hyperliquidService.ts`,
+  `electron/main/native/obsidian-manager.ts`,
+  `tests/test_graphify_memory_status.py`, `graphify-out/`, and
+  `progress/impl_graph_memory_operating_system.md`.
+- Verification: `npm run agent:check`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`,
+  `npm run graph:build`, `npm run graph:check`,
+  `npm run graph:query -- "where should a new agent start for repo architecture work?"`,
+  and `git diff --check` passed.
+- Status: done. Graphify reports `dirty` while this uncommitted workspace is in
+  review, which is expected; rebuild/check after commit if a clean committed
+  graph baseline is needed.

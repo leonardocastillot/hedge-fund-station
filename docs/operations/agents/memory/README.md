@@ -13,6 +13,8 @@ easy to scan. Memory optimizes context; it must not accumulate noise.
 - `mission-log.md`: concise history of meaningful agent work.
 - `open-questions.md`: unresolved questions that need human or evidence-based
   resolution.
+- `../graph-memory-operating-system.md`: role split between the file harness,
+  Graphify, and Obsidian.
 
 ## Rules
 
@@ -20,6 +22,8 @@ easy to scan. Memory optimizes context; it must not accumulate noise.
 - If `graphify-out/GRAPH_REPORT.md` exists, use it as a fast map before broad
   memory or harness exploration. Do not copy the graph into curated memory; link
   to Graphify artifacts or canonical docs instead.
+- Use Obsidian for curated durable memory and navigation; use the file harness
+  for live task state and handoffs.
 - Prefer links to canonical docs over repeating long explanations.
 - Record facts, decisions, and next actions; avoid diary-style narration.
 - Do not store secrets, credentials, private keys, API tokens, or live trading

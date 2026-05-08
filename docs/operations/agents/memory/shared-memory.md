@@ -20,6 +20,9 @@ canonical docs.
   `backend/hyperliquid_gateway/data/agent_runs/`.
 - Shared memory is curated under `docs/operations/agents/memory/`; follow
   `memory-policy.md` before adding entries.
+- Graphify is the repo navigation layer, Obsidian is curated durable memory, and
+  the file harness is live task state; see
+  `docs/operations/agents/graph-memory-operating-system.md`.
 
 ## Useful Entry Points
 
@@ -27,6 +30,8 @@ canonical docs.
 - Harness: `docs/operations/agents/harness.md`
 - File harness: `docs/operations/agents/file-harness.md`
 - Memory policy: `docs/operations/agents/memory/memory-policy.md`
+- Graph and memory operating system:
+  `docs/operations/agents/graph-memory-operating-system.md`
 - Backlog: `docs/operations/agents/backlog.md`
 - Handoff template: `docs/operations/agents/templates/handoff.md`
 - Repo architecture: `docs/project-architecture.md`
