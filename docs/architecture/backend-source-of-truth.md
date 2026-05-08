@@ -32,6 +32,9 @@ gateway.
 - Store only smoke artifacts or curated examples in Git. Heavy JSON reports,
   agent run directories, checkpoints, SQLite databases, temporary exports, and
   private datasets belong on the VM data volume or a future archival bucket.
+- Before aggressive local cleanup, verify the VM data volume is present and
+  contains the runtime database or copied evidence. The local checkout should
+  be able to drop ignored runtime outputs without losing canonical evidence.
 - Do not change the `VITE_*` names or port defaults during cleanup-only work.
 - When a legacy feature is migrated, update the backend endpoint, `src/services/`
   adapter, strategy readiness matrix, and runtime docs in the same change.

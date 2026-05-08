@@ -220,6 +220,28 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-08 - Aggressive Cleanup Queue Closeout
+
+- Agent: Codex
+- Mission class: repo health audit / operations runbook audit / strategy
+  validation audit / data quality audit
+- Summary: Closed the remaining pending harness queue, added canonical startup,
+  validation-threshold, data-quality, and paper-review docs, removed the
+  duplicate Polymarket maker-basis doc, made `package-lock.json` reproducible,
+  archived local ignored evidence to the GCP VM, and purged heavy local runtime
+  outputs.
+- Evidence:
+  `docs/operations/backend-startup-runbook.md`,
+  `docs/operations/strategy-validation-thresholds.md`,
+  `docs/operations/data-quality-checklist.md`,
+  `docs/operations/paper-trade-review-criteria.md`,
+  `package-lock.json`,
+  `progress/impl_aggressive_cleanup_queue_closeout.md`.
+- Status: complete. `live_production_gate_package` remains blocked and
+  human-gated.
+
+---
+
 ## 2026-05-07 - Long Flush Continuation Strategy
 
 - Agent: Codex

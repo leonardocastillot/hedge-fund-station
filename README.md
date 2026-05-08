@@ -181,6 +181,9 @@ npm run dist:mac
 The Mac distribution runbook lives at
 `docs/operations/mac-distribution-runbook.md`. The day-to-day development guide
 lives at `docs/operations/how-to-develop-this-app.md`.
+Backend startup and connectivity runbooks live at
+`docs/operations/backend-startup-runbook.md` and
+`docs/operations/backend-connectivity-runbook.md`.
 
 ## Ports And Environment
 
@@ -242,6 +245,16 @@ Backend-generated evidence belongs under:
 These artifacts are not source logic. Keep curated examples when they help
 review or regression work. Avoid committing private datasets, large runtime
 outputs, SQLite databases, temporary payloads, caches, and build outputs.
+Heavy runtime data belongs on `hf-backend-01` under
+`/data/hedge-fund-station/hyperliquid_gateway/data`; local generated outputs
+may be purged after that VM data path is verified.
+
+## Dependency Reproducibility
+
+`package-lock.json` is versioned intentionally. Agents and humans should use it
+as the reproducible npm dependency contract before changing UI, Electron, or
+Node-based tooling. Do not remove or regenerate it casually; if dependencies
+change, include the lockfile in the same review.
 
 ## Agent Workflows
 

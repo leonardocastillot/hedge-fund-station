@@ -9,12 +9,16 @@ Recommended contents:
 - [hedge fund company constitution](./hedge-fund-company-constitution.md)
 - [daily app development guide](./how-to-develop-this-app.md)
 - backend health and tunnel procedures
+- [backend startup runbook](./backend-startup-runbook.md)
 - [backend connectivity runbook](./backend-connectivity-runbook.md)
 - [agent operating system](./agents/README.md)
 - [agent harness engineering guide](./agents/harness.md)
 - [new agent orientation](./agents/orientation.md)
 - [agent shared memory](./agents/memory/README.md)
 - [strategy readiness matrix](./strategy-readiness-matrix.md)
+- [strategy validation thresholds](./strategy-validation-thresholds.md)
+- [market data quality checklist](./data-quality-checklist.md)
+- [paper trade review criteria](./paper-trade-review-criteria.md)
 - [macOS distribution runbook](./mac-distribution-runbook.md)
 - local development setup
 - deployment and packaging notes

@@ -150,11 +150,20 @@
         "npm run build",
         "npm run gateway:probe when gateway is running"
       ],
-      "status": "pending",
-      "owner": "next-agent",
-      "parallelizable": false,
-      "evidence_paths": [],
-      "notes": "Carried forward from the continuous improvement backlog as the highest-priority operations clarity task."
+            "status": "done",
+            "owner": "codex",
+            "parallelizable": false,
+            "evidence_paths": [
+                "README.md",
+                "docs/operations/backend-startup-runbook.md",
+                "docs/operations/backend-connectivity-runbook.md",
+                "docs/operations/gcp-backtest-api.md",
+                "src/services/backendConfig.ts",
+                "docker-compose.yml",
+                "progress/impl_confirm_hyperliquid_gateway_port_story.md",
+                "progress/impl_aggressive_cleanup_queue_closeout.md"
+            ],
+            "notes": "Done. Confirmed and documented the canonical ports: alpha engine VM tunnel on 18500, local Hyperliquid gateway on 18001, legacy API on 18000, and Docker host 18001 to container 18400. Runtime behavior and VITE compatibility aliases were not changed."
     },
     {
       "id": "backend_startup_runbook",
@@ -174,11 +183,18 @@
         "npm run agent:check",
         "npm run hf:doctor"
       ],
-      "status": "pending",
-      "owner": "next-agent",
-      "parallelizable": false,
-      "evidence_paths": [],
-      "notes": "Small docs task that improves daily operator and agent startup reliability."
+            "status": "done",
+            "owner": "codex",
+            "parallelizable": false,
+            "evidence_paths": [
+                "docs/operations/backend-startup-runbook.md",
+                "docs/operations/backend-connectivity-runbook.md",
+                "docs/operations/README.md",
+                "README.md",
+                "progress/impl_backend_startup_runbook.md",
+                "progress/impl_aggressive_cleanup_queue_closeout.md"
+            ],
+            "notes": "Done. Added a concise backend startup runbook covering daily local startup, gateway restart, VM runtime data root, health checks, and recovery commands. It is an operations runbook only."
     },
     {
       "id": "strategy_validation_thresholds",
@@ -198,11 +214,18 @@
         "npm run agent:check",
         "python3 -m unittest tests.test_strategy_catalog"
       ],
-      "status": "pending",
-      "owner": "next-agent",
-      "parallelizable": false,
-      "evidence_paths": [],
-      "notes": "Keep this docs/contract-first; do not promote any strategy."
+            "status": "done",
+            "owner": "codex",
+            "parallelizable": false,
+            "evidence_paths": [
+                "docs/operations/strategy-validation-thresholds.md",
+                "docs/operations/strategy-readiness-matrix.md",
+                "docs/strategies/README.md",
+                "backend/hyperliquid_gateway/backtesting/registry.py",
+                "progress/impl_strategy_validation_thresholds.md",
+                "progress/impl_aggressive_cleanup_queue_closeout.md"
+            ],
+            "notes": "Done. Added a canonical thresholds document mirrored from the backend registry, linked it from strategy docs and readiness matrix, and kept one_bitcoin/research-only boundaries explicit. No strategy was promoted."
     },
     {
       "id": "data_quality_checklist",
@@ -222,11 +245,18 @@
         "npm run agent:check",
         "npm run build"
       ],
-      "status": "pending",
-      "owner": "next-agent",
-      "parallelizable": false,
-      "evidence_paths": [],
-      "notes": "A focused audit/report task before adding more data-quality code."
+            "status": "done",
+            "owner": "codex",
+            "parallelizable": false,
+            "evidence_paths": [
+                "docs/operations/data-quality-checklist.md",
+                "backend/hyperliquid_gateway/data/README.md",
+                "src/services/hyperliquidService.ts",
+                "src/services/liquidationsService.ts",
+                "progress/impl_data_quality_checklist.md",
+                "progress/impl_aggressive_cleanup_queue_closeout.md"
+            ],
+            "notes": "Done. Added a data quality checklist covering market snapshots, alerts, liquidations, paper signals, and paper trades, with backend source-of-truth fields and fallback/legacy cautions."
     },
     {
       "id": "paper_trade_review_criteria",
@@ -246,11 +276,18 @@
         "npm run agent:check",
         "npm run hf:status"
       ],
-      "status": "pending",
-      "owner": "next-agent",
-      "parallelizable": false,
-      "evidence_paths": [],
-      "notes": "Supports the paper evidence loop without changing routing behavior."
+            "status": "done",
+            "owner": "codex",
+            "parallelizable": false,
+            "evidence_paths": [
+                "docs/operations/paper-trade-review-criteria.md",
+                "docs/operations/btc-paper-runtime-loop.md",
+                "docs/strategies/",
+                "backend/hyperliquid_gateway/strategies/",
+                "progress/impl_paper_trade_review_criteria.md",
+                "progress/impl_aggressive_cleanup_queue_closeout.md"
+            ],
+            "notes": "Done. Added paper-trade review criteria mapped to trigger quality, invalidation, fill quality, drift, regime fit, and lesson capture. Criteria remain paper-only and do not enable order routing."
     },
     {
       "id": "live_production_gate_package",

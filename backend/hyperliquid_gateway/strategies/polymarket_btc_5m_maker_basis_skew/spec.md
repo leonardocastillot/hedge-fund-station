@@ -2,7 +2,7 @@
 
 See the main strategy document at:
 
-- `docs/strategies/polymarket-btc-updown-5m-maker-basis-skew.md`
+- `docs/strategies/polymarket-btc-5m-maker-basis-skew.md`
 
 Implementation modules:
 

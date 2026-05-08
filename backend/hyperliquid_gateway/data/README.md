@@ -29,6 +29,8 @@ Cleanup policy:
 - keep `*-smoke.json` examples when they are useful for regression review
 - keep `market_data/one_bitcoin_btc_usd_daily.json` as the curated small dataset
   required by the One Bitcoin default backtest
+- verify the VM path `/data/hedge-fund-station/hyperliquid_gateway/data` before
+  purging local SQLite, agent runs, or timestamped reports
 - keep non-smoke artifacts out of git by default; handoffs may link to local,
   VM, or external archive paths when historical evidence matters
 - do not commit `agent_runs/`, checkpoints, `tmp-*.json`, SQLite files, WAL/SHM

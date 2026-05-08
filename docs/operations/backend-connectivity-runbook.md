@@ -1,5 +1,9 @@
 # Backend Connectivity Runbook
 
+For the normal daily startup sequence, use
+`docs/operations/backend-startup-runbook.md`. This file is the deeper
+connectivity and recovery reference.
+
 ## Daily Hybrid Mode
 
 Use this as the default local workflow:
@@ -72,6 +76,10 @@ to exist there unless the VM service explicitly exposes that route.
 
 Use `http://127.0.0.1:18001` for the optional local Hyperliquid gateway Docker
 or process contract when that gateway is running.
+
+Docker maps host `18001` to container `18400` for the Hyperliquid gateway. The
+app should still use `18001`; `18400` is only the container-internal service
+port.
 
 Required frontend environment for local Hyperliquid surfaces:
 
