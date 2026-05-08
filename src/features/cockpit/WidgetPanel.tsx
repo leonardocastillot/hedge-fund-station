@@ -20,7 +20,6 @@ import {
 
 import { LiquidationsProvider } from '@/contexts/LiquidationsContext';
 import { recordTelemetry } from '@/services/performanceTelemetry';
-import { TerminalGrid } from '@/components/electron/TerminalGrid';
 import { CENTER_NAVIGATION_EVENT, publishCenterRouteChanged, type CenterNavigationDetail } from '@/utils/centerNavigation';
 
 const HedgeFundStationPage = React.lazy(() => import('@/features/stations/pages/HedgeFundStationPage'));
@@ -41,6 +40,7 @@ const PortfolioDashboardPage = React.lazy(() => import('@/features/paper/pages/P
 const AgentsPanel = React.lazy(() => import('@/features/agents/panels/AgentsPanel').then((module) => ({ default: module.AgentsPanel })));
 const SettingsPage = React.lazy(() => import('@/features/settings/pages/SettingsPage'));
 const DiagnosticsPage = React.lazy(() => import('@/features/diagnostics/pages/DiagnosticsPage'));
+const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid').then((module) => ({ default: module.TerminalGrid })));
 
 const navItems = [
   { path: '/station/hedge-fund', label: 'Hedge Fund', icon: ShieldCheck },

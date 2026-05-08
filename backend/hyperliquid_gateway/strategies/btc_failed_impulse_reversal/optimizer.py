@@ -11,7 +11,7 @@ except ImportError:
     from backtesting.doubling import build_doubling_estimate, build_doubling_stability_audit
     from backtesting.engine import BacktestConfig
 
-from .backtest import STRATEGY_ID, failed_impulse_variant_params, run_backtest_with_params
+from .backtest import STRATEGY_ID, failed_impulse_variant_params, load_sampled_snapshots, run_backtest_with_params
 
 
 def default_variant_grid() -> list[dict[str, Any]]:
@@ -57,11 +57,19 @@ def build_variant_optimizer_report(
     if max_variants is not None and max_variants > 0:
         variant_items = variant_items[:max_variants]
 
+    sampled_rows, replay_filter = load_sampled_snapshots(dataset_path, replay_config)
     rows = []
     for item in variant_items:
         variant_id = str(item.get("variantId") or f"variant_{len(rows) + 1}")
         params = failed_impulse_variant_params(item.get("params") if isinstance(item.get("params"), dict) else {})
-        result = run_backtest_with_params(dataset_path, replay_config, params=params, variant_id=variant_id)
+        result = run_backtest_with_params(
+            dataset_path,
+            replay_config,
+            params=params,
+            variant_id=variant_id,
+            sampled_rows=sampled_rows,
+            replay_filter=replay_filter,
+        )
         report_payload = _variant_report_payload(
             result=result,
             dataset_path=dataset_path,

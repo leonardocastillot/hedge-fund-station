@@ -5,7 +5,6 @@ import { useTerminalContext } from '@/contexts/TerminalContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import type { TaskStatus } from '@/types/tasks';
 import { AgentSupervisorBoard } from '../components/AgentSupervisorBoard';
-import { MissionChatWorkbench } from '../components/MissionChatWorkbench';
 import { MissionConsoleLauncher } from '../components/MissionConsoleLauncher';
 import { KnowledgeDock } from '../components/KnowledgeDock';
 import { SystemHealthCard } from '../components/SystemHealthCard';
@@ -14,10 +13,12 @@ import { getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell }
 import { launchAgentRun } from '@/utils/agentOrchestration';
 import type { AgentProvider } from '@/types/agents';
 import type { TerminalRuntimeState } from '@/contexts/TerminalContext';
-import { TerminalGrid } from '@/components/electron/TerminalGrid';
 
 type RunFilter = 'all' | TaskStatus;
 type PanelView = 'chat' | 'fleet' | 'runs' | 'evidence' | 'intel';
+
+const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid').then((module) => ({ default: module.TerminalGrid })));
+const MissionChatWorkbench = React.lazy(() => import('../components/MissionChatWorkbench').then((module) => ({ default: module.MissionChatWorkbench })));
 
 function formatRelativeTime(timestamp?: number): string {
   if (!timestamp) {
@@ -312,7 +313,9 @@ export const AgentsPanel: React.FC = () => {
         {activeView === 'chat' ? (
           <div style={{ display: 'grid', gap: '16px' }}>
             <MissionConsoleLauncher workspaceId={workspaceId} />
-            <MissionChatWorkbench workspaceId={workspaceId} />
+            <React.Suspense fallback={<div style={emptyStyle}>Loading mission workbench...</div>}>
+              <MissionChatWorkbench workspaceId={workspaceId} />
+            </React.Suspense>
           </div>
         ) : null}
 
@@ -322,7 +325,9 @@ export const AgentsPanel: React.FC = () => {
 
         {activeView === 'evidence' ? (
           <div style={evidenceShellStyle}>
-            <TerminalGrid />
+            <React.Suspense fallback={<div style={emptyStyle}>Loading terminal evidence...</div>}>
+              <TerminalGrid />
+            </React.Suspense>
           </div>
         ) : null}
 

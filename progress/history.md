@@ -693,3 +693,109 @@ entries unless the human explicitly asks for cleanup.
   data. The refined report selects the highest-BTC variant as primary; monthly
   DCA won with `2.20097648 BTC`, while all dip and research-only sell/rebuy
   variants underperformed on final BTC in this sample.
+
+---
+
+## 2026-05-08 - Full Stack Resource Optimization
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Implemented the lightweight/on-demand/balanced optimization profile:
+  lazy-loaded terminal/workbench/voice WebGL chunks, collapsed the voice
+  workbench by default with persistence, moved manual polling to shared
+  visibility/backoff polling, added aggregate station/liquidation endpoints,
+  added a perf budget command, and centralized reduced-column snapshot loading
+  with BTC optimizer dataset reuse.
+- Evidence:
+  `scripts/perf-budget.mjs`, `src/components/electron/ElectronLayout.tsx`,
+  `src/features/cockpit/WidgetPanel.tsx`,
+  `src/features/agents/components/MissionChatWorkbench.tsx`,
+  `src/services/hyperliquidService.ts`, `src/services/liquidationsService.ts`,
+  `backend/hyperliquid_gateway/app.py`,
+  `backend/hyperliquid_gateway/backtesting/snapshots.py`,
+  `backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/optimizer.py`,
+  `progress/impl_full_stack_resource_optimization.md`.
+- Verification: `npm run build`, `npm run perf:budget`, focused backtest tests,
+  full `python3 -m unittest discover tests`, BTC failed impulse 3-day backtest,
+  BTC optimizer 3-variant 3-day run, `npm run hf:status`, `npm run gateway:probe`,
+  `npm run backend:probe`, and FastAPI `TestClient` endpoint smoke passed.
+- Status: ready for review. The initial renderer is now 590.09 KiB and the perf
+  budget reports no `xterm` or `three` markers in it. The gateway was restarted
+  and endpoint smoke returned 200 for existing and newly added routes.
+
+---
+
+## 2026-05-08 - App Daily Use Hardening
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Added a read-only app readiness snapshot and surfaced it in the
+  header, Diagnostics, and Hedge Fund Station so daily startup shows gateway,
+  cache, paper runtime, evidence, blockers, review coverage, memory, terminal,
+  workbench, Obsidian, and live-execution lock status. Fixed visible inflated
+  strategy counts by excluding `runtime:*` setup rows from real strategy totals
+  in Hedge Fund Station and Strategy Audit Focus.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `src/services/hyperliquidService.ts`,
+  `src/components/electron/BackendStatus.tsx`,
+  `src/features/diagnostics/pages/DiagnosticsPage.tsx`,
+  `src/features/stations/pages/HedgeFundStationPage.tsx`,
+  `src/features/strategies/pages/StrategyAuditPage.tsx`,
+  `progress/impl_app_daily_use_hardening.md`.
+- Verification: `npm run agent:check`, `npm run build`,
+  `python3 -m unittest discover tests`, `npm run perf:budget`,
+  `npm run terminal:doctor`, `npm run hf:doctor`, `npm run hf:status`,
+  `npm run gateway:probe`, `npm run backend:probe`, readiness HTTP smoke,
+  Browser route smoke, and Electron smoke passed.
+- Status: ready for review. Readiness remains `attention` because validation
+  blockers and 0% paper review coverage are real operational work, not app
+  failures. Live trading stayed monitor-only and production promotion remains
+  blocked behind the formal gates.
+
+---
+
+## 2026-05-08 - Graphify Memory Repo Map
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Integrated Graphify as a versionable repo navigation layer for the
+  file harness and `/memory`, with stable npm scripts, ignore rules, generated
+  `graphify-out/` artifacts, a read-only backend status endpoint, and a Repo
+  Graph panel in the Memory page.
+- Evidence:
+  `.graphifyignore`, `scripts/graphify-check.mjs`,
+  `graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.json`,
+  `graphify-out/graph.html`, `backend/hyperliquid_gateway/app.py`,
+  `tests/test_graphify_memory_status.py`,
+  `src/services/hyperliquidService.ts`,
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `progress/impl_graphify_memory_repo_map.md`.
+- Verification: `npm run agent:check`, `npm run graph:build`,
+  `npm run graph:check`,
+  `npm run graph:query -- "how do harness memory and strategy learning connect?"`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`, and
+  `git diff --check` passed.
+- Status: ready for review. `graph:build` uses Graphify's reliable local update
+  path because the available Ollama `llama3.2:3b` semantic extraction produced
+  invalid JSON warnings and stalled; semantic extraction can be revisited later
+  with a stronger model or configured provider.
+- Follow-up: fixed the reported Graphify 404 by restarting the stale gateway,
+  adding `/api/hyperliquid/memory/graphify-status` to `gateway:probe`, adding a
+  renderer stale-gateway hint, and correcting backend community counting for
+  `community: 0`. Real endpoint smoke now returns `available=true`,
+  `nodeCount=4516`, `edgeCount=8823`, and `communityCount=245`; `gateway:probe`,
+  `/memory` dev HTTP smoke, focused tests, graph checks, build, harness, and
+  diff check pass.
+- Embedded follow-up: added `/api/hyperliquid/memory/graphify-html`, exposed
+  `htmlUrl` in Graphify status, and embedded the generated Graphify HTML inside
+  the `/memory` Repo Graph panel. Real HTML smoke returns inline `text/html`;
+  current graph check reports `4519` nodes, `8828` edges, and `243` communities.
+- Interactive follow-up: added `/api/hyperliquid/memory/graphify-explorer`,
+  exposed `explorerUrl`, and made `/memory` embed the custom explorer before the
+  raw generated HTML. The explorer uses `graphify-out/graph.json` with
+  drag/zoom physics, search, focus, neighborhood mode, community and degree
+  filters, labels, fit/reset, counts, and node detail. Real endpoint smoke,
+  Browser direct search/focus smoke, gateway probe, focused tests, graph
+  build/check/query, and app build passed; current graph check reports `4528`
+  nodes, `8852` edges, and `245` communities.

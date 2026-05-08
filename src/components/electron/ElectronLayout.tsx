@@ -1,4 +1,4 @@
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useCallback, useState } from 'react';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import {
   Bot,
@@ -12,10 +12,23 @@ import { Sidebar } from './Sidebar';
 import { WidgetPanel } from '@/features/cockpit/WidgetPanel';
 
 const MissionChatWorkbench = React.lazy(() => import('@/features/agents/components/MissionChatWorkbench').then((module) => ({ default: module.MissionChatWorkbench })));
+const VOICE_PANEL_COLLAPSED_KEY = 'hedge-station:layout:voice-panel-collapsed';
+
+function loadVoicePanelCollapsedDefault(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+  const stored = window.localStorage.getItem(VOICE_PANEL_COLLAPSED_KEY);
+  return stored === null ? true : stored === '1';
+}
 
 export const ElectronLayout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isVoicePanelCollapsed, setIsVoicePanelCollapsed] = useState(false);
+  const [isVoicePanelCollapsed, setIsVoicePanelCollapsedState] = useState(loadVoicePanelCollapsedDefault);
+  const setVoicePanelCollapsed = useCallback((collapsed: boolean) => {
+    setIsVoicePanelCollapsedState(collapsed);
+    window.localStorage.setItem(VOICE_PANEL_COLLAPSED_KEY, collapsed ? '1' : '0');
+  }, []);
   const centerDefaultSize = !isSidebarCollapsed && !isVoicePanelCollapsed
     ? 52
     : !isSidebarCollapsed
@@ -86,14 +99,14 @@ export const ElectronLayout: React.FC = () => {
                 title="Open voice mission source"
                 icon={<Bot size={17} />}
                 actionIcon={<PanelRightOpen size={15} />}
-                onExpand={() => setIsVoicePanelCollapsed(false)}
+                onExpand={() => setVoicePanelCollapsed(false)}
               />
             </Panel>
           ) : (
             <>
               <ResizeHandle
                 title="Collapse voice mission source"
-                onCollapse={() => setIsVoicePanelCollapsed(true)}
+                onCollapse={() => setVoicePanelCollapsed(true)}
                 icon={<PanelRightClose size={14} />}
               />
 

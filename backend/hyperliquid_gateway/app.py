@@ -6,15 +6,16 @@ import os
 import sqlite3
 import subprocess
 import time
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Literal, Optional, Union
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel, Field
 
 try:
     from .backtesting.doubling import build_doubling_estimate, build_paper_readiness
@@ -119,6 +120,7 @@ AUDITS_ROOT = DATA_ROOT / "audits"
 VALIDATIONS_ROOT = DATA_ROOT / "validations"
 PAPER_ROOT = DATA_ROOT / "paper"
 STRATEGY_MEMORY_ROOT = DATA_ROOT / "strategy_memory"
+GRAPHIFY_OUT_ROOT = REPO_ROOT / "graphify-out"
 DOCS_STRATEGIES_ROOT = REPO_ROOT / "docs" / "strategies"
 STRATEGIES_ROOT = BACKEND_ROOT / "strategies"
 PAPER_LOOP_LOG_DIR = REPO_ROOT / ".tmp"
@@ -1620,6 +1622,1180 @@ def write_strategy_learning_event(payload: StrategyLearningEventCreate) -> dict[
     }
     file_path.write_text(json.dumps(event, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return event
+
+
+def graphify_required_paths() -> dict[str, Path]:
+    return {
+        "reportPath": GRAPHIFY_OUT_ROOT / "GRAPH_REPORT.md",
+        "graphJsonPath": GRAPHIFY_OUT_ROOT / "graph.json",
+        "htmlPath": GRAPHIFY_OUT_ROOT / "graph.html",
+    }
+
+
+def graphify_mtime_ms(paths: list[Path]) -> int | None:
+    existing_times = [path.stat().st_mtime for path in paths if path.exists()]
+    if not existing_times:
+        return None
+    return int(max(existing_times) * 1000)
+
+
+def graphify_display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def graphify_collection(payload: dict[str, Any], primary: str, fallback: str | None = None) -> list[Any]:
+    value = payload.get(primary)
+    if isinstance(value, list):
+        return value
+    if fallback:
+        fallback_value = payload.get(fallback)
+        if isinstance(fallback_value, list):
+            return fallback_value
+    graph = payload.get("graph")
+    if isinstance(graph, dict):
+        nested = graph.get(primary)
+        if isinstance(nested, list):
+            return nested
+        if fallback:
+            nested_fallback = graph.get(fallback)
+            if isinstance(nested_fallback, list):
+                return nested_fallback
+    return []
+
+
+def first_present_graphify_value(node: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key in node and node[key] is not None and node[key] != "":
+            return node[key]
+    return None
+
+
+def graphify_community_count(payload: dict[str, Any], nodes: list[Any]) -> int | None:
+    communities = payload.get("communities")
+    if isinstance(communities, list):
+        return len(communities)
+    if isinstance(communities, dict):
+        return len(communities)
+    graph = payload.get("graph")
+    if isinstance(graph, dict):
+        nested = graph.get("communities")
+        if isinstance(nested, list):
+            return len(nested)
+        if isinstance(nested, dict):
+            return len(nested)
+
+    community_values = {
+        first_present_graphify_value(
+            node,
+            ("community", "cluster", "community_id", "communityId"),
+        )
+        for node in nodes
+        if isinstance(node, dict)
+    }
+    community_values.discard(None)
+    community_values.discard("")
+    return len(community_values) if community_values else None
+
+
+def graphify_text(value: Any, fallback: str = "") -> str:
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text or fallback
+
+
+def graphify_node_id(node: dict[str, Any]) -> str | None:
+    value = first_present_graphify_value(node, ("id", "key", "name", "label"))
+    text = graphify_text(value)
+    return text or None
+
+
+def graphify_edge_endpoint(edge: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    value = first_present_graphify_value(edge, keys)
+    text = graphify_text(value)
+    return text or None
+
+
+def graphify_load_graph_json() -> dict[str, Any]:
+    graph_path = graphify_required_paths()["graphJsonPath"]
+    if not graph_path.exists():
+        raise HTTPException(status_code=404, detail="Graphify graph.json not found. Run npm run graph:build.")
+    try:
+        payload = json.loads(graph_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=500, detail=f"Could not read graphify-out/graph.json: {error}") from error
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=500, detail="graphify-out/graph.json is not a JSON object.")
+    return payload
+
+
+def graphify_safe_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+
+
+def graphify_explorer_data(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_nodes = [node for node in graphify_collection(payload, "nodes") if isinstance(node, dict)]
+    raw_edges = [
+        edge
+        for edge in graphify_collection(payload, "edges", "links")
+        if isinstance(edge, dict)
+    ]
+
+    known_ids: set[str] = set()
+    degree_by_id: Counter[str] = Counter()
+    edge_rows: list[dict[str, Any]] = []
+    relation_counts: Counter[str] = Counter()
+
+    for node in raw_nodes:
+        node_id = graphify_node_id(node)
+        if node_id:
+            known_ids.add(node_id)
+
+    for edge in raw_edges:
+        source = graphify_edge_endpoint(edge, ("source", "from", "src"))
+        target = graphify_edge_endpoint(edge, ("target", "to", "dst"))
+        if not source or not target or source not in known_ids or target not in known_ids:
+            continue
+        relation = graphify_text(first_present_graphify_value(edge, ("relation", "type", "label")), "linked")
+        source_file = graphify_text(edge.get("source_file") or edge.get("file"))
+        source_location = graphify_text(edge.get("source_location") or edge.get("location"))
+        confidence = graphify_text(edge.get("confidence") or edge.get("confidence_score"))
+        degree_by_id[source] += 1
+        degree_by_id[target] += 1
+        relation_counts[relation] += 1
+        edge_rows.append(
+            {
+                "from": source,
+                "to": target,
+                "relation": relation,
+                "sourceFile": source_file,
+                "sourceLocation": source_location,
+                "confidence": confidence,
+                "weight": edge.get("weight", 1),
+            }
+        )
+
+    seen_nodes: set[str] = set()
+    node_rows: list[dict[str, Any]] = []
+    community_counts: Counter[str] = Counter()
+    type_counts: Counter[str] = Counter()
+
+    for node in raw_nodes:
+        node_id = graphify_node_id(node)
+        if not node_id or node_id in seen_nodes:
+            continue
+        seen_nodes.add(node_id)
+        label = graphify_text(first_present_graphify_value(node, ("label", "name", "id")), node_id)
+        community_value = first_present_graphify_value(node, ("community", "cluster", "community_id", "communityId"))
+        community = graphify_text(community_value, "unclustered")
+        file_type = graphify_text(first_present_graphify_value(node, ("file_type", "fileType", "kind", "type")), "node")
+        source_file = graphify_text(node.get("source_file") or node.get("file") or node.get("path"))
+        source_location = graphify_text(node.get("source_location") or node.get("location"))
+        degree = int(degree_by_id.get(node_id, 0))
+        community_counts[community] += 1
+        type_counts[file_type] += 1
+        node_rows.append(
+            {
+                "id": node_id,
+                "label": label,
+                "normLabel": graphify_text(node.get("norm_label"), label),
+                "community": community,
+                "fileType": file_type,
+                "sourceFile": source_file,
+                "sourceLocation": source_location,
+                "degree": degree,
+                "value": max(5, min(46, 5 + degree)),
+            }
+        )
+
+    node_rows.sort(key=lambda row: (-int(row["degree"]), str(row["label"]).lower()))
+    edge_rows.sort(key=lambda row: (str(row["relation"]), str(row["from"]), str(row["to"])))
+    community_rows = [
+        {"id": community, "label": community, "count": count}
+        for community, count in community_counts.most_common()
+    ]
+    relation_rows = [
+        {"id": relation, "label": relation, "count": count}
+        for relation, count in relation_counts.most_common(12)
+    ]
+    type_rows = [
+        {"id": node_type, "label": node_type, "count": count}
+        for node_type, count in type_counts.most_common(12)
+    ]
+
+    return {
+        "nodes": node_rows,
+        "edges": edge_rows,
+        "stats": {
+            "nodeCount": len(node_rows),
+            "edgeCount": len(edge_rows),
+            "communityCount": len(community_rows),
+            "maxDegree": max((int(row["degree"]) for row in node_rows), default=0),
+            "communities": community_rows,
+            "relations": relation_rows,
+            "nodeTypes": type_rows,
+        },
+    }
+
+
+def graphify_explorer_html() -> str:
+    data = graphify_explorer_data(graphify_load_graph_json())
+    html = r"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graphify Explorer</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07080d;
+      --panel: rgba(15, 18, 28, 0.92);
+      --panel-strong: rgba(8, 10, 17, 0.96);
+      --line: rgba(255, 255, 255, 0.11);
+      --line-strong: rgba(125, 211, 252, 0.34);
+      --text: #f8fafc;
+      --muted: rgba(226, 232, 240, 0.62);
+      --subtle: rgba(226, 232, 240, 0.38);
+      --cyan: #67e8f9;
+      --green: #86efac;
+      --amber: #fde68a;
+      --pink: #f0abfc;
+      --shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: 100%;
+      min-height: 100vh;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(135deg, #080910 0%, #0c1118 45%, #09070f 100%);
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(15rem, 1fr) auto;
+      gap: 1rem;
+      align-items: center;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 7, 12, 0.9);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+      z-index: 5;
+    }
+
+    .brand {
+      min-width: 0;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 999px;
+      background: var(--cyan);
+      box-shadow: 0 0 0 5px rgba(103, 232, 249, 0.12), 0 0 28px rgba(103, 232, 249, 0.65);
+      flex: 0 0 auto;
+    }
+
+    .brand-subtitle {
+      margin-top: 0.25rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+    }
+
+    .search {
+      display: flex;
+      min-width: min(30rem, 44vw);
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.45rem;
+      border: 1px solid rgba(103, 232, 249, 0.22);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .search input,
+    select {
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      color: var(--text);
+      background: transparent;
+    }
+
+    .search input {
+      width: 100%;
+    }
+
+    .search input::placeholder {
+      color: var(--subtle);
+    }
+
+    select {
+      min-height: 2.1rem;
+      max-width: 12rem;
+      padding: 0 0.55rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+    }
+
+    select option {
+      background: #0b1020;
+      color: var(--text);
+    }
+
+    .range-control {
+      display: inline-flex;
+      min-height: 2.1rem;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0 0.65rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .range-control input {
+      width: 6rem;
+      accent-color: var(--cyan);
+    }
+
+    .range-control strong {
+      min-width: 2rem;
+      color: var(--text);
+      text-align: right;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 2.1rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 0.72rem;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      border-color: var(--line-strong);
+      background: rgba(103, 232, 249, 0.12);
+    }
+
+    .button.primary {
+      border-color: rgba(103, 232, 249, 0.35);
+      background: rgba(103, 232, 249, 0.14);
+      color: #ecfeff;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(19rem, 22rem);
+      min-height: 0;
+    }
+
+    #network {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #network .vis-network {
+      outline: 0;
+    }
+
+    .hud {
+      position: absolute;
+      left: 1rem;
+      bottom: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      max-width: calc(100% - 2rem);
+      gap: 0.5rem;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .metric {
+      min-width: 6.6rem;
+      padding: 0.58rem 0.7rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(5, 7, 12, 0.74);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(14px);
+    }
+
+    .metric span {
+      display: block;
+      color: var(--subtle);
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 0.12rem;
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    .inspector {
+      min-height: 0;
+      overflow: auto;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+    }
+
+    .inspector-inner {
+      padding: 1rem;
+    }
+
+    .panel-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.94rem;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .panel-subtitle {
+      margin-top: 0.28rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      overflow-wrap: anywhere;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.8rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-height: 1.65rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 0.62rem;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.045);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .section {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+    }
+
+    .section h2 {
+      margin: 0 0 0.62rem;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .kv {
+      display: grid;
+      gap: 0.45rem;
+      margin: 0;
+    }
+
+    .kv div {
+      display: grid;
+      grid-template-columns: 5.4rem minmax(0, 1fr);
+      gap: 0.6rem;
+      align-items: start;
+      font-size: 0.78rem;
+    }
+
+    .kv dt {
+      color: var(--subtle);
+    }
+
+    .kv dd {
+      margin: 0;
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .list {
+      display: grid;
+      gap: 0.42rem;
+    }
+
+    .node-link {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.55rem 0.62rem;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.045);
+      text-align: left;
+      cursor: pointer;
+      overflow-wrap: anywhere;
+    }
+
+    .node-link:hover {
+      border-color: rgba(134, 239, 172, 0.38);
+      background: rgba(134, 239, 172, 0.1);
+    }
+
+    .node-link span {
+      display: block;
+      margin-top: 0.18rem;
+      color: var(--subtle);
+      font-size: 0.7rem;
+    }
+
+    .empty-state {
+      display: grid;
+      place-items: center;
+      height: 100%;
+      min-height: 18rem;
+      padding: 2rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 1040px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        justify-content: flex-start;
+      }
+
+      .search {
+        min-width: min(100%, 30rem);
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(24rem, 1fr) minmax(18rem, 36vh);
+      }
+
+      .inspector {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title"><span class="brand-mark" aria-hidden="true"></span><span>Graphify Explorer</span></div>
+        <div class="brand-subtitle" id="subtitle">Repo map loaded from graphify-out/graph.json</div>
+      </div>
+      <div class="toolbar">
+        <label class="search" aria-label="Search nodes">
+          <input id="searchInput" list="nodeList" type="search" placeholder="Search files, classes, docs, tasks" autocomplete="off" />
+          <datalist id="nodeList"></datalist>
+        </label>
+        <select id="communitySelect" aria-label="Community filter"></select>
+        <label class="range-control">
+          <span>Degree</span>
+          <input id="degreeRange" type="range" min="0" max="40" step="1" value="0" />
+          <strong id="degreeValue">0+</strong>
+        </label>
+        <button class="button primary" id="focusButton" type="button">Focus</button>
+        <button class="button" id="neighborhoodButton" type="button">Neighborhood</button>
+        <button class="button" id="labelsButton" type="button">Labels</button>
+        <button class="button" id="physicsButton" type="button">Physics</button>
+        <button class="button" id="fitButton" type="button">Fit</button>
+        <button class="button" id="resetButton" type="button">Reset</button>
+      </div>
+    </header>
+    <section class="workspace">
+      <div id="network">
+        <div class="hud" aria-hidden="true">
+          <div class="metric"><span>Visible Nodes</span><strong id="visibleNodes">0</strong></div>
+          <div class="metric"><span>Visible Edges</span><strong id="visibleEdges">0</strong></div>
+          <div class="metric"><span>Total Nodes</span><strong id="totalNodes">0</strong></div>
+          <div class="metric"><span>Communities</span><strong id="totalCommunities">0</strong></div>
+        </div>
+      </div>
+      <aside class="inspector" aria-label="Selected node">
+        <div class="inspector-inner" id="inspector"></div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const RAW_NODES = __GRAPHIFY_NODES__;
+    const RAW_EDGES = __GRAPHIFY_EDGES__;
+    const STATS = __GRAPHIFY_STATS__;
+
+    const palette = [
+      ["#67e8f9", "rgba(103, 232, 249, 0.2)"],
+      ["#86efac", "rgba(134, 239, 172, 0.18)"],
+      ["#f0abfc", "rgba(240, 171, 252, 0.18)"],
+      ["#fde68a", "rgba(253, 230, 138, 0.18)"],
+      ["#93c5fd", "rgba(147, 197, 253, 0.18)"],
+      ["#fca5a5", "rgba(252, 165, 165, 0.17)"],
+      ["#c4b5fd", "rgba(196, 181, 253, 0.18)"],
+      ["#5eead4", "rgba(94, 234, 212, 0.17)"]
+    ];
+
+    const relationPalette = [
+      "rgba(103, 232, 249, 0.24)",
+      "rgba(134, 239, 172, 0.2)",
+      "rgba(240, 171, 252, 0.22)",
+      "rgba(253, 230, 138, 0.22)",
+      "rgba(147, 197, 253, 0.22)"
+    ];
+
+    const byId = new Map(RAW_NODES.map((node) => [node.id, node]));
+    const neighbors = new Map(RAW_NODES.map((node) => [node.id, new Set()]));
+    const edgeLookup = new Map();
+    for (const edge of RAW_EDGES) {
+      if (!neighbors.has(edge.from)) neighbors.set(edge.from, new Set());
+      if (!neighbors.has(edge.to)) neighbors.set(edge.to, new Set());
+      neighbors.get(edge.from).add(edge.to);
+      neighbors.get(edge.to).add(edge.from);
+      const fromKey = `${edge.from}->${edge.to}`;
+      const toKey = `${edge.to}->${edge.from}`;
+      if (!edgeLookup.has(fromKey)) edgeLookup.set(fromKey, []);
+      if (!edgeLookup.has(toKey)) edgeLookup.set(toKey, []);
+      edgeLookup.get(fromKey).push(edge);
+      edgeLookup.get(toKey).push(edge);
+    }
+
+    const elements = {
+      network: document.getElementById("network"),
+      inspector: document.getElementById("inspector"),
+      search: document.getElementById("searchInput"),
+      nodeList: document.getElementById("nodeList"),
+      community: document.getElementById("communitySelect"),
+      degree: document.getElementById("degreeRange"),
+      degreeValue: document.getElementById("degreeValue"),
+      focus: document.getElementById("focusButton"),
+      neighborhood: document.getElementById("neighborhoodButton"),
+      labels: document.getElementById("labelsButton"),
+      physics: document.getElementById("physicsButton"),
+      fit: document.getElementById("fitButton"),
+      reset: document.getElementById("resetButton"),
+      visibleNodes: document.getElementById("visibleNodes"),
+      visibleEdges: document.getElementById("visibleEdges"),
+      totalNodes: document.getElementById("totalNodes"),
+      totalCommunities: document.getElementById("totalCommunities"),
+      subtitle: document.getElementById("subtitle")
+    };
+
+    let labelsEnabled = false;
+    let physicsEnabled = true;
+    let selectedId = null;
+    let neighborhoodRoot = null;
+    let currentVisibleIds = new Set();
+
+    function formatNumber(value) {
+      return Number(value || 0).toLocaleString();
+    }
+
+    function normalize(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function hash(value) {
+      let output = 0;
+      const text = String(value || "");
+      for (let index = 0; index < text.length; index += 1) {
+        output = (output * 31 + text.charCodeAt(index)) >>> 0;
+      }
+      return output;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function truncate(value, maxLength) {
+      const text = String(value || "");
+      if (text.length <= maxLength) return text;
+      return `${text.slice(0, Math.max(1, maxLength - 1))}...`;
+    }
+
+    function colorFor(value) {
+      const [border, background] = palette[hash(value) % palette.length];
+      return {
+        border,
+        background,
+        highlight: { border: "#f8fafc", background },
+        hover: { border, background }
+      };
+    }
+
+    function edgeColor(edge) {
+      return relationPalette[hash(edge.relation) % relationPalette.length];
+    }
+
+    function nodeMatchesSearch(node, query) {
+      if (!query) return true;
+      return [node.label, node.normLabel, node.id, node.sourceFile, node.fileType, node.community]
+        .some((value) => normalize(value).includes(query));
+    }
+
+    function decorateNode(node) {
+      const label = labelsEnabled ? truncate(node.label, 34) : "";
+      return {
+        id: node.id,
+        label,
+        title: `<strong>${escapeHtml(node.label)}</strong><br>${escapeHtml(node.sourceFile || node.id)}`,
+        group: node.community,
+        value: Math.max(5, Math.min(44, node.value || 5)),
+        mass: Math.max(1, Math.min(4.5, 1 + (node.degree || 0) / 18)),
+        shape: "dot",
+        borderWidth: selectedId === node.id ? 3 : 1.4,
+        color: colorFor(node.community || node.fileType),
+        font: {
+          size: labelsEnabled ? 13 : 0,
+          color: "#e5f7ff",
+          face: "Inter, ui-sans-serif, system-ui",
+          strokeWidth: labelsEnabled ? 3 : 0,
+          strokeColor: "#06070b"
+        }
+      };
+    }
+
+    function decorateEdge(edge) {
+      const title = [
+        edge.relation,
+        edge.sourceFile ? `${edge.sourceFile}${edge.sourceLocation ? ` ${edge.sourceLocation}` : ""}` : "",
+        edge.confidence ? `confidence: ${edge.confidence}` : ""
+      ].filter(Boolean).map(escapeHtml).join("<br>");
+      return {
+        from: edge.from,
+        to: edge.to,
+        title,
+        width: Math.max(0.45, Math.min(2.4, Number(edge.weight) || 1)),
+        color: {
+          color: edgeColor(edge),
+          highlight: "#67e8f9",
+          hover: "#86efac"
+        },
+        smooth: { type: "dynamic" }
+      };
+    }
+
+    function visibleNodeSet() {
+      const query = normalize(elements.search.value);
+      const community = elements.community.value;
+      const minDegree = Number(elements.degree.value || 0);
+      let allowedByNeighborhood = null;
+      if (neighborhoodRoot && neighbors.has(neighborhoodRoot)) {
+        allowedByNeighborhood = new Set([neighborhoodRoot, ...neighbors.get(neighborhoodRoot)]);
+      }
+      const visible = new Set();
+      for (const node of RAW_NODES) {
+        if (allowedByNeighborhood && !allowedByNeighborhood.has(node.id)) continue;
+        if (community !== "all" && node.community !== community) continue;
+        if ((node.degree || 0) < minDegree) continue;
+        if (!nodeMatchesSearch(node, query)) continue;
+        visible.add(node.id);
+      }
+      return visible;
+    }
+
+    const nodes = new vis.DataSet();
+    const edges = new vis.DataSet();
+    const options = {
+      autoResize: true,
+      nodes: {
+        shape: "dot",
+        scaling: { min: 5, max: 42 },
+        shadow: { enabled: true, color: "rgba(0, 0, 0, 0.34)", size: 9, x: 0, y: 3 }
+      },
+      edges: {
+        arrows: { to: { enabled: false } },
+        selectionWidth: 1.25,
+        hoverWidth: 1.25,
+        chosen: {
+          edge(values) {
+            values.width = Math.min(Number(values.width) || 1, 1.1);
+            values.color = "rgba(103, 232, 249, 0.72)";
+          }
+        }
+      },
+      interaction: {
+        hover: true,
+        tooltipDelay: 90,
+        hideEdgesOnDrag: true,
+        multiselect: false,
+        keyboard: true
+      },
+      physics: {
+        enabled: true,
+        solver: "forceAtlas2Based",
+        stabilization: { enabled: true, iterations: 95, fit: true },
+        forceAtlas2Based: {
+          gravitationalConstant: -58,
+          centralGravity: 0.016,
+          springLength: 92,
+          springConstant: 0.054,
+          damping: 0.43,
+          avoidOverlap: 0.34
+        },
+        maxVelocity: 38,
+        minVelocity: 0.55
+      }
+    };
+
+    let network = null;
+
+    function refreshGraph({ fit = false } = {}) {
+      currentVisibleIds = visibleNodeSet();
+      const visibleNodes = RAW_NODES.filter((node) => currentVisibleIds.has(node.id));
+      const visibleEdges = RAW_EDGES.filter((edge) => currentVisibleIds.has(edge.from) && currentVisibleIds.has(edge.to));
+
+      nodes.clear();
+      edges.clear();
+      nodes.add(visibleNodes.map(decorateNode));
+      edges.add(visibleEdges.map(decorateEdge));
+
+      elements.visibleNodes.textContent = formatNumber(visibleNodes.length);
+      elements.visibleEdges.textContent = formatNumber(visibleEdges.length);
+      elements.totalNodes.textContent = formatNumber(STATS.nodeCount);
+      elements.totalCommunities.textContent = formatNumber(STATS.communityCount);
+      elements.subtitle.textContent = `${formatNumber(visibleNodes.length)} of ${formatNumber(STATS.nodeCount)} nodes visible`;
+
+      if (selectedId && !currentVisibleIds.has(selectedId)) {
+        selectedId = null;
+      }
+      renderInspector(selectedId ? byId.get(selectedId) : null);
+
+      if (network && fit) {
+        network.fit({ animation: { duration: 620, easingFunction: "easeInOutQuad" } });
+      }
+    }
+
+    function sortedNeighbors(nodeId) {
+      return [...(neighbors.get(nodeId) || [])]
+        .map((id) => byId.get(id))
+        .filter(Boolean)
+        .sort((a, b) => (b.degree || 0) - (a.degree || 0) || String(a.label).localeCompare(String(b.label)));
+    }
+
+    function renderInspector(node) {
+      if (!node) {
+        elements.inspector.innerHTML = `
+          <div class="empty-state">
+            <div>
+              <h1 class="panel-title">Select a node</h1>
+              <div class="panel-subtitle">Drag, zoom, search, focus a community, or open a neighborhood from the toolbar.</div>
+            </div>
+          </div>`;
+        return;
+      }
+
+      const neighborRows = sortedNeighbors(node.id).slice(0, 16).map((neighbor) => {
+        const relations = (edgeLookup.get(`${node.id}->${neighbor.id}`) || [])
+          .slice(0, 3)
+          .map((edge) => edge.relation)
+          .join(", ");
+        return `
+          <button class="node-link" type="button" data-node-id="${escapeHtml(neighbor.id)}">
+            ${escapeHtml(neighbor.label)}
+            <span>${escapeHtml(relations || neighbor.fileType || neighbor.community)}</span>
+          </button>`;
+      }).join("");
+
+      elements.inspector.innerHTML = `
+        <h1 class="panel-title">${escapeHtml(node.label)}</h1>
+        <div class="panel-subtitle">${escapeHtml(node.sourceFile || node.id)}${node.sourceLocation ? ` - ${escapeHtml(node.sourceLocation)}` : ""}</div>
+        <div class="chips">
+          <span class="chip">${escapeHtml(node.fileType)}</span>
+          <span class="chip">community ${escapeHtml(node.community)}</span>
+          <span class="chip">${formatNumber(node.degree)} links</span>
+        </div>
+        <div class="section">
+          <h2>Node</h2>
+          <dl class="kv">
+            <div><dt>ID</dt><dd>${escapeHtml(node.id)}</dd></div>
+            <div><dt>File</dt><dd>${escapeHtml(node.sourceFile || "n/a")}</dd></div>
+            <div><dt>Location</dt><dd>${escapeHtml(node.sourceLocation || "n/a")}</dd></div>
+            <div><dt>Type</dt><dd>${escapeHtml(node.fileType)}</dd></div>
+          </dl>
+        </div>
+        <div class="section">
+          <h2>Neighbors</h2>
+          <div class="list">${neighborRows || '<div class="panel-subtitle">No visible neighbors.</div>'}</div>
+        </div>
+        <div class="section">
+          <h2>Top Relations</h2>
+          <div class="chips">
+            ${STATS.relations.slice(0, 8).map((item) => `<span class="chip">${escapeHtml(item.label)} ${formatNumber(item.count)}</span>`).join("")}
+          </div>
+        </div>`;
+    }
+
+    function focusNode(nodeId, { neighborhood = false } = {}) {
+      if (!nodeId || !byId.has(nodeId)) return;
+      selectedId = nodeId;
+      if (neighborhood) {
+        neighborhoodRoot = nodeId;
+      }
+      refreshGraph({ fit: neighborhood });
+      network.selectNodes([nodeId]);
+      network.focus(nodeId, {
+        scale: 1.25,
+        animation: { duration: 700, easingFunction: "easeInOutQuad" }
+      });
+      renderInspector(byId.get(nodeId));
+    }
+
+    function bestSearchMatch() {
+      const query = normalize(elements.search.value);
+      if (!query) return null;
+      const candidates = RAW_NODES
+        .filter((node) => nodeMatchesSearch(node, query))
+        .sort((a, b) => {
+          const exactA = normalize(a.label) === query || normalize(a.id) === query ? 1 : 0;
+          const exactB = normalize(b.label) === query || normalize(b.id) === query ? 1 : 0;
+          return exactB - exactA || (b.degree || 0) - (a.degree || 0);
+        });
+      return candidates[0] || null;
+    }
+
+    function resetView() {
+      elements.search.value = "";
+      elements.community.value = "all";
+      elements.degree.value = "0";
+      elements.degreeValue.textContent = "0+";
+      neighborhoodRoot = null;
+      selectedId = null;
+      refreshGraph({ fit: true });
+    }
+
+    function populateControls() {
+      const degreeMax = Math.max(0, Math.min(40, Number(STATS.maxDegree || 0)));
+      elements.degree.max = String(degreeMax);
+      elements.degree.disabled = degreeMax === 0;
+
+      const communityOptions = [
+        `<option value="all">All communities</option>`,
+        ...STATS.communities.map((community) => (
+          `<option value="${escapeHtml(community.id)}">${escapeHtml(community.label)} (${formatNumber(community.count)})</option>`
+        ))
+      ];
+      elements.community.innerHTML = communityOptions.join("");
+
+      elements.nodeList.innerHTML = RAW_NODES
+        .slice()
+        .sort((a, b) => (b.degree || 0) - (a.degree || 0))
+        .slice(0, 500)
+        .map((node) => `<option value="${escapeHtml(node.label)}"></option>`)
+        .join("");
+    }
+
+    function boot() {
+      if (!window.vis) {
+        elements.network.innerHTML = '<div class="empty-state"><div><h1 class="panel-title">Graph renderer unavailable</h1><div class="panel-subtitle">vis-network could not load in this session.</div></div></div>';
+        return;
+      }
+
+      populateControls();
+      network = new vis.Network(elements.network, { nodes, edges }, options);
+      refreshGraph({ fit: true });
+
+      network.on("selectNode", (event) => {
+        selectedId = event.nodes[0] || null;
+        renderInspector(selectedId ? byId.get(selectedId) : null);
+        refreshGraph();
+      });
+      network.on("deselectNode", () => {
+        selectedId = null;
+        renderInspector(null);
+        refreshGraph();
+      });
+      network.on("doubleClick", (event) => {
+        const nodeId = event.nodes && event.nodes[0];
+        if (nodeId) focusNode(nodeId, { neighborhood: true });
+      });
+
+      elements.search.addEventListener("input", () => {
+        neighborhoodRoot = null;
+        refreshGraph({ fit: false });
+      });
+      elements.search.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const match = bestSearchMatch();
+          if (match) focusNode(match.id);
+        }
+      });
+      elements.community.addEventListener("change", () => {
+        neighborhoodRoot = null;
+        refreshGraph({ fit: true });
+      });
+      elements.degree.addEventListener("input", () => {
+        elements.degreeValue.textContent = `${elements.degree.value}+`;
+        refreshGraph();
+      });
+      elements.focus.addEventListener("click", () => {
+        const match = bestSearchMatch();
+        if (match) focusNode(match.id);
+      });
+      elements.neighborhood.addEventListener("click", () => {
+        if (selectedId) {
+          focusNode(selectedId, { neighborhood: true });
+          return;
+        }
+        const match = bestSearchMatch();
+        if (match) focusNode(match.id, { neighborhood: true });
+      });
+      elements.labels.addEventListener("click", () => {
+        labelsEnabled = !labelsEnabled;
+        elements.labels.textContent = labelsEnabled ? "Hide Labels" : "Labels";
+        refreshGraph();
+      });
+      elements.physics.addEventListener("click", () => {
+        physicsEnabled = !physicsEnabled;
+        network.setOptions({ physics: { enabled: physicsEnabled } });
+        elements.physics.textContent = physicsEnabled ? "Physics" : "Frozen";
+      });
+      elements.fit.addEventListener("click", () => network.fit({ animation: { duration: 620, easingFunction: "easeInOutQuad" } }));
+      elements.reset.addEventListener("click", resetView);
+      elements.inspector.addEventListener("click", (event) => {
+        const button = event.target instanceof Element ? event.target.closest("[data-node-id]") : null;
+        if (button) focusNode(button.getAttribute("data-node-id"));
+      });
+    }
+
+    boot();
+  </script>
+</body>
+</html>
+"""
+    return (
+        html.replace("__GRAPHIFY_NODES__", graphify_safe_json(data["nodes"]))
+        .replace("__GRAPHIFY_EDGES__", graphify_safe_json(data["edges"]))
+        .replace("__GRAPHIFY_STATS__", graphify_safe_json(data["stats"]))
+    )
+
+
+def graphify_status_payload() -> dict[str, Any]:
+    required_paths = graphify_required_paths()
+    output_dir = GRAPHIFY_OUT_ROOT
+    warnings: list[str] = []
+    available = True
+
+    for path in required_paths.values():
+        if not path.exists():
+            available = False
+            warnings.append(f"Missing {graphify_display_path(path)}. Run `npm run graph:build`.")
+
+    node_count: int | None = None
+    edge_count: int | None = None
+    community_count: int | None = None
+    graph_path = required_paths["graphJsonPath"]
+    if graph_path.exists():
+        try:
+            payload = json.loads(graph_path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                nodes = graphify_collection(payload, "nodes")
+                edges = graphify_collection(payload, "edges", "links")
+                node_count = len(nodes)
+                edge_count = len(edges)
+                community_count = graphify_community_count(payload, nodes)
+            else:
+                warnings.append("graphify-out/graph.json is not a JSON object.")
+        except (OSError, json.JSONDecodeError) as error:
+            warnings.append(f"Could not read graphify-out/graph.json: {error}")
+
+    return {
+        "available": available,
+        "updatedAt": graphify_mtime_ms(list(required_paths.values())),
+        "outputDir": str(output_dir),
+        "reportPath": str(required_paths["reportPath"]),
+        "graphJsonPath": str(required_paths["graphJsonPath"]),
+        "htmlPath": str(required_paths["htmlPath"]),
+        "explorerUrl": "/api/hyperliquid/memory/graphify-explorer",
+        "htmlUrl": "/api/hyperliquid/memory/graphify-html",
+        "nodeCount": node_count,
+        "edgeCount": edge_count,
+        "communityCount": community_count,
+        "warnings": warnings,
+    }
 
 
 def first_markdown_heading(path: Path) -> str | None:
@@ -3684,8 +4860,11 @@ async def seed_paper_signals(limit: int = Query(default=6, ge=3, le=12)) -> dict
 
 
 @app.get("/api/hyperliquid/paper/trades")
-async def paper_trades(status: str = Query(default="all")) -> dict[str, Any]:
-    return {"trades": await paper_trade_payloads(status=status)}
+async def paper_trades(
+    status: str = Query(default="all"),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, Any]:
+    return {"trades": await paper_trade_payloads(limit=limit, status=status)}
 
 
 @app.get("/api/hyperliquid/paper/readiness/{strategy_id}")
@@ -3774,6 +4953,328 @@ async def strategy_audit(
     return await build_strategy_evidence(limit=limit, exact_db_counts=exact_db_counts)
 
 
+def station_error(label: str, error: BaseException) -> str:
+    if isinstance(error, HTTPException):
+        return f"{label}: {error.detail}"
+    return f"{label}: {str(error) or type(error).__name__}"
+
+
+def readiness_check(
+    check_id: str,
+    label: str,
+    status: str,
+    detail: str,
+    *,
+    action_label: str | None = None,
+    command: str | None = None,
+    route: str | None = None,
+    evidence_path: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": check_id,
+        "label": label,
+        "status": status,
+        "detail": detail,
+        "actionLabel": action_label,
+        "command": command,
+        "route": route,
+        "evidencePath": evidence_path,
+    }
+
+
+def path_modified_ms(path_value: str | None) -> int | None:
+    if not path_value:
+        return None
+    try:
+        return int(Path(path_value).stat().st_mtime * 1000)
+    except OSError:
+        return None
+
+
+def latest_global_artifact(root: Path) -> dict[str, Any] | None:
+    if not root.exists():
+        return None
+    paths = sorted(
+        (path for path in root.glob("*.json") if path.is_file()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not paths:
+        return None
+    path = paths[0]
+    payload = safe_load_json(path) or {}
+    generated_ms = parse_time_ms(payload.get("generated_at")) or int(path.stat().st_mtime * 1000)
+    return {
+        "path": str(path),
+        "generatedAt": generated_ms,
+        "artifactId": payload.get("artifact_id") or path.stem,
+        "strategyId": normalize_strategy_id(str(payload.get("strategy_id") or path.stem.split("-")[0])),
+        "artifactType": payload.get("artifact_type"),
+    }
+
+
+def summarize_strategy_blockers(strategies: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+    blocked = [
+        strategy for strategy in strategies
+        if strategy.get("gateReasons") or strategy.get("missingAuditItems")
+    ]
+    blocked.sort(
+        key=lambda strategy: (
+            len(strategy.get("gateReasons") or []) + len(strategy.get("missingAuditItems") or []),
+            strategy.get("lastActivityAt") or 0,
+        ),
+        reverse=True,
+    )
+    return [
+        {
+            "strategyId": strategy.get("strategyId"),
+            "displayName": strategy.get("displayName"),
+            "pipelineStage": strategy.get("pipelineStage"),
+            "gateStatus": strategy.get("gateStatus"),
+            "reasons": (strategy.get("gateReasons") or strategy.get("missingAuditItems") or [])[:4],
+            "latestArtifactPaths": strategy.get("latestArtifactPaths") or {},
+        }
+        for strategy in blocked[:limit]
+    ]
+
+
+def app_readiness_payload(
+    *,
+    health_result: Any,
+    audit_result: Any,
+    supervisor_result: Any,
+    learning_result: Any,
+) -> dict[str, Any]:
+    now_ms = int(time.time() * 1000)
+    errors = [
+        station_error(label, result)
+        for label, result in [
+            ("Gateway", health_result),
+            ("Strategy audit", audit_result),
+            ("Paper runtime", supervisor_result),
+            ("Strategy memory", learning_result),
+        ]
+        if isinstance(result, BaseException)
+    ]
+    health_payload = None if isinstance(health_result, BaseException) else health_result
+    audit_payload = None if isinstance(audit_result, BaseException) else audit_result
+    supervisor_payload = None if isinstance(supervisor_result, BaseException) else supervisor_result
+    learning_payload = None if isinstance(learning_result, BaseException) else learning_result
+    strategies = audit_payload.get("strategies", []) if isinstance(audit_payload, dict) else []
+    real_strategies = [
+        strategy for strategy in strategies
+        if not str(strategy.get("strategyId") or "").startswith("runtime:")
+    ]
+    summary = audit_payload.get("summary", {}) if isinstance(audit_payload, dict) else {}
+    cache_age_ms = health_payload.get("cacheAgeMs") if isinstance(health_payload, dict) else None
+    cache_fresh = bool(
+        isinstance(health_payload, dict)
+        and health_payload.get("ok")
+        and health_payload.get("cacheWarm")
+        and cache_age_ms is not None
+        and cache_age_ms < 90_000
+    )
+    paper_health = supervisor_payload.get("healthStatus") if isinstance(supervisor_payload, dict) else "unknown"
+    reviewable = int(summary.get("reviewableClosedTrades") or 0)
+    review_coverage = float(summary.get("reviewCoverage") or 0.0)
+    blocked_strategies = [
+        strategy for strategy in real_strategies
+        if strategy.get("pipelineStage") == "blocked" or strategy.get("gateReasons")
+    ]
+    latest_evidence = {
+        "backtest": latest_global_artifact(REPORTS_ROOT),
+        "validation": latest_global_artifact(VALIDATIONS_ROOT),
+        "paper": latest_global_artifact(PAPER_ROOT),
+        "audit": latest_global_artifact(AUDITS_ROOT),
+    }
+    checks = [
+        readiness_check(
+            "gateway_cache",
+            "Gateway cache",
+            "ready" if cache_fresh else "attention",
+            (
+                f"Cache fresh at {cache_age_ms}ms."
+                if cache_fresh
+                else "Gateway is reachable but the market cache is cold or stale."
+            ),
+            action_label="Probe gateway",
+            command="npm run gateway:probe",
+            route="/diagnostics",
+        ),
+        readiness_check(
+            "strategy_evidence",
+            "Strategy evidence",
+            "ready" if real_strategies and summary.get("backtestTrades") else "attention",
+            f"{len(real_strategies)} strategies, {summary.get('backtestTrades', 0)} backtest trades, {summary.get('paperTrades', 0)} paper trades.",
+            action_label="Open pipeline",
+            route="/strategies",
+            evidence_path=(latest_evidence["backtest"] or {}).get("path") if latest_evidence["backtest"] else None,
+        ),
+        readiness_check(
+            "validation_blockers",
+            "Validation blockers",
+            "attention" if blocked_strategies else "ready",
+            f"{len(blocked_strategies)} strategies need validation or review before promotion.",
+            action_label="Open audit focus",
+            route="/strategy-audit",
+        ),
+        readiness_check(
+            "paper_runtime",
+            "Paper runtime",
+            "ready" if paper_health == "healthy" else "attention",
+            f"BTC paper supervisor is {paper_health}.",
+            action_label="Open Paper Lab",
+            command="npm run hf:paper:supervisor",
+            route="/paper",
+        ),
+        readiness_check(
+            "paper_review",
+            "Paper review",
+            "ready" if reviewable == 0 or review_coverage >= 80 else "attention",
+            f"{round(review_coverage)}% review coverage across {reviewable} reviewable closed trades.",
+            action_label="Review paper trades",
+            route="/paper",
+        ),
+        readiness_check(
+            "strategy_memory",
+            "Strategy memory",
+            "ready" if isinstance(learning_payload, dict) else "attention",
+            f"{len(learning_payload.get('events', [])) if isinstance(learning_payload, dict) else 0} recent learning events available.",
+            action_label="Open Memory",
+            route="/memory",
+        ),
+        readiness_check(
+            "live_execution_lock",
+            "Live execution lock",
+            "ready",
+            "Live Trading remains monitor-only; production routing is blocked behind future risk gates and human sign-off.",
+            action_label="Open Live station",
+            route="/station/live",
+        ),
+    ]
+    ready_count = sum(1 for check in checks if check["status"] == "ready")
+    attention_count = sum(1 for check in checks if check["status"] == "attention")
+    blocked_count = sum(1 for check in checks if check["status"] == "blocked")
+    overall_status = "blocked" if blocked_count else "attention" if attention_count else "ready"
+    return {
+        "updatedAt": now_ms,
+        "overallStatus": overall_status,
+        "summary": {
+            "readyChecks": ready_count,
+            "attentionChecks": attention_count,
+            "blockedChecks": blocked_count,
+            "strategyCount": len(real_strategies),
+            "blockedStrategies": len(blocked_strategies),
+            "paperTrades": summary.get("paperTrades", 0),
+            "openPaperTrades": summary.get("openTrades", 0),
+            "reviewCoverage": review_coverage,
+            "cacheFresh": cache_fresh,
+            "paperRuntimeStatus": paper_health,
+            "liveExecutionLocked": True,
+        },
+        "gateway": health_payload,
+        "paperRuntime": supervisor_payload,
+        "strategyBlockers": summarize_strategy_blockers(real_strategies),
+        "latestEvidence": latest_evidence,
+        "dailyCommands": [
+            {"label": "Harness check", "command": "npm run agent:check"},
+            {"label": "HF doctor", "command": "npm run hf:doctor"},
+            {"label": "HF status", "command": "npm run hf:status"},
+            {"label": "Gateway probe", "command": "npm run gateway:probe"},
+            {"label": "Terminal doctor", "command": "npm run terminal:doctor"},
+        ],
+        "checks": checks,
+        "errors": errors,
+        "fetchedAt": now_ms,
+    }
+
+
+@app.get("/api/hyperliquid/app-readiness")
+async def app_readiness(
+    audit_limit: int = Query(default=500, ge=20, le=1000),
+) -> dict[str, Any]:
+    health_result, audit_result, supervisor_result, learning_result = await asyncio.gather(
+        health(),
+        build_strategy_evidence(
+            limit=audit_limit,
+            runtime_limit=30,
+            include_database=False,
+            mark_paper_trades=False,
+        ),
+        asyncio.to_thread(build_paper_runtime_supervisor_status, "btc_failed_impulse_reversal", 12),
+        asyncio.to_thread(list_strategy_learning_events, None, 10),
+        return_exceptions=True,
+    )
+    return app_readiness_payload(
+        health_result=health_result,
+        audit_result=audit_result,
+        supervisor_result=supervisor_result,
+        learning_result=learning_result,
+    )
+
+
+@app.get("/api/hyperliquid/stations/hedge-fund")
+async def hedge_fund_station(
+    limit: int = Query(default=500, ge=20, le=1000),
+) -> dict[str, Any]:
+    health_result, audit_result = await asyncio.gather(
+        health(),
+        build_strategy_evidence(limit=limit),
+        return_exceptions=True,
+    )
+    errors = [
+        station_error(label, result)
+        for label, result in [
+            ("Gateway", health_result),
+            ("Audit", audit_result),
+        ]
+        if isinstance(result, BaseException)
+    ]
+    return {
+        "health": None if isinstance(health_result, BaseException) else health_result,
+        "audit": None if isinstance(audit_result, BaseException) else audit_result,
+        "errors": errors,
+        "fetchedAt": int(time.time() * 1000),
+    }
+
+
+@app.get("/api/hyperliquid/stations/live")
+async def live_station(
+    market_limit: int = Query(default=28, ge=5, le=150),
+    watchlist_limit: int = Query(default=12, ge=6, le=60),
+    trade_limit: int = Query(default=100, ge=1, le=500),
+    audit_limit: int = Query(default=500, ge=20, le=1000),
+) -> dict[str, Any]:
+    health_result, overview_result, watchlist_result, trades_result, audit_result = await asyncio.gather(
+        health(),
+        overview(limit=market_limit),
+        watchlist(limit=watchlist_limit),
+        paper_trade_payloads(limit=trade_limit, status="all"),
+        build_strategy_evidence(limit=audit_limit),
+        return_exceptions=True,
+    )
+    errors = [
+        station_error(label, result)
+        for label, result in [
+            ("Gateway", health_result),
+            ("Overview", overview_result),
+            ("Watchlist", watchlist_result),
+            ("Paper trades", trades_result),
+            ("Audit", audit_result),
+        ]
+        if isinstance(result, BaseException)
+    ]
+    return {
+        "health": None if isinstance(health_result, BaseException) else health_result,
+        "overview": None if isinstance(overview_result, BaseException) else overview_result,
+        "watchlist": None if isinstance(watchlist_result, BaseException) else watchlist_result,
+        "trades": [] if isinstance(trades_result, BaseException) else trades_result,
+        "audit": None if isinstance(audit_result, BaseException) else audit_result,
+        "errors": errors,
+        "fetchedAt": int(time.time() * 1000),
+    }
+
+
 @app.get("/api/hyperliquid/strategies/catalog")
 async def strategies_catalog(
     limit: int = 500,
@@ -3803,6 +5304,30 @@ async def create_strategy_learning(payload: StrategyLearningEventCreate) -> dict
         "created": True,
         "event": event,
     }
+
+
+@app.get("/api/hyperliquid/memory/graphify-status")
+async def memory_graphify_status() -> dict[str, Any]:
+    return graphify_status_payload()
+
+
+@app.get("/api/hyperliquid/memory/graphify-explorer")
+async def memory_graphify_explorer() -> HTMLResponse:
+    return HTMLResponse(
+        graphify_explorer_html(),
+        media_type="text/html; charset=utf-8",
+    )
+
+
+@app.get("/api/hyperliquid/memory/graphify-html")
+async def memory_graphify_html() -> FileResponse:
+    html_path = graphify_required_paths()["htmlPath"]
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="Graphify HTML not found. Run npm run graph:build.")
+    return FileResponse(
+        html_path,
+        media_type="text/html; charset=utf-8",
+    )
 
 
 @app.post("/api/hyperliquid/paper/trades")
@@ -4142,18 +5667,7 @@ async def liquidations_stop() -> dict[str, Any]:
     return {"success": True, "data": {"is_running": True}}
 
 
-@app.get("/api/liquidations/status")
-async def liquidations_status() -> dict[str, Any]:
-    if not aggregate_history:
-        await ensure_overview_data()
-    snapshot = aggregate_history[-1] if aggregate_history else build_aggregate_snapshot([], int(time.time() * 1000))
-    return {"success": True, "data": build_liquidations_stats(snapshot)}
-
-
-@app.get("/api/liquidations/snapshots")
-async def liquidations_snapshots(limit: int = Query(default=20, ge=5, le=120)) -> dict[str, Any]:
-    if not aggregate_history:
-        await ensure_overview_data()
+def liquidations_snapshot_payload(limit: int) -> list[dict[str, Any]]:
     snapshots = [
         {
             "timestamp": iso_timestamp(item["timestamp"]),
@@ -4169,14 +5683,11 @@ async def liquidations_snapshots(limit: int = Query(default=20, ge=5, le=120)) -
         for item in list(aggregate_history)[-limit:]
     ]
     snapshots.reverse()
-    return {"success": True, "data": snapshots}
+    return snapshots
 
 
-@app.get("/api/liquidations/alerts")
-async def liquidations_alerts(limit: int = Query(default=20, ge=5, le=100)) -> dict[str, Any]:
-    if not market_alerts and not aggregate_history:
-        await ensure_overview_data()
-    alerts_payload = [
+def liquidations_alerts_payload(limit: int) -> list[dict[str, Any]]:
+    return [
         {
             "id": index + 1,
             "timestamp": iso_timestamp(item["createdAt"]),
@@ -4191,7 +5702,28 @@ async def liquidations_alerts(limit: int = Query(default=20, ge=5, le=100)) -> d
         }
         for index, item in enumerate(list(market_alerts)[:limit])
     ]
-    return {"success": True, "data": alerts_payload}
+
+
+@app.get("/api/liquidations/status")
+async def liquidations_status() -> dict[str, Any]:
+    if not aggregate_history:
+        await ensure_overview_data()
+    snapshot = aggregate_history[-1] if aggregate_history else build_aggregate_snapshot([], int(time.time() * 1000))
+    return {"success": True, "data": build_liquidations_stats(snapshot)}
+
+
+@app.get("/api/liquidations/snapshots")
+async def liquidations_snapshots(limit: int = Query(default=20, ge=5, le=120)) -> dict[str, Any]:
+    if not aggregate_history:
+        await ensure_overview_data()
+    return {"success": True, "data": liquidations_snapshot_payload(limit)}
+
+
+@app.get("/api/liquidations/alerts")
+async def liquidations_alerts(limit: int = Query(default=20, ge=5, le=100)) -> dict[str, Any]:
+    if not market_alerts and not aggregate_history:
+        await ensure_overview_data()
+    return {"success": True, "data": liquidations_alerts_payload(limit)}
 
 
 @app.get("/api/liquidations/chart-data")
@@ -4207,3 +5739,27 @@ async def liquidations_insights() -> dict[str, Any]:
         await ensure_overview_data()
     snapshot = aggregate_history[-1] if aggregate_history else build_aggregate_snapshot([], int(time.time() * 1000))
     return {"success": True, "data": build_liquidations_insights(snapshot)}
+
+
+@app.get("/api/liquidations/summary")
+async def liquidations_summary(
+    hours: int = Query(default=24, ge=1, le=72),
+    snapshots_limit: int = Query(default=20, ge=5, le=120),
+    alerts_limit: int = Query(default=10, ge=5, le=100),
+) -> dict[str, Any]:
+    if not aggregate_history:
+        await ensure_overview_data()
+    if not market_alerts and not aggregate_history:
+        await ensure_overview_data()
+    snapshot = aggregate_history[-1] if aggregate_history else build_aggregate_snapshot([], int(time.time() * 1000))
+    return {
+        "success": True,
+        "data": {
+            "status": build_liquidations_stats(snapshot),
+            "insights": build_liquidations_insights(snapshot),
+            "snapshots": liquidations_snapshot_payload(snapshots_limit),
+            "alerts": liquidations_alerts_payload(alerts_limit),
+            "chart": aggregate_chart_payload(hours),
+            "fetchedAt": int(time.time() * 1000),
+        },
+    }

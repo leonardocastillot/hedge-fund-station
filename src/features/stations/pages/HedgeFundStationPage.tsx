@@ -3,34 +3,30 @@ import { Link } from 'react-router-dom';
 import {
   Activity,
   ArrowRight,
-  Bot,
   CheckCircle2,
+  Bot,
   Database,
   FlaskConical,
   HeartPulse,
   ListChecks,
   Play,
+  RefreshCw,
   ShieldCheck,
   Terminal,
+  TriangleAlert,
   XCircle
 } from 'lucide-react';
 import {
   hyperliquidService,
-  type HyperliquidGatewayHealth,
-  type HyperliquidStrategyAuditResponse,
+  type HyperliquidAppReadiness,
+  type HyperliquidHedgeFundStationSnapshot,
+  type HyperliquidReadinessCheck,
   type HyperliquidStrategyAuditRow
 } from '@/services/hyperliquidService';
 import { useTerminalContext } from '@/contexts/TerminalContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { useMarketPolling } from '@/hooks/useMarketPolling';
 import { navigateCenterPanel } from '@/utils/centerNavigation';
-
-type HedgeFundStationSnapshot = {
-  audit: HyperliquidStrategyAuditResponse | null;
-  health: HyperliquidGatewayHealth | null;
-  errors: string[];
-  fetchedAt: number;
-};
 
 const COMMANDS = [
   'npm run hf:doctor',
@@ -48,10 +44,6 @@ const MODULE_LINKS = [
   { label: 'Data', to: '/data', icon: Database },
   { label: 'Terminals', to: '/terminals', icon: Terminal }
 ];
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown service error.';
-}
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -76,21 +68,17 @@ function countStage(strategies: HyperliquidStrategyAuditRow[], stage: Hyperliqui
   return strategies.filter((strategy) => strategy.pipelineStage === stage).length;
 }
 
-async function loadStationSnapshot(): Promise<HedgeFundStationSnapshot> {
-  const [auditResult, healthResult] = await Promise.allSettled([
-    hyperliquidService.getStrategyAudit(500),
-    hyperliquidService.health()
-  ]);
-  const errors: string[] = [];
-
-  const audit = auditResult.status === 'fulfilled'
-    ? auditResult.value
-    : (errors.push(`Audit: ${errorMessage(auditResult.reason)}`), null);
-  const health = healthResult.status === 'fulfilled'
-    ? healthResult.value
-    : (errors.push(`Gateway: ${errorMessage(healthResult.reason)}`), null);
-
-  return { audit, health, errors, fetchedAt: Date.now() };
+function readinessLabel(readiness: HyperliquidAppReadiness | null | undefined): string {
+  if (!readiness) {
+    return 'Readiness unknown';
+  }
+  if (readiness.overallStatus === 'ready') {
+    return 'Daily ready';
+  }
+  if (readiness.overallStatus === 'blocked') {
+    return 'Blocked';
+  }
+  return 'Needs attention';
 }
 
 export default function HedgeFundStationPage() {
@@ -98,35 +86,44 @@ export default function HedgeFundStationPage() {
   const { createTerminal } = useTerminalContext();
   const stationPoll = useMarketPolling(
     'station:hedge-fund',
-    loadStationSnapshot,
-    { intervalMs: 18_000, staleAfterMs: 60_000 }
+    (): Promise<HyperliquidHedgeFundStationSnapshot> => hyperliquidService.getHedgeFundStationSnapshot(500),
+    { intervalMs: 30_000, staleAfterMs: 90_000 }
+  );
+  const readinessPoll = useMarketPolling(
+    'station:hedge-fund:readiness',
+    (): Promise<HyperliquidAppReadiness> => hyperliquidService.getAppReadiness(500),
+    { intervalMs: 30_000, staleAfterMs: 90_000 }
   );
 
   const snapshot = stationPoll.data;
+  const readiness = readinessPoll.data;
   const audit = snapshot?.audit ?? null;
   const health = snapshot?.health ?? null;
   const strategies = audit?.strategies ?? [];
+  const realStrategies = useMemo(() => (
+    strategies.filter((strategy) => !strategy.strategyId.startsWith('runtime:'))
+  ), [strategies]);
   const summary = audit?.summary;
 
   const stageCounts = useMemo(() => ({
-    research: countStage(strategies, 'research'),
-    backtested: countStage(strategies, 'backtesting'),
-    validated: countStage(strategies, 'audit'),
-    paper: countStage(strategies, 'paper'),
-    blocked: countStage(strategies, 'blocked')
-  }), [strategies]);
+    research: countStage(realStrategies, 'research'),
+    backtested: countStage(realStrategies, 'backtesting'),
+    validated: countStage(realStrategies, 'audit'),
+    paper: countStage(realStrategies, 'paper'),
+    blocked: countStage(realStrategies, 'blocked')
+  }), [realStrategies]);
 
   const openGaps = useMemo(() => {
-    return strategies.reduce((total, strategy) => total + (strategy.gateReasons.length || strategy.missingAuditItems.length), 0);
-  }, [strategies]);
+    return realStrategies.reduce((total, strategy) => total + (strategy.gateReasons.length || strategy.missingAuditItems.length), 0);
+  }, [realStrategies]);
 
   const topGaps = useMemo(() => {
-    return strategies
+    return realStrategies
       .filter((strategy) => strategy.gateReasons.length > 0 || strategy.missingAuditItems.length > 0)
       .slice()
       .sort((a, b) => (b.gateReasons.length || b.missingAuditItems.length) - (a.gateReasons.length || a.missingAuditItems.length))
       .slice(0, 5);
-  }, [strategies]);
+  }, [realStrategies]);
 
   const launchCommand = (command: string) => {
     const cwd = activeWorkspace?.path || '/Users/optimus/Documents/New project 9';
@@ -134,8 +131,6 @@ export default function HedgeFundStationPage() {
     createTerminal(cwd, shell, `HF: ${command}`, command);
     navigateCenterPanel('/terminals');
   };
-
-  const gatewayFresh = Boolean(health?.ok && health.cacheUpdatedAt && (health.cacheAgeMs ?? Number.POSITIVE_INFINITY) < 90_000);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5">
@@ -149,20 +144,75 @@ export default function HedgeFundStationPage() {
             </p>
           </div>
           <div className={`rounded-md border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] ${
-            gatewayFresh ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100' : 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+            readiness?.overallStatus === 'ready'
+              ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+              : readiness?.overallStatus === 'blocked'
+                ? 'border-rose-400/30 bg-rose-500/10 text-rose-100'
+                : 'border-amber-400/30 bg-amber-500/10 text-amber-100'
           }`}>
-            {gatewayFresh ? 'Gateway fresh' : 'Gateway partial'}
+            {readinessLabel(readiness)}
           </div>
         </div>
-        {stationPoll.error || snapshot?.errors.length ? (
+        {stationPoll.error || readinessPoll.error || snapshot?.errors.length || readiness?.errors.length ? (
           <div className="mt-4 rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">
-            {(snapshot?.errors.length ? snapshot.errors : [stationPoll.error]).filter(Boolean).join(' | ')}
+            {[
+              stationPoll.error,
+              readinessPoll.error,
+              ...(snapshot?.errors || []),
+              ...(readiness?.errors || [])
+            ].filter(Boolean).join(' | ')}
           </div>
         ) : null}
       </section>
 
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Panel
+          title="Daily Pre-Flight"
+          action={
+            <button
+              type="button"
+              onClick={() => void readinessPoll.refresh()}
+              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-white/70 transition hover:bg-white/[0.08]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh
+            </button>
+          }
+        >
+          <div className="grid gap-2 md:grid-cols-2">
+            {(readiness?.checks || []).slice(0, 8).map((check) => (
+              <ReadinessRow key={check.id} check={check} onCommand={launchCommand} />
+            ))}
+            {!readiness && readinessPoll.status === 'loading' ? (
+              <div className="rounded-md border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-400">
+                Loading daily readiness...
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+
+        <Panel title="Daily Commands">
+          <div className="grid gap-2">
+            {(readiness?.dailyCommands.length ? readiness.dailyCommands : COMMANDS.map((command) => ({ label: command, command }))).map((item) => (
+              <button
+                key={item.command}
+                type="button"
+                onClick={() => launchCommand(item.command)}
+                className="flex min-w-0 items-center justify-between gap-3 rounded-md border border-white/10 bg-white/[0.035] px-3 py-3 text-left text-sm text-white transition hover:border-emerald-400/30 hover:bg-emerald-500/10"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-semibold text-white/80">{item.label}</span>
+                  <span className="mt-1 block truncate font-mono text-xs text-slate-400">{item.command}</span>
+                </span>
+                <Play className="h-4 w-4 shrink-0 text-emerald-300" />
+              </button>
+            ))}
+          </div>
+        </Panel>
+      </section>
+
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Strategies" value={String(summary?.strategyCount ?? strategies.length)} detail={`${stageCounts.validated} audit eligible`} icon={<FlaskConical className="h-4 w-4" />} />
+        <Metric label="Strategies" value={String(readiness?.summary.strategyCount ?? realStrategies.length)} detail={`${stageCounts.validated} audit eligible`} icon={<FlaskConical className="h-4 w-4" />} />
         <Metric label="Paper Runtime" value={String(stageCounts.paper)} detail={`${summary?.openTrades ?? 0} open paper trades`} icon={<Activity className="h-4 w-4" />} tone="text-emerald-200" />
         <Metric label="Open Gaps" value={formatCompact(openGaps)} detail={`${stageCounts.blocked} validation blocked`} icon={<XCircle className="h-4 w-4" />} tone={openGaps > 0 ? 'text-amber-200' : 'text-emerald-200'} />
         <Metric label="Review Coverage" value={`${Math.round(summary?.reviewCoverage ?? 0)}%`} detail={`${summary?.reviewedTrades ?? 0}/${summary?.reviewableClosedTrades ?? 0} closed reviewed`} icon={<CheckCircle2 className="h-4 w-4" />} tone="text-cyan-200" />
@@ -284,6 +334,51 @@ function Metric({
       </div>
       <div className={`mt-3 text-2xl font-semibold ${tone}`}>{value}</div>
       <div className="mt-1 truncate text-xs text-slate-400">{detail}</div>
+    </div>
+  );
+}
+
+function readinessTone(status: string): string {
+  if (status === 'ready') {
+    return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100';
+  }
+  if (status === 'blocked') {
+    return 'border-rose-400/20 bg-rose-500/10 text-rose-100';
+  }
+  return 'border-amber-400/20 bg-amber-500/10 text-amber-100';
+}
+
+function ReadinessRow({ check, onCommand }: { check: HyperliquidReadinessCheck; onCommand: (command: string) => void }) {
+  return (
+    <div className={`rounded-md border p-3 ${readinessTone(check.status)}`}>
+      <div className="flex items-start gap-3">
+        {check.status === 'ready'
+          ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+          : <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-white">{check.label}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">{check.status}</div>
+          </div>
+          <div className="mt-1 text-xs leading-5 text-white/65">{check.detail}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {check.route && check.actionLabel ? (
+              <Link to={check.route} className="rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-xs text-white/80 transition hover:bg-white/[0.1]">
+                {check.actionLabel}
+              </Link>
+            ) : null}
+            {check.command ? (
+              <button
+                type="button"
+                onClick={() => onCommand(check.command || '')}
+                className="rounded-md border border-white/10 bg-black/20 px-2 py-1 font-mono text-xs text-white/70 transition hover:bg-white/[0.08]"
+              >
+                {check.command}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

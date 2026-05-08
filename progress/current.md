@@ -3,55 +3,82 @@
 This file tracks the live session. Keep it short, current, and useful to the
 next agent.
 
-- Task: `one_bitcoin_strategy`
+- Task: `graphify_memory_repo_map`
 - Status: `review`
-- Started: 2026-05-07
-- Owner: `codex`
+- Started: 2026-05-08
+- Owner: `next-reviewer`
 
 ## Plan
 
-- [x] Run `npm run agent:check` and inspect the strategy workflow.
-- [x] Register the active One Bitcoin implementation task in `agent_tasks.json`.
-- [x] Add One Bitcoin strategy docs and backend package.
-- [x] Register One Bitcoin for stable `hf:*` backtest/validation workflows.
-- [x] Add focused tests for accumulation variants, dip triggers, costs, and goal metrics.
-- [x] Run verification and write the implementation handoff.
-- [x] Refine One Bitcoin so primary selection maximizes BTC balance from now onward.
-- [x] Add aggressive dip and research-only sell/rebuy variants.
-- [x] Rerun verification, backtest, and update handoff.
+- [x] Run initial harness/context checks and preserve existing review work.
+- [x] Register the Graphify memory repo map task in `agent_tasks.json`.
+- [x] Add Graphify npm scripts, local ignore rules, and artifact check.
+- [x] Add backend Graphify status endpoint and tests.
+- [x] Add `/memory` Repo Graph panel.
+- [x] Build/query/check Graphify artifacts.
+- [x] Run verification and write implementation handoff.
 
 ## Log
 
-- Human approved the One Bitcoin plan: BTC-only spot accumulation toward
-  `1.0 BTC`, with `$300` starting cash, `$300` monthly deposits, no leverage,
-  no shorting, no selling, and no live execution.
-- Initial `npm run agent:check` passed with 25 tasks and 0 warnings.
-- Worktree already contains many unrelated modified/untracked files from prior
-  in-review tasks. This session will preserve those changes and only layer
-  scoped One Bitcoin files/registry/tests/handoff updates on top.
-- Added backend-first `one_bitcoin` docs, logic, scoring, risk, paper helper,
-  backtest adapter, registry entry, and focused tests.
-- CoinGecko long-range fetch returned `HTTP Error 401: Unauthorized` without a
-  key, so the runner fell back to real Binance BTCUSDT daily candles and cached
-  the source metadata.
-- The initial fixed-hybrid backtest and validation artifacts were superseded
-  and removed so the remaining One Bitcoin evidence points at the refined
-  max-BTC report.
-- Handoff written to `progress/impl_one_bitcoin_strategy.md`.
-- Human follow-up: make the strategy useful from now onward and optimize for
-  maximum BTC accumulation, including better dip buying and possibly research
-  sell/rebuy logic.
-- Refined report now selects the highest-BTC variant as primary, adds
-  aggressive dip, drawdown-weighted DCA, and cycle-harvest research variants,
-  and keeps order routing disabled.
-- Latest backtest report:
-  `backend/hyperliquid_gateway/data/backtests/one_bitcoin-one_bitcoin_btc_usd_daily-20260507T211002Z.json`.
-- Latest validation report:
-  `backend/hyperliquid_gateway/data/validations/one_bitcoin-20260507T211009Z.json`;
-  validation remains blocked by design through `robust_gate`.
+- Human asked to implement the approved Graphify integration plan for memory and
+  the file-based harness.
+- Baseline `npm run agent:check` passed with 28 tasks and 0 warnings.
+- Existing `.obsidian/`, resource optimization, memory graph, terminal, strategy,
+  paper runtime, and station changes are already in review; this task must work
+  with them and not revert them.
+- Confirmed the terminal Graphify CLI shape with
+  `uvx --python 3.11 --from graphifyy graphify --help`: build should use
+  `graphify extract . --out .`, refresh should use `graphify update .`, and
+  query/explain/path accept `--graph`.
+- Added `.graphifyignore`, Graphify npm scripts, `scripts/graphify-check.mjs`,
+  and `.gitignore` rules for local Graphify state.
+- Added `/api/hyperliquid/memory/graphify-status`, a focused backend test, typed
+  renderer client support, and a `/memory` Repo Graph panel with open actions
+  for `GRAPH_REPORT.md` and `graph.html`.
+- `npm run graph:build` now uses Graphify's reliable local `update` path. A
+  semantic Ollama extraction attempt with `llama3.2:3b` needed the `openai`
+  package, then produced invalid JSON warnings and stalled, so semantic Graphify
+  should be a later optional task with a stronger model/provider.
+- Verification passed: `npm run agent:check`, `npm run graph:build`,
+  `npm run graph:check`,
+  `npm run graph:query -- "how do harness memory and strategy learning connect?"`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`, and
+  `git diff --check`.
+- Follow-up 404 fix: reproduced the running gateway returning 404 for
+  `/api/hyperliquid/memory/graphify-status`, confirmed OpenAPI did not include
+  the route, added the route to `gateway:probe`, added a renderer stale-gateway
+  404 hint, fixed `community: 0` counting, restarted the gateway, and verified
+  real HTTP 200 with `available=true`, `nodeCount=4516`, `edgeCount=8823`, and
+  `communityCount=245`.
+- Follow-up verification passed: `npm run gateway:probe`, dev `/memory` HTTP
+  200, `python3 -m unittest tests.test_graphify_memory_status`,
+  `npm run graph:build`, `npm run graph:check`,
+  `npm run graph:query -- "how do harness memory and strategy learning connect?"`,
+  `npm run build`, `npm run agent:check`, and `git diff --check`.
+- Embedded Graphify follow-up: added
+  `/api/hyperliquid/memory/graphify-html`, added `htmlUrl` to Graphify status,
+  and embedded `graphify-out/graph.html` directly in the `/memory` Repo Graph
+  panel through an iframe with a show/hide control. Verified HTML endpoint HTTP
+  200 without attachment disposition, status `htmlUrl`, dev `/memory` HTTP 200,
+  focused tests, `npm run build`, `npm run gateway:probe`, `npm run graph:build`,
+  `npm run graph:check` (`4519` nodes, `8828` edges, `243` communities), final
+  `npm run agent:check`, and `git diff --check`.
+- Interactive explorer follow-up: added
+  `/api/hyperliquid/memory/graphify-explorer`, added `explorerUrl` to Graphify
+  status, and switched `/memory` to embed the custom Graphify explorer before
+  falling back to the raw generated HTML. The explorer uses `graphify-out/graph.json`
+  for drag/zoom physics, search, focus, neighborhood mode, community and degree
+  filters, labels, fit/reset, counts, and an inspector. Verified endpoint HTTP
+  200, Browser direct explorer smoke with `MemoryGraphPage` search/focus,
+  focused tests, gateway probe, graph build/check/query, and app build.
+
+## Evidence
+
+- Handoff: `progress/impl_graphify_memory_repo_map.md`
 
 ## Next Step
 
-Reviewer should inspect the latest variant comparison. Current evidence says
-monthly DCA remains the best BTC accumulator on the available sample; dip and
-cycle-harvest variants did not beat it.
+Open `/memory` in the Electron app and confirm the Repo Graph panel renders the
+custom Graphify explorer. Semantic Graphify extraction with a stronger
+model/provider and offline vendoring of Graphify's CDN dependency can remain
+separate optional tasks.

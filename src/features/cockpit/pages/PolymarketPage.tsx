@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Activity, AlertCircle, DollarSign, Play, ShieldAlert, TrendingUp, Zap } from 'lucide-react';
 import {
@@ -12,6 +12,93 @@ import {
   type PolymarketWalletDiagnostics,
   type PolymarketWalletOverview,
 } from '@/services/polymarketService';
+import { useMarketPolling } from '@/hooks/useMarketPolling';
+
+type PolymarketSnapshot = {
+  walletOverview: PolymarketWalletOverview | null;
+  walletDiagnostics: PolymarketWalletDiagnostics | null;
+  walletDiagnosticsError: string | null;
+  walletEquityCurve: EquityPoint[];
+  resolvedWalletBalance: number;
+  btc5mStatus: PolymarketBtc5mStatus | null;
+  btc5mStrategies: PolymarketBtc5mStrategiesResponse | null;
+  btc5mTrades: PolymarketBtc5mTrade[];
+  btc5mEquityCurve: EquityPoint[];
+  btc5mAutoStatus: PolymarketBtc5mAutoStatus | null;
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message || fallback : fallback;
+}
+
+async function loadPolymarketSnapshot(): Promise<PolymarketSnapshot> {
+  let walletOverview: PolymarketWalletOverview | null = null;
+  let walletDiagnostics: PolymarketWalletDiagnostics | null = null;
+  let walletDiagnosticsError: string | null = null;
+  let walletEquityCurve: EquityPoint[] = [];
+  let resolvedWalletBalance = 0;
+
+  try {
+    const [walletData, walletCurve, diagnostics] = await Promise.all([
+      polymarketService.getWalletOverview(),
+      polymarketService.getWalletEquityCurve(),
+      polymarketService.getWalletDiagnostics().catch((diagnosticError: unknown) => diagnosticError),
+    ]);
+    walletOverview = walletData;
+    walletEquityCurve = Array.isArray(walletCurve) ? walletCurve : [];
+    if (diagnostics instanceof Error) {
+      walletDiagnosticsError = diagnostics.message || 'No se pudo cargar el diagnostico detallado de wallet.';
+    } else {
+      walletDiagnostics = diagnostics;
+    }
+    resolvedWalletBalance = (walletData?.cashBalance ?? 0) > 0
+      ? (walletData?.cashBalance ?? 0)
+      : (walletData?.portfolioValue ?? 0);
+  } catch (walletError) {
+    walletDiagnosticsError = errorMessage(walletError, 'No se pudo cargar wallet.');
+  }
+
+  let btc5mStatus: PolymarketBtc5mStatus | null = null;
+  let btc5mStrategies: PolymarketBtc5mStrategiesResponse | null = null;
+  let btc5mTrades: PolymarketBtc5mTrade[] = [];
+  let btc5mEquityCurve: EquityPoint[] = [];
+  let btc5mAutoStatus: PolymarketBtc5mAutoStatus | null = null;
+
+  try {
+    const balance = resolvedWalletBalance > 0 ? resolvedWalletBalance : null;
+    const [btcStatus, btcStrategies, btcTradesData, btcCurve, autoStatus] = await Promise.all([
+      polymarketService.getBtc5mStatus(balance),
+      polymarketService.getBtc5mStrategies(balance).catch(() => null),
+      polymarketService.getBtc5mTrades(50),
+      polymarketService.getBtc5mEquityCurve(balance),
+      polymarketService.getBtc5mAutoStatus().catch(() => null),
+    ]);
+    btc5mStatus = btcStatus;
+    btc5mStrategies = btcStrategies;
+    btc5mTrades = Array.isArray(btcTradesData) ? btcTradesData : [];
+    btc5mEquityCurve = Array.isArray(btcCurve) ? btcCurve : [];
+    btc5mAutoStatus = autoStatus;
+  } catch {
+    btc5mStatus = null;
+    btc5mStrategies = null;
+    btc5mTrades = [];
+    btc5mEquityCurve = [];
+    btc5mAutoStatus = null;
+  }
+
+  return {
+    walletOverview,
+    walletDiagnostics,
+    walletDiagnosticsError,
+    walletEquityCurve,
+    resolvedWalletBalance,
+    btc5mStatus,
+    btc5mStrategies,
+    btc5mTrades,
+    btc5mEquityCurve,
+    btc5mAutoStatus,
+  };
+}
 
 function formatCurrency(value: number | null | undefined, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(value)) return 'N/A';
@@ -87,85 +174,32 @@ export default function PolymarketPage() {
   const [lastBtc5mRun, setLastBtc5mRun] = useState<PolymarketBtc5mRunResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-  const isFetchingRef = useRef(false);
+  const polymarketPoll = useMarketPolling(
+    'polymarket:page',
+    loadPolymarketSnapshot,
+    { intervalMs: 30_000, staleAfterMs: 90_000 }
+  );
 
   useEffect(() => {
-    isMountedRef.current = true;
-
-    const loadData = async () => {
-      if (document.hidden || isFetchingRef.current) return;
-      isFetchingRef.current = true;
-
-      try {
-        setError(null);
-        let resolvedWalletBalance = 0;
-        try {
-          const [walletData, walletCurve, diagnostics] = await Promise.all([
-            polymarketService.getWalletOverview(),
-            polymarketService.getWalletEquityCurve(),
-            polymarketService.getWalletDiagnostics().catch((diagnosticError: any) => diagnosticError),
-          ]);
-          if (!isMountedRef.current) return;
-          setWalletOverview(walletData);
-          setWalletEquityCurve(Array.isArray(walletCurve) ? walletCurve : []);
-          if (diagnostics instanceof Error) {
-            setWalletDiagnostics(null);
-            setWalletDiagnosticsError(diagnostics.message || 'No se pudo cargar el diagnostico detallado de wallet.');
-          } else {
-            setWalletDiagnostics(diagnostics);
-            setWalletDiagnosticsError(null);
-          }
-          resolvedWalletBalance = (walletData?.cashBalance ?? 0) > 0
-            ? (walletData?.cashBalance ?? 0)
-            : (walletData?.portfolioValue ?? 0);
-          setBtc5mBalanceUsd(resolvedWalletBalance);
-        } catch (walletError: any) {
-          setWalletOverview(null);
-          setWalletEquityCurve([]);
-          setWalletDiagnostics(null);
-          setWalletDiagnosticsError(walletError?.message || null);
-        }
-
-        try {
-          const [btcStatus, btcStrategies, btcTradesData, btcCurve, autoStatus] = await Promise.all([
-            polymarketService.getBtc5mStatus(resolvedWalletBalance > 0 ? resolvedWalletBalance : null),
-            polymarketService.getBtc5mStrategies(resolvedWalletBalance > 0 ? resolvedWalletBalance : null).catch(() => null),
-            polymarketService.getBtc5mTrades(50),
-            polymarketService.getBtc5mEquityCurve(resolvedWalletBalance > 0 ? resolvedWalletBalance : null),
-            polymarketService.getBtc5mAutoStatus().catch(() => null),
-          ]);
-          if (!isMountedRef.current) return;
-          setBtc5mStatus(btcStatus);
-          setBtc5mStrategies(btcStrategies);
-          setBtc5mTrades(Array.isArray(btcTradesData) ? btcTradesData : []);
-          setBtc5mEquityCurve(Array.isArray(btcCurve) ? btcCurve : []);
-          setBtc5mAutoStatus(autoStatus);
-        } catch {
-          setBtc5mStatus(null);
-          setBtc5mStrategies(null);
-          setBtc5mTrades([]);
-          setBtc5mEquityCurve([]);
-          setBtc5mAutoStatus(null);
-        }
-
-      } catch (err: any) {
-        if (isMountedRef.current) {
-          setError(err.message || 'Error cargando Polymarket');
-        }
-      } finally {
-        isFetchingRef.current = false;
+    if (!polymarketPoll.data) {
+      if (polymarketPoll.status === 'error') {
+        setError(polymarketPoll.error || 'Error cargando Polymarket');
       }
-    };
+      return;
+    }
 
-    void loadData();
-    const interval = window.setInterval(() => void loadData(), 15_000);
-
-    return () => {
-      isMountedRef.current = false;
-      clearInterval(interval);
-    };
-  }, []);
+    setWalletOverview(polymarketPoll.data.walletOverview);
+    setWalletEquityCurve(polymarketPoll.data.walletEquityCurve);
+    setWalletDiagnostics(polymarketPoll.data.walletDiagnostics);
+    setWalletDiagnosticsError(polymarketPoll.data.walletDiagnosticsError);
+    setBtc5mBalanceUsd(polymarketPoll.data.resolvedWalletBalance);
+    setBtc5mStatus(polymarketPoll.data.btc5mStatus);
+    setBtc5mStrategies(polymarketPoll.data.btc5mStrategies);
+    setBtc5mTrades(polymarketPoll.data.btc5mTrades);
+    setBtc5mEquityCurve(polymarketPoll.data.btc5mEquityCurve);
+    setBtc5mAutoStatus(polymarketPoll.data.btc5mAutoStatus);
+    setError(polymarketPoll.status === 'stale' ? polymarketPoll.error : null);
+  }, [polymarketPoll.data, polymarketPoll.error, polymarketPoll.status]);
 
   useEffect(() => {
     if (!(btc5mStatus?.liveReadiness?.liveEnabled ?? false) && btc5mMode === 'live') {

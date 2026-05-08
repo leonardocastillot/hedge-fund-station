@@ -75,6 +75,13 @@ Obsidian vault and opens `Workspace Home.md` through a registered vault target.
 - Local config was updated so workspace `new-project-9` uses
   `/Users/optimus/Documents/New project 9/hedge-station`, and Obsidian's local
   `obsidian.json` marks that curated vault open.
+- Hang follow-up: `/memory` no longer blocks forever on Obsidian IPC. Graph load
+  and Open Vault now have renderer timeouts, the main-process opener is
+  fire-and-forget with best-effort fallbacks, and the working Obsidian URI is
+  `vault=hedge-station&file=Workspace Home.md`.
+- Verified with Computer Use: `/memory` loaded in Electron, Open Vault returned
+  control to the UI without a timeout error, Obsidian was open as
+  `hedge-station`, and the corrected URI opened `Workspace Home.md`.
 
 ## Safety
 
@@ -82,6 +89,8 @@ Obsidian vault and opens `Workspace Home.md` through a registered vault target.
 - The HTTP create smoke used a temporary data root, so it did not add fake
   learning artifacts to the repo data directory.
 - Obsidian sync still writes only managed notes and preserves manual notes.
+- Obsidian Sync is disabled in the project vault to avoid mixing this local
+  strategy-memory vault with any personal synced vault.
 - The local gateway was restarted through the stable repo script so the new
   backend endpoint is loaded.
 

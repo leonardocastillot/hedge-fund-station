@@ -17,6 +17,9 @@ easy to scan. Memory optimizes context; it must not accumulate noise.
 ## Rules
 
 - Read `memory-policy.md` before adding memory.
+- If `graphify-out/GRAPH_REPORT.md` exists, use it as a fast map before broad
+  memory or harness exploration. Do not copy the graph into curated memory; link
+  to Graphify artifacts or canonical docs instead.
 - Prefer links to canonical docs over repeating long explanations.
 - Record facts, decisions, and next actions; avoid diary-style narration.
 - Do not store secrets, credentials, private keys, API tokens, or live trading

@@ -1,23 +1,20 @@
 from __future__ import annotations
 
-import json
-import sqlite3
 from bisect import bisect_right
 from collections import defaultdict
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 try:
     from ...backtesting.diagnostics import build_trade_diagnostics
     from ...backtesting.engine import BacktestConfig, calculate_trade_fee
-    from ...backtesting.filters import build_snapshot_filter
     from ...backtesting.metrics import build_summary
+    from ...backtesting.snapshots import load_sampled_market_snapshots
 except ImportError:
     from backtesting.diagnostics import build_trade_diagnostics
     from backtesting.engine import BacktestConfig, calculate_trade_fee
-    from backtesting.filters import build_snapshot_filter
     from backtesting.metrics import build_summary
+    from backtesting.snapshots import load_sampled_market_snapshots
 from .logic import calculate_funding_percentile, evaluate_signal
 from .risk import build_risk_plan, calculate_position_size
 from .scoring import calculate_execution_quality, score_setup
@@ -167,62 +164,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
 
 
 def load_sampled_snapshots(dataset_path: Path, config: BacktestConfig) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    replay_config = config
-    default_symbols_applied = False
-    if config.universe.strip().lower() != "all" and not config.effective_symbols():
-        replay_config = replace(config, symbols=DEFAULT_SYMBOLS)
-        default_symbols_applied = True
-
-    connection = sqlite3.connect(dataset_path)
-    connection.row_factory = sqlite3.Row
-    where_sql, where_params, replay_filter = build_snapshot_filter(
-        connection,
-        table="market_snapshots",
-        timestamp_column="timestamp_ms",
-        config=replay_config,
-    )
-    rows = connection.execute(
-        f"""
-        WITH filtered AS (
-            SELECT id, timestamp_ms, symbol
-            FROM market_snapshots
-            {where_sql}
-        ),
-        sampled AS (
-            SELECT MAX(id) AS id
-            FROM filtered
-            GROUP BY symbol, CAST(timestamp_ms / ? AS INTEGER)
-        )
-        SELECT ms.*
-        FROM market_snapshots ms
-        JOIN sampled s ON s.id = ms.id
-        ORDER BY ms.timestamp_ms ASC, ms.symbol ASC
-        """,
-        (*where_params, FIVE_MINUTES_MS),
-    ).fetchall()
-    connection.close()
-    replay_filter["default_symbols_applied"] = default_symbols_applied
-    normalized = [
-        {
-            "timestamp_ms": int(row["timestamp_ms"]),
-            "timestamp": iso_from_ms(int(row["timestamp_ms"])),
-            "symbol": row["symbol"],
-            "price": float(row["price"] or 0.0),
-            "change24h_pct": float(row["change24h_pct"] or 0.0),
-            "open_interest_usd": float(row["open_interest_usd"] or 0.0),
-            "volume24h": float(row["volume24h"] or 0.0),
-            "funding_rate": float(row["funding_rate"] or 0.0),
-            "opportunity_score": float(row["opportunity_score"] or 0.0),
-            "signal_label": row["signal_label"],
-            "risk_label": row["risk_label"],
-            "estimated_total_liquidation_usd": float(row["estimated_total_liquidation_usd"] or 0.0),
-            "crowding_bias": row["crowding_bias"] or "balanced",
-            "primary_setup": row["primary_setup"] or "no-trade",
-            "setup_scores": json.loads(row["setup_scores_json"] or "{}"),
-        }
-        for row in rows
-    ]
-    return normalized, replay_filter
+    return load_sampled_market_snapshots(dataset_path, config, bucket_ms=FIVE_MINUTES_MS, default_symbols=DEFAULT_SYMBOLS)
 
 
 def build_market_data(history: list[dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
@@ -375,9 +317,3 @@ def compact_market_context(market_data: dict[str, Any]) -> dict[str, Any]:
         "executionQuality",
     ]
     return {key: market_data.get(key) for key in keys}
-
-
-def iso_from_ms(timestamp_ms: int) -> str:
-    from datetime import datetime, timezone
-
-    return datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

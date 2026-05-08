@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from backend.hyperliquid_gateway import app as gateway_app
 from backend.hyperliquid_gateway.app import (
+    app_readiness_payload,
     build_paper_runtime_supervisor_status,
     finalize_strategy_row,
     make_strategy_row,
@@ -119,6 +120,82 @@ class StrategyCatalogTest(unittest.TestCase):
         payload = strategy_catalog_payload({"updatedAt": 1, "summary": {}, "runtimeError": None, "strategies": [strategy_row, runtime_row]})
 
         self.assertEqual([row["strategyId"] for row in payload["strategies"]], ["btc_crowding_scalper"])
+
+    def test_app_readiness_payload_is_read_only_operator_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reports_root = root / "backtests"
+            validations_root = root / "validations"
+            paper_root = root / "paper"
+            audits_root = root / "audits"
+            for path in [reports_root, validations_root, paper_root, audits_root]:
+                path.mkdir(parents=True, exist_ok=True)
+            (reports_root / "sample_strategy-test.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_id": "backtest-sample",
+                        "strategy_id": "sample_strategy",
+                        "generated_at": "2026-05-08T12:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            original = {
+                "REPORTS_ROOT": gateway_app.REPORTS_ROOT,
+                "VALIDATIONS_ROOT": gateway_app.VALIDATIONS_ROOT,
+                "PAPER_ROOT": gateway_app.PAPER_ROOT,
+                "AUDITS_ROOT": gateway_app.AUDITS_ROOT,
+            }
+            try:
+                gateway_app.REPORTS_ROOT = reports_root
+                gateway_app.VALIDATIONS_ROOT = validations_root
+                gateway_app.PAPER_ROOT = paper_root
+                gateway_app.AUDITS_ROOT = audits_root
+                payload = app_readiness_payload(
+                    health_result={
+                        "ok": True,
+                        "cacheWarm": True,
+                        "cacheUpdatedAt": 1_779_000_000_000,
+                        "cacheAgeMs": 1000,
+                    },
+                    audit_result={
+                        "summary": {
+                            "strategyCount": 1,
+                            "backtestTrades": 3,
+                            "paperTrades": 2,
+                            "openTrades": 1,
+                            "reviewableClosedTrades": 2,
+                            "reviewedTrades": 1,
+                            "reviewCoverage": 50.0,
+                        },
+                        "strategies": [
+                            {
+                                "strategyId": "sample_strategy",
+                                "displayName": "Sample Strategy",
+                                "pipelineStage": "blocked",
+                                "gateStatus": "validation-blocked",
+                                "gateReasons": ["too few trades"],
+                                "missingAuditItems": [],
+                                "lastActivityAt": 1,
+                                "latestArtifactPaths": {"backtest": str(reports_root / "sample_strategy-test.json")},
+                            }
+                        ],
+                    },
+                    supervisor_result={"healthStatus": "stopped", "healthBlockers": ["supervisor_not_running"]},
+                    learning_result={"events": [{"event_id": "event-1"}]},
+                )
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+            self.assertEqual(payload["overallStatus"], "attention")
+            self.assertTrue(payload["summary"]["cacheFresh"])
+            self.assertTrue(payload["summary"]["liveExecutionLocked"])
+            self.assertEqual(payload["summary"]["blockedStrategies"], 1)
+            self.assertEqual(payload["latestEvidence"]["backtest"]["artifactId"], "backtest-sample")
+            self.assertIn("gateway_cache", {check["id"] for check in payload["checks"]})
+            self.assertIn("paper_runtime", {check["id"] for check in payload["checks"]})
 
     def test_paper_runtime_supervisor_status_reads_screen_metadata_and_last_tick(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

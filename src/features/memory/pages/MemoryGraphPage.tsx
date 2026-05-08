@@ -19,6 +19,7 @@ import {
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import {
   hyperliquidService,
+  type HyperliquidGraphifyStatus,
   type HyperliquidPipelineStage,
   type HyperliquidStrategyCatalogRow,
   type HyperliquidStrategyLearningEvent,
@@ -127,6 +128,27 @@ const MEMORY_LENSES: Array<{ id: MemoryLensId; label: string; detail: string }> 
   { id: 'docs-only', label: 'Docs Only', detail: 'needs backend' },
   { id: 'all', label: 'All', detail: 'full catalog' }
 ];
+
+const OBSIDIAN_GRAPH_TIMEOUT_MS = 5000;
+const OBSIDIAN_OPEN_TIMEOUT_MS = 3000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      });
+  });
+}
 
 const LEARNING_LENSES: Array<{ id: LearningLensId; label: string; detail: string }> = [
   { id: 'lessons', label: 'Lessons', detail: 'latest learning' },
@@ -439,6 +461,20 @@ function formatRate(value: unknown): string {
   if (!Number.isFinite(numeric)) return 'N/A';
   const percent = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
   return `${Math.round(percent)}%`;
+}
+
+function formatGraphCount(value: number | null): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : 'N/A';
+}
+
+function formatGraphUpdatedAt(value: number | null): string {
+  if (!value) return 'Not built';
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function statusLabel(strategy: HyperliquidStrategyCatalogRow): string {
@@ -963,14 +999,17 @@ export default function MemoryGraphPage() {
   const [strategies, setStrategies] = useState<HyperliquidStrategyCatalogRow[]>([]);
   const [learningEvents, setLearningEvents] = useState<HyperliquidStrategyLearningEvent[]>([]);
   const [obsidianGraph, setObsidianGraph] = useState<ObsidianGraphResponse | null>(null);
+  const [graphifyStatus, setGraphifyStatus] = useState<HyperliquidGraphifyStatus | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [activeLens, setActiveLens] = useState<MemoryLensId>('actionable');
   const [activeLearningLens, setActiveLearningLens] = useState<LearningLensId>('lessons');
   const [query, setQuery] = useState('');
+  const [repoGraphExpanded, setRepoGraphExpanded] = useState(true);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [openingVault, setOpeningVault] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [captureForm, setCaptureForm] = useState<CaptureFormState>(() => emptyCaptureForm(null, null));
@@ -982,15 +1021,39 @@ export default function MemoryGraphPage() {
     else setRefreshing(true);
     setError(null);
     try {
-      const [catalog, learning] = await Promise.all([
+      const [catalog, learning, graphify] = await Promise.all([
         hyperliquidService.getStrategyCatalog(500),
-        hyperliquidService.getStrategyLearning(undefined, 500)
+        hyperliquidService.getStrategyLearning(undefined, 500),
+        hyperliquidService.getGraphifyStatus().catch((err): HyperliquidGraphifyStatus => ({
+          available: false,
+          updatedAt: null,
+          outputDir: 'graphify-out',
+          reportPath: 'graphify-out/GRAPH_REPORT.md',
+          graphJsonPath: 'graphify-out/graph.json',
+          htmlPath: 'graphify-out/graph.html',
+          explorerUrl: '',
+          htmlUrl: '',
+          nodeCount: null,
+          edgeCount: null,
+          communityCount: null,
+          warnings: [err instanceof Error ? err.message : 'Graphify status could not be loaded.']
+        }))
       ]);
       setStrategies(catalog.strategies);
       setLearningEvents(learning.events);
+      setGraphifyStatus(graphify);
       if (activeWorkspace && window.electronAPI?.obsidian?.getGraph) {
-        const graph = await window.electronAPI.obsidian.getGraph(activeWorkspace.path, activeWorkspace.obsidian_vault_path);
-        setObsidianGraph(graph);
+        try {
+          const graph = await withTimeout(
+            window.electronAPI.obsidian.getGraph(activeWorkspace.path, activeWorkspace.obsidian_vault_path),
+            OBSIDIAN_GRAPH_TIMEOUT_MS,
+            'Obsidian graph load'
+          );
+          setObsidianGraph(graph);
+        } catch (obsidianErr) {
+          setObsidianGraph(null);
+          setError(obsidianErr instanceof Error ? obsidianErr.message : 'Obsidian graph load failed.');
+        }
       } else {
         setObsidianGraph(null);
       }
@@ -1120,18 +1183,53 @@ export default function MemoryGraphPage() {
       setError('Obsidian vault actions are only available inside the Electron app.');
       return;
     }
-    const vaultPath = obsidianGraph?.vaultPath || activeWorkspace?.obsidian_vault_path;
-    if (vaultPath) {
-      await window.electronAPI.obsidian.openVault(vaultPath);
+
+    setOpeningVault(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const vaultPath = obsidianGraph?.vaultPath || activeWorkspace?.obsidian_vault_path;
+      if (vaultPath) {
+        await withTimeout(window.electronAPI.obsidian.openVault(vaultPath), OBSIDIAN_OPEN_TIMEOUT_MS, 'Open Vault');
+        setMessage(`Opening Obsidian vault: ${vaultPath}`);
+        return;
+      }
+      if (activeWorkspace) {
+        const status = await withTimeout(
+          window.electronAPI.obsidian.ensureVault(activeWorkspace.path, activeWorkspace.obsidian_vault_path),
+          OBSIDIAN_OPEN_TIMEOUT_MS,
+          'Obsidian vault setup'
+        );
+        if (status.vaultPath) {
+          await updateWorkspace(activeWorkspace.id, { obsidian_vault_path: status.vaultPath });
+          await withTimeout(window.electronAPI.obsidian.openVault(status.vaultPath), OBSIDIAN_OPEN_TIMEOUT_MS, 'Open Vault');
+          setMessage(`Opening Obsidian vault: ${status.vaultPath}`);
+          await loadMemory(false);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open Obsidian vault.');
+    } finally {
+      setOpeningVault(false);
+    }
+  };
+
+  const openGraphifyPath = async (targetPath: string | null | undefined) => {
+    if (!targetPath) {
+      setError('Graphify path is not available yet. Run npm run graph:build.');
       return;
     }
-    if (activeWorkspace) {
-      const status = await window.electronAPI.obsidian.ensureVault(activeWorkspace.path, activeWorkspace.obsidian_vault_path);
-      if (status.vaultPath) {
-        await updateWorkspace(activeWorkspace.id, { obsidian_vault_path: status.vaultPath });
-        await window.electronAPI.obsidian.openVault(status.vaultPath);
-        await loadMemory(false);
-      }
+    if (!window.electronAPI?.obsidian?.openPath) {
+      setError('Opening Graphify files is only available inside the Electron app.');
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    try {
+      await window.electronAPI.obsidian.openPath(targetPath);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open Graphify artifact.');
     }
   };
 
@@ -1213,10 +1311,11 @@ export default function MemoryGraphPage() {
             <button
               type="button"
               onClick={() => void openVault()}
+              disabled={openingVault}
               className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.09] sm:flex-none"
             >
-              <BookOpen className="h-4 w-4" />
-              Open Vault
+              <BookOpen className={`h-4 w-4 ${openingVault ? 'animate-pulse' : ''}`} />
+              {openingVault ? 'Opening' : 'Open Vault'}
             </button>
             <button
               type="button"
@@ -1256,6 +1355,15 @@ export default function MemoryGraphPage() {
           />
         ) : null}
       </section>
+
+      <RepoGraphPanel
+        status={graphifyStatus}
+        canOpen={Boolean(window.electronAPI?.obsidian?.openPath)}
+        expanded={repoGraphExpanded}
+        onToggleExpanded={() => setRepoGraphExpanded((value) => !value)}
+        onOpenReport={() => void openGraphifyPath(graphifyStatus?.reportPath)}
+        onOpenHtml={() => void openGraphifyPath(graphifyStatus?.htmlPath)}
+      />
 
       <section className="grid gap-3">
         <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3">
@@ -1320,6 +1428,102 @@ export default function MemoryGraphPage() {
         <NodeInspector node={selectedNode} summary={selectedSummary} />
       </section>
     </div>
+  );
+}
+
+function RepoGraphPanel({
+  status,
+  canOpen,
+  expanded,
+  onToggleExpanded,
+  onOpenReport,
+  onOpenHtml
+}: {
+  status: HyperliquidGraphifyStatus | null;
+  canOpen: boolean;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onOpenReport: () => void;
+  onOpenHtml: () => void;
+}) {
+  const available = Boolean(status?.available);
+  const warnings = status?.warnings || [];
+  const isLoading = status === null;
+  const iframeSrc = available ? status?.explorerUrl || status?.htmlUrl || null : null;
+
+  return (
+    <section className="overflow-hidden rounded-md border border-white/10 bg-black/20">
+      <div className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-white">
+            <Network className="h-4 w-4 text-cyan-200" />
+            Repo Graph
+          </div>
+          <div className={`mt-1 text-xs font-semibold ${available ? 'text-emerald-200' : 'text-amber-200'}`}>
+            {isLoading ? 'Checking Graphify' : available ? 'Graphify artifacts ready' : 'Graphify build pending'}
+          </div>
+          <div className="mt-1 truncate text-xs text-white/40">
+            {status?.outputDir || 'graphify-out'}
+          </div>
+        </div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <button
+            type="button"
+            onClick={onToggleExpanded}
+            disabled={!available}
+            className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md border border-fuchsia-400/25 bg-fuchsia-500/15 px-3 py-2 text-sm font-semibold text-fuchsia-50 transition hover:bg-fuchsia-500/25 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-white/35 sm:flex-none"
+          >
+            <GitBranch className="h-4 w-4" />
+            {expanded ? 'Hide Map' : 'Show Map'}
+          </button>
+          <button
+            type="button"
+            onClick={onOpenReport}
+            disabled={!available || !canOpen}
+            className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:bg-white/[0.02] disabled:text-white/35 sm:flex-none"
+          >
+            <FileText className="h-4 w-4" />
+            Report
+          </button>
+          <button
+            type="button"
+            onClick={onOpenHtml}
+            disabled={!available || !canOpen}
+            className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md border border-cyan-400/25 bg-cyan-500/12 px-3 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-500/22 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.02] disabled:text-white/35 sm:flex-none"
+          >
+            <ExternalLink className="h-4 w-4" />
+            HTML
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))]">
+        <TinyMetric label="Nodes" value={formatGraphCount(status?.nodeCount ?? null)} />
+        <TinyMetric label="Edges" value={formatGraphCount(status?.edgeCount ?? null)} />
+        <TinyMetric label="Communities" value={formatGraphCount(status?.communityCount ?? null)} />
+        <TinyMetric label="Updated" value={formatGraphUpdatedAt(status?.updatedAt ?? null)} />
+      </div>
+
+      {warnings.length > 0 ? (
+        <div className="mt-3 rounded-md border border-amber-400/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+          {warnings.join(' ')}
+        </div>
+      ) : null}
+      </div>
+
+      {expanded && iframeSrc ? (
+        <div className="border-t border-white/10 bg-[#0f0f1a]">
+          <iframe
+            src={iframeSrc}
+            title="Interactive Graphify repository map"
+            className="h-[min(78vh,880px)] w-full bg-[#0f0f1a]"
+            sandbox="allow-scripts allow-same-origin"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      ) : null}
+    </section>
   );
 }
 

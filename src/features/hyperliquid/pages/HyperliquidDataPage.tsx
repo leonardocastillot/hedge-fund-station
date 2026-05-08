@@ -438,7 +438,7 @@ export default function HyperliquidDataPage() {
   const rawPoll = useMarketPolling(
     `hyperliquid:data:${path}`,
     () => hyperliquidService.getRaw(path),
-    { intervalMs: 30_000, staleAfterMs: 90_000, runImmediately: true }
+    { intervalMs: 45_000, staleAfterMs: 120_000, runImmediately: true }
   );
 
   useEffect(() => {

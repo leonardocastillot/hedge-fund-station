@@ -7,6 +7,7 @@ const REQUEST_TIMEOUT_MS = 35_000;
 const AGENT_RUN_TIMEOUT_MS = 240_000;
 const DEFAULT_UI_BACKTEST_LOOKBACK_DAYS = 3;
 const AGENT_ENDPOINT_404_HINT = `Research OS is not exposed by the Hyperliquid gateway at ${API_URL}. Restart the local gateway so it loads the current backend, then run npm run gateway:probe.`;
+const GRAPHIFY_ENDPOINT_404_HINT = `Graphify memory status is not exposed by the Hyperliquid gateway at ${API_URL}. Restart the local gateway so it loads the current backend, then run npm run gateway:probe.`;
 const STRATEGY_CATALOG_FALLBACK_WARNING = 'The local Hyperliquid gateway is missing the strategy catalog endpoint. Restart it so the Pipeline can use backend-derived gate fields; showing strategy-audit fallback data for now.';
 
 class HyperliquidGatewayHttpError extends Error {
@@ -24,9 +25,16 @@ function isAgentEndpoint(path: string): boolean {
   return path.includes('/api/hyperliquid/agent-runs') || path.includes('/api/hyperliquid/agent-runtime/');
 }
 
+function isGraphifyEndpoint(path: string): boolean {
+  return path.includes('/api/hyperliquid/memory/graphify-status');
+}
+
 function gatewayHttpError(path: string, status: number, detail = ''): Error {
   if (status === 404 && isAgentEndpoint(path)) {
     return new Error(`${AGENT_ENDPOINT_404_HINT} Missing endpoint: ${path}`);
+  }
+  if (status === 404 && isGraphifyEndpoint(path)) {
+    return new Error(`${GRAPHIFY_ENDPOINT_404_HINT} Missing endpoint: ${path}`);
   }
   return new HyperliquidGatewayHttpError(path, status, detail);
 }
@@ -661,6 +669,21 @@ export interface HyperliquidStrategyLearningCreateResponse {
   event: HyperliquidStrategyLearningEvent;
 }
 
+export interface HyperliquidGraphifyStatus {
+  available: boolean;
+  updatedAt: number | null;
+  outputDir: string;
+  reportPath: string;
+  graphJsonPath: string;
+  htmlPath: string;
+  explorerUrl: string;
+  htmlUrl: string;
+  nodeCount: number | null;
+  edgeCount: number | null;
+  communityCount: number | null;
+  warnings: string[];
+}
+
 export interface HyperliquidGatewayHealth {
   ok: boolean;
   upstream: string;
@@ -671,6 +694,84 @@ export interface HyperliquidGatewayHealth {
   lastRefreshOkAt: number | null;
   lastRefreshError: string | null;
   refreshLoopSeconds: number;
+}
+
+export type HyperliquidReadinessStatus = 'ready' | 'attention' | 'blocked' | string;
+
+export interface HyperliquidReadinessCheck {
+  id: string;
+  label: string;
+  status: HyperliquidReadinessStatus;
+  detail: string;
+  actionLabel?: string | null;
+  command?: string | null;
+  route?: string | null;
+  evidencePath?: string | null;
+}
+
+export interface HyperliquidReadinessArtifact {
+  path: string;
+  generatedAt: number;
+  artifactId: string;
+  strategyId: string;
+  artifactType?: string | null;
+}
+
+export interface HyperliquidReadinessStrategyBlocker {
+  strategyId: string;
+  displayName: string;
+  pipelineStage: string | null;
+  gateStatus: string | null;
+  reasons: string[];
+  latestArtifactPaths: Record<string, string | null>;
+}
+
+export interface HyperliquidAppReadiness {
+  updatedAt: number;
+  overallStatus: HyperliquidReadinessStatus;
+  summary: {
+    readyChecks: number;
+    attentionChecks: number;
+    blockedChecks: number;
+    strategyCount: number;
+    blockedStrategies: number;
+    paperTrades: number;
+    openPaperTrades: number;
+    reviewCoverage: number;
+    cacheFresh: boolean;
+    paperRuntimeStatus: string;
+    liveExecutionLocked: boolean;
+  };
+  gateway: HyperliquidGatewayHealth | null;
+  paperRuntime: HyperliquidPaperRuntimeSupervisorResponse | null;
+  strategyBlockers: HyperliquidReadinessStrategyBlocker[];
+  latestEvidence: {
+    backtest: HyperliquidReadinessArtifact | null;
+    validation: HyperliquidReadinessArtifact | null;
+    paper: HyperliquidReadinessArtifact | null;
+    audit: HyperliquidReadinessArtifact | null;
+  };
+  dailyCommands: Array<{ label: string; command: string }>;
+  checks: HyperliquidReadinessCheck[];
+  errors: string[];
+  fetchedAt: number;
+}
+
+export interface HyperliquidHedgeFundStationSnapshot {
+  audit: HyperliquidStrategyAuditResponse | null;
+  health: HyperliquidGatewayHealth | null;
+  errors: string[];
+  fetchedAt: number;
+}
+
+export interface HyperliquidLiveStationSnapshot {
+  health: HyperliquidGatewayHealth | null;
+  overview: HyperliquidOverviewResponse | null;
+  watchlist: HyperliquidWatchlistResponse | null;
+  trades: HyperliquidPaperTrade[];
+  audit: HyperliquidStrategyAuditResponse | null;
+  errors: string[];
+  fetchedAt: number;
 }
 
 export interface HyperliquidBacktestRunResponse {
@@ -1447,6 +1548,12 @@ function learningCreatePayload(input: HyperliquidStrategyLearningCreate) {
   };
 }
 
+function normalizeGatewayUrl(path: string | null | undefined, fallback: string): string {
+  const value = path || fallback;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
 function normalizeBacktestRunOptions(options: HyperliquidBacktestRunOptions | boolean = {}) {
   const rawOptions = typeof options === 'boolean' ? { buildPaperCandidate: options } : options;
   return {
@@ -1499,6 +1606,23 @@ class HyperliquidService {
     });
   }
 
+  async getAppReadiness(auditLimit = 500): Promise<HyperliquidAppReadiness> {
+    return withRequestCache(`hyperliquid:app-readiness:${auditLimit}`, 12_000, async () => {
+      return fetchJson<HyperliquidAppReadiness>(`/api/hyperliquid/app-readiness?audit_limit=${auditLimit}`);
+    });
+  }
+
+  async getGraphifyStatus(): Promise<HyperliquidGraphifyStatus> {
+    return withRequestCache('hyperliquid:memory:graphify-status', 8_000, async () => {
+      const status = await fetchJson<HyperliquidGraphifyStatus>('/api/hyperliquid/memory/graphify-status');
+      return {
+        ...status,
+        explorerUrl: normalizeGatewayUrl(status.explorerUrl, '/api/hyperliquid/memory/graphify-explorer'),
+        htmlUrl: normalizeGatewayUrl(status.htmlUrl, '/api/hyperliquid/memory/graphify-html')
+      };
+    });
+  }
+
   async getOverview(limit = 40): Promise<HyperliquidOverviewResponse> {
     return withRequestCache(`hyperliquid:overview:${limit}`, 10_000, async () => {
       return fetchJson<HyperliquidOverviewResponse>(`/api/hyperliquid/overview?limit=${limit}`);
@@ -1535,6 +1659,28 @@ class HyperliquidService {
     });
   }
 
+  async getHedgeFundStationSnapshot(limit = 500): Promise<HyperliquidHedgeFundStationSnapshot> {
+    return withRequestCache(`hyperliquid:station:hedge-fund:${limit}`, 20_000, async () => {
+      return fetchJson<HyperliquidHedgeFundStationSnapshot>(`/api/hyperliquid/stations/hedge-fund?limit=${limit}`);
+    });
+  }
+
+  async getLiveStationSnapshot(options: { marketLimit?: number; watchlistLimit?: number; tradeLimit?: number; auditLimit?: number } = {}): Promise<HyperliquidLiveStationSnapshot> {
+    const marketLimit = options.marketLimit ?? 28;
+    const watchlistLimit = options.watchlistLimit ?? 12;
+    const tradeLimit = options.tradeLimit ?? 100;
+    const auditLimit = options.auditLimit ?? 500;
+    return withRequestCache(`hyperliquid:station:live:${marketLimit}:${watchlistLimit}:${tradeLimit}:${auditLimit}`, 15_000, async () => {
+      const params = new URLSearchParams({
+        market_limit: String(marketLimit),
+        watchlist_limit: String(watchlistLimit),
+        trade_limit: String(tradeLimit),
+        audit_limit: String(auditLimit)
+      });
+      return fetchJson<HyperliquidLiveStationSnapshot>(`/api/hyperliquid/stations/live?${params.toString()}`);
+    });
+  }
+
   async getPaperSignals(limit = 20): Promise<{ signals: HyperliquidPaperSignal[] }> {
     return withRequestCache(`hyperliquid:paper-signals:${limit}`, 5_000, async () => {
       return fetchJson<{ signals: HyperliquidPaperSignal[] }>(`/api/hyperliquid/paper/signals?limit=${limit}`);
@@ -1561,9 +1707,13 @@ class HyperliquidService {
     }
   }
 
-  async getPaperTrades(status: 'all' | 'open' | 'closed' = 'all'): Promise<{ trades: HyperliquidPaperTrade[] }> {
-    return withRequestCache(`hyperliquid:paper-trades:${status}`, 5_000, async () => {
-      return fetchJson<{ trades: HyperliquidPaperTrade[] }>(`/api/hyperliquid/paper/trades?status=${status}`);
+  async getPaperTrades(status: 'all' | 'open' | 'closed' = 'all', limit?: number): Promise<{ trades: HyperliquidPaperTrade[] }> {
+    return withRequestCache(`hyperliquid:paper-trades:${status}:${limit ?? 'default'}`, 5_000, async () => {
+      const params = new URLSearchParams({ status });
+      if (limit !== undefined) {
+        params.set('limit', String(limit));
+      }
+      return fetchJson<{ trades: HyperliquidPaperTrade[] }>(`/api/hyperliquid/paper/trades?${params.toString()}`);
     });
   }
 
@@ -1769,9 +1919,22 @@ class HyperliquidService {
     return response;
   }
 
-  async runAllBacktests(buildPaperCandidate = false): Promise<{ success: boolean; results: HyperliquidBacktestRunResponse[] }> {
+  async runAllBacktests(options: HyperliquidBacktestRunOptions | boolean = {}): Promise<{ success: boolean; results: HyperliquidBacktestRunResponse[] }> {
+    const normalized = normalizeBacktestRunOptions(options);
+    const params = new URLSearchParams({
+      run_validation: String(normalized.runValidation),
+      build_paper_candidate: String(normalized.buildPaperCandidate),
+      lookback_days: String(normalized.lookbackDays),
+      universe: normalized.universe
+    });
+    if (normalized.symbol) params.set('symbol', normalized.symbol);
+    if (normalized.symbols) params.set('symbols', Array.isArray(normalized.symbols) ? normalized.symbols.join(',') : normalized.symbols);
+    if (normalized.start) params.set('start', normalized.start);
+    if (normalized.end) params.set('end', normalized.end);
+    if (normalized.feeModel) params.set('fee_model', normalized.feeModel);
+    if (normalized.makerRatio !== undefined) params.set('maker_ratio', String(normalized.makerRatio));
     const response = await postJson<{ success: boolean; results: HyperliquidBacktestRunResponse[] }>(
-      `/api/hyperliquid/backtests/run-all?run_validation=true&build_paper_candidate=${buildPaperCandidate ? 'true' : 'false'}`,
+      `/api/hyperliquid/backtests/run-all?${params.toString()}`,
       undefined,
       BACKTEST_API_URL
     );

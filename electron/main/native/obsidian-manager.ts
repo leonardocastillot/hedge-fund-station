@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { execFile } from 'child_process';
 import { shell } from 'electron';
 import type {
   ObsidianGetStatusParams,
@@ -1017,6 +1018,38 @@ export class ObsidianManager {
     return { success: true };
   }
 
+  private async bestEffortOpen(promise: Promise<unknown>, timeoutMs = 1500): Promise<boolean> {
+    let timeout: NodeJS.Timeout | null = null;
+    try {
+      return await Promise.race([
+        promise.then(() => true).catch(() => false),
+        new Promise<boolean>((resolve) => {
+          timeout = setTimeout(() => resolve(false), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  private async openWithObsidianApp(targetPath: string, timeoutMs = 1800): Promise<boolean> {
+    if (process.platform !== 'darwin') {
+      return false;
+    }
+
+    return this.bestEffortOpen(new Promise<void>((resolve, reject) => {
+      execFile('/usr/bin/open', ['-a', 'Obsidian', targetPath], { timeout: timeoutMs }, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    }), timeoutMs + 300);
+  }
+
   private obsidianVaultId(vaultPath: string): string {
     return crypto.createHash('md5').update(path.resolve(vaultPath)).digest('hex').slice(0, 16);
   }
@@ -1051,7 +1084,7 @@ export class ObsidianManager {
     const vaults = config.vaults && typeof config.vaults === 'object' ? config.vaults : {};
     const existing = Object.entries(vaults).find(([, value]) => (
       typeof value.path === 'string'
-      && path.resolve(this.normalizeVaultCandidate(value.path)) === normalizedVaultPath
+      && path.resolve(value.path) === normalizedVaultPath
     ));
     const vaultId = existing?.[0] || this.obsidianVaultId(normalizedVaultPath);
     const now = Date.now();
@@ -1097,20 +1130,33 @@ export class ObsidianManager {
     const notesPath = this.notesPathForVault(vaultPath);
     const homeNotePath = path.join(notesPath, 'Workspace Home.md');
     const relativeHomeNote = path.relative(vaultPath, homeNotePath).replace(/\\/g, '/');
-    const fileTarget = fs.existsSync(homeNotePath)
-      ? relativeHomeNote.replace(/\.md$/i, '')
-      : undefined;
+    const fileTarget = fs.existsSync(homeNotePath) ? relativeHomeNote : undefined;
+
     const registeredVault = this.registerObsidianVault(vaultPath);
-    const vaultIdentifier = registeredVault?.vaultId || registeredVault?.vaultName || path.basename(vaultPath);
-    const url = fileTarget
+    const vaultIdentifier = registeredVault?.vaultName || path.basename(vaultPath) || registeredVault?.vaultId;
+    const fileUrl = fs.existsSync(homeNotePath)
+      ? `obsidian://open?path=${encodeURIComponent(homeNotePath)}`
+      : null;
+    const vaultUrl = fileTarget
       ? `obsidian://open?vault=${encodeURIComponent(vaultIdentifier)}&file=${encodeURIComponent(fileTarget)}`
       : `obsidian://open?vault=${encodeURIComponent(vaultIdentifier)}`;
-    try {
-      await shell.openExternal(url);
-      return { success: true, fallback: !registeredVault };
-    } catch {
-      await shell.openPath(vaultPath);
-      return { success: true, fallback: true };
-    }
+
+    void (async () => {
+      if (await this.bestEffortOpen(shell.openExternal(vaultUrl))) {
+        return;
+      }
+      if (fileUrl && await this.bestEffortOpen(shell.openExternal(fileUrl))) {
+        return;
+      }
+      const openedByApp = fs.existsSync(homeNotePath)
+        ? await this.openWithObsidianApp(homeNotePath)
+        : await this.openWithObsidianApp(vaultPath);
+      if (openedByApp) {
+        return;
+      }
+      await this.bestEffortOpen(shell.openPath(vaultPath));
+    })();
+
+    return { success: true, fallback: !registeredVault };
   }
 }

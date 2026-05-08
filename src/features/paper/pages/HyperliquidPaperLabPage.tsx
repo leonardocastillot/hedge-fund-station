@@ -41,11 +41,11 @@ export default function HyperliquidPaperLabPage() {
     async () => {
       const [signalsPayload, tradesPayload] = await Promise.all([
         hyperliquidService.getPaperSignals(24),
-        hyperliquidService.getPaperTrades('all')
+        hyperliquidService.getPaperTrades('all', 100)
       ]);
       return { signals: signalsPayload.signals, trades: tradesPayload.trades };
     },
-    { intervalMs: 10_000, staleAfterMs: 30_000 }
+    { intervalMs: 20_000, staleAfterMs: 60_000 }
   );
 
   useEffect(() => {

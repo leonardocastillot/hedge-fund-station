@@ -39,14 +39,17 @@ Use this loop for agent work:
 1. Read the objective and repo rules.
 2. Check `memory/memory-policy.md`, `memory/shared-memory.md`,
    `memory/decisions.md`, and `memory/open-questions.md`.
-3. Classify the mission.
-4. Inspect before changing code or docs.
-5. Produce a plan, report, or focused patch.
-6. Run the relevant checks.
-7. Leave a handoff.
-8. Update, promote, archive, or intentionally leave memory unchanged according
+3. For broad architecture, harness, or memory questions, read
+   `graphify-out/GRAPH_REPORT.md` first when it exists, then verify findings
+   against source files and canonical docs.
+4. Classify the mission.
+5. Inspect before changing code or docs.
+6. Produce a plan, report, or focused patch.
+7. Run the relevant checks.
+8. Leave a handoff.
+9. Update, promote, archive, or intentionally leave memory unchanged according
    to `memory/memory-policy.md`.
-9. Update backlog when the work changes the improvement queue.
+10. Update backlog when the work changes the improvement queue.
 
 If a mission cannot complete a step, the handoff must say why.
 
@@ -102,10 +105,19 @@ npm run hf:agent:runtime
 npm run backend:health
 npm run gateway:probe
 npm run build
+npm run graph:build
+npm run graph:update
+npm run graph:query -- "<question>"
+npm run graph:check
 ```
 
 Ad hoc scripts are acceptable for inspection, but milestone evidence should use
 the stable command surface whenever possible.
+
+Graphify outputs are a navigational layer, not canonical evidence. Version
+`graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.json`, and
+`graphify-out/graph.html` when generated; keep local manifest, cost, cache, and
+transcript state out of review.
 
 ## Success Criteria
 

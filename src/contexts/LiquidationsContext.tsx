@@ -40,31 +40,22 @@ export function LiquidationsProvider({ children }: { children: ReactNode }) {
 
   const poll = useMarketPolling(
     `liquidations:context:${chartHours}`,
-    async () => {
-      const [statusData, insightsData, snapshotsData, alertsData, chartDataResponse] = await Promise.all([
-        liquidationsService.getStatus(),
-        liquidationsService.getInsights(),
-        liquidationsService.getSnapshots(20),
-        liquidationsService.getAlerts(10),
-        liquidationsService.getChartData(chartHours)
-      ]);
-      return { statusData, insightsData, snapshotsData, alertsData, chartDataResponse };
-    },
-    { intervalMs: 12_000, staleAfterMs: 35_000 }
+    () => liquidationsService.getSummary(chartHours, { snapshots: 20, alerts: 10 }),
+    { intervalMs: 30_000, staleAfterMs: 90_000 }
   );
 
   useEffect(() => {
     if (poll.data) {
-      setStats(poll.data.statusData);
-      setInsights(poll.data.insightsData);
-      setSnapshots(poll.data.snapshotsData);
-      setChartData(poll.data.chartDataResponse);
-      setRecentAlerts(poll.data.alertsData);
+      setStats(poll.data.status);
+      setInsights(poll.data.insights);
+      setSnapshots(poll.data.snapshots);
+      setChartData(poll.data.chart);
+      setRecentAlerts(poll.data.alerts);
       setIsConnected(true);
       setIsLoading(false);
       setIsStale(poll.status === 'stale');
       setError(null);
-      setHasSnapshot(poll.data.snapshotsData.length > 0);
+      setHasSnapshot(poll.data.snapshots.length > 0);
       return;
     }
 

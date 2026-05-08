@@ -53,6 +53,16 @@ __pycache__/
 # User config (should be in .hedge-station)
 workspaces.json
 
+# Graphify local/incremental state. Commit graphify-out/GRAPH_REPORT.md,
+# graphify-out/graph.json, and graphify-out/graph.html as the shared repo map.
+graphify-out/manifest.json
+graphify-out/cost.json
+graphify-out/.graphify_root
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_labels.json
+graphify-out/cache/
+graphify-out/transcripts/
+
 # Local databases / heavy runtime data
 backend/hyperliquid_gateway/data/hyperliquid.db
 backend/hyperliquid_gateway/data/hyperliquid.db-shm

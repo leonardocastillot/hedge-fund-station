@@ -188,7 +188,7 @@ export default function HyperliquidIntelligencePage() {
       ]);
       return { nextOverview, nextAlerts, nextWatchlist };
     },
-    { intervalMs: 12_000, staleAfterMs: 35_000 }
+    { intervalMs: 24_000, staleAfterMs: 70_000 }
   );
 
   useEffect(() => {
@@ -216,7 +216,7 @@ export default function HyperliquidIntelligencePage() {
       ]);
       return { nextDetail, nextHistory };
     },
-    { intervalMs: 12_000, staleAfterMs: 35_000, enabled: Boolean(detailSymbol) }
+    { intervalMs: 24_000, staleAfterMs: 70_000, enabled: Boolean(detailSymbol) }
   );
 
   useEffect(() => {
