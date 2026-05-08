@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Beaker, BookOpen, RefreshCcw, TrendingDown, TrendingUp } from 'lucide-react';
+import { Beaker, BookOpen, PlayCircle, RefreshCcw, TrendingDown, TrendingUp } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
 import { hyperliquidService, type HyperliquidHistoryPoint, type HyperliquidPaperSignal, type HyperliquidPaperTrade } from '@/services/hyperliquidService';
 import { useMarketPolling } from '@/hooks/useMarketPolling';
@@ -41,11 +41,11 @@ export default function HyperliquidPaperLabPage() {
     async () => {
       const [signalsPayload, tradesPayload] = await Promise.all([
         hyperliquidService.getPaperSignals(24),
-        hyperliquidService.getPaperTrades('all')
+        hyperliquidService.getPaperTrades('all', 100)
       ]);
       return { signals: signalsPayload.signals, trades: tradesPayload.trades };
     },
-    { intervalMs: 10_000, staleAfterMs: 30_000 }
+    { intervalMs: 20_000, staleAfterMs: 60_000 }
   );
 
   useEffect(() => {
@@ -240,6 +240,23 @@ export default function HyperliquidPaperLabPage() {
     }
   };
 
+  const handleRunBtcRuntimeTick = async () => {
+    setLoading(true);
+    try {
+      const result = await hyperliquidService.runPaperRuntimeTick('btc_failed_impulse_reversal');
+      const signalValue = result.plan.signalEval['signal'];
+      const signal = typeof signalValue === 'string' ? signalValue : 'none';
+      const opened = result.openedTradeId ? `opened trade ${result.openedTradeId}` : result.skippedEntryReason || result.plan.entry.blockReason || 'no entry';
+      const closed = result.closedTradeIds.length ? `closed ${result.closedTradeIds.length}` : 'closed 0';
+      setNotice(`BTC tick: ${result.status} · signal ${signal} · ${opened} · ${closed}`);
+      await paperPoll.refresh();
+    } catch (err: any) {
+      setError(err.message || 'No se pudo ejecutar el tick paper BTC.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleOpenTrade = async (signal: HyperliquidPaperSignal) => {
     if (!signal.entryPrice || signal.direction === 'neutral') {
       setError('La senal no tiene un entry utilizable.');
@@ -309,6 +326,7 @@ export default function HyperliquidPaperLabPage() {
             </div>
             <div className="flex gap-2">
               <ActionButton onClick={() => void paperPoll.refresh()} icon={<RefreshCcw className="h-4 w-4" />} label={paperPoll.status === 'stale' ? 'Refresh Stale' : 'Refresh'} />
+              <ActionButton onClick={handleRunBtcRuntimeTick} icon={<PlayCircle className="h-4 w-4" />} label="BTC Tick" />
               <ActionButton onClick={handleSeedSignals} icon={<Beaker className="h-4 w-4" />} label="Seed Signals" tone="emerald" />
             </div>
           </div>

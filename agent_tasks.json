@@ -18,6 +18,519 @@
   },
   "tasks": [
     {
+      "id": "graphify_memory_repo_map",
+      "title": "Integrate Graphify as a repo memory and harness map",
+      "mission_class": "repo health audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        ".graphifyignore",
+        ".gitignore",
+        "package.json",
+        "scripts/graphify-check.mjs",
+        "graphify-out/",
+        "AGENTS.md",
+        "docs/operations/agents/harness.md",
+        "docs/operations/agents/memory/README.md",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "tests/test_graphify_memory_status.py"
+      ],
+      "acceptance": [
+        "Graphify can be built, refreshed, queried, explained, pathed, and checked through stable npm scripts using uvx and Python 3.11.",
+        ".graphifyignore excludes local builds, caches, Obsidian internals, databases, and heavy backend evidence while keeping source/docs available for the repo graph.",
+        ".gitignore preserves versionable Graphify outputs while excluding local manifest, cost, cache, and transcript artifacts.",
+        "Agent and memory docs tell agents to read graphify-out/GRAPH_REPORT.md before broad architecture, harness, or memory exploration when it exists, while treating it as navigation rather than source of truth.",
+        "Backend exposes a read-only /api/hyperliquid/memory/graphify-status endpoint with availability, paths, counts, and warnings.",
+        "The /memory route shows a Repo Graph panel with Graphify status, counts, freshness, report and HTML open actions, without mixing Graphify nodes into the strategy evidence canvas.",
+        "Implementation handoff records changed files, commands, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run graph:build",
+        "npm run graph:check",
+        "npm run graph:query -- \"how do harness memory and strategy learning connect?\"",
+        "python3 -m unittest tests.test_graphify_memory_status",
+        "npm run build",
+        "git diff --check"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        ".graphifyignore",
+        ".gitignore",
+        "package.json",
+        "scripts/graphify-check.mjs",
+        "graphify-out/GRAPH_REPORT.md",
+        "graphify-out/graph.json",
+        "graphify-out/graph.html",
+        "AGENTS.md",
+        "docs/operations/agents/harness.md",
+        "docs/operations/agents/memory/README.md",
+        "backend/hyperliquid_gateway/app.py",
+        "tests/test_graphify_memory_status.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "progress/impl_graphify_memory_repo_map.md"
+      ],
+      "notes": "Ready for review. Added manual Graphify scripts, local ignore rules, versionable graphify-out artifacts, canonical agent docs, a read-only Graphify status endpoint, focused tests, typed renderer client support, and a /memory Repo Graph panel. Follow-up fixed the reported 404 by restarting the stale gateway, adding Graphify routes to gateway:probe, adding a renderer stale-gateway hint, and correcting community counting for community=0. Embedded follow-up added /api/hyperliquid/memory/graphify-html, exposed htmlUrl, and renders the generated Graphify HTML directly inside /memory with a show/hide control. Interactive follow-up added /api/hyperliquid/memory/graphify-explorer, exposed explorerUrl, and makes /memory prefer a custom Obsidian-style explorer generated from graphify-out/graph.json with drag/zoom, search, focus, neighborhood mode, filters, labels, counts, and node detail. Real endpoint smoke returns available=true, nodeCount=4528, edgeCount=8852, and communityCount=245. Verification passed: npm run agent:check, npm run graph:build, npm run graph:check, npm run graph:query -- \"how do harness memory and strategy learning connect?\", python3 -m unittest tests.test_graphify_memory_status, npm run gateway:probe, npm run build, Browser direct explorer search/focus smoke, direct Graphify HTML smoke, and git diff --check. graph:build uses Graphify's reliable local update path because local Ollama semantic extraction with llama3.2:3b returned invalid JSON warnings and stalled; stronger semantic extraction should be a later optional task. No Graphify assistant hooks, git hooks, credentials, or strategy logic changed."
+    },
+    {
+      "id": "app_daily_use_hardening",
+      "title": "Harden Hedge Fund Station for daily operator use",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/components/electron/BackendStatus.tsx",
+        "src/features/diagnostics/pages/DiagnosticsPage.tsx",
+        "src/features/stations/pages/HedgeFundStationPage.tsx",
+        "src/features/strategies/pages/StrategyAuditPage.tsx",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "tests/"
+      ],
+      "acceptance": [
+        "A read-only app readiness snapshot summarizes gateway health, cache freshness, paper runtime, strategy blockers, latest evidence, and daily commands without deciding trades.",
+        "Diagnostics exposes a clear daily pre-flight checklist for backend/gateway, terminal/workbench, paper runtime, Obsidian/memory, strategy evidence, and live execution lock status.",
+        "Hedge Fund Station surfaces the same readiness snapshot so the app opens with actionable daily operator status.",
+        "Header status uses readiness context where practical without adding blocking startup behavior.",
+        "Major routes are smoke-tested and blocking UX/runtime bugs found during the sprint are fixed.",
+        "No live trading, credential changes, production promotion, or strategy decision logic changes occur.",
+        "Implementation handoff records changed files, commands, results, risks, remaining bugs, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run build",
+        "python3 -m unittest discover tests",
+        "npm run perf:budget",
+        "npm run terminal:doctor",
+        "npm run hf:doctor",
+        "npm run hf:status",
+        "npm run gateway:probe",
+        "npm run backend:probe",
+        "HTTP smoke for /api/hyperliquid/app-readiness",
+        "Electron/browser smoke for /station/hedge-fund, /station/live, /strategies, /strategy/<id>, /memory, /paper, /hyperliquid, /liquidations, /data, /terminals, /workbench, /diagnostics, and /settings when practical"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/components/electron/BackendStatus.tsx",
+        "src/features/diagnostics/pages/DiagnosticsPage.tsx",
+        "src/features/stations/pages/HedgeFundStationPage.tsx",
+        "src/features/strategies/pages/StrategyAuditPage.tsx",
+        "progress/impl_app_daily_use_hardening.md"
+      ],
+      "notes": "Ready for review. Added read-only app readiness endpoint and renderer pre-flight surfaces for header, Diagnostics, and Hedge Fund Station; fixed runtime setup rows being counted as strategies in Hedge Fund Station and Strategy Audit Focus. Build, tests, harness, perf budget, terminal doctor, hf doctor/status, gateway/backend probes, readiness HTTP smoke, Browser route smoke, and Electron smoke passed. Remaining attention states are operational, not live-execution blockers: validation blockers and paper review coverage are still visible. Live trading remains monitor-only; any future execution or production promotion stays blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and a runbook."
+    },
+    {
+      "id": "full_stack_resource_optimization",
+      "title": "Optimize Hedge Fund Station resource usage without losing functionality",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "package.json",
+        "scripts/perf-budget.mjs",
+        "src/components/electron/ElectronLayout.tsx",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "src/features/agents/panels/AgentsPanel.tsx",
+        "src/features/agents/components/MissionChatWorkbench.tsx",
+        "src/services/hyperliquidService.ts",
+        "src/services/liquidationsService.ts",
+        "src/features/cockpit/pages/PolymarketPage.tsx",
+        "src/features/stations/pages/HedgeFundStationPage.tsx",
+        "src/features/stations/pages/LiveTradingStationPage.tsx",
+        "src/features/paper/pages/HyperliquidPaperLabPage.tsx",
+        "src/features/hyperliquid/pages/HyperliquidIntelligencePage.tsx",
+        "src/components/electron/Sidebar.tsx",
+        "src/contexts/LiquidationsContext.tsx",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/backtesting/snapshots.py",
+        "backend/hyperliquid_gateway/strategies/",
+        "tests/"
+      ],
+      "acceptance": [
+        "Initial renderer bundle no longer includes xterm or THREE because terminal and voice/workbench code are loaded on demand.",
+        "Workbench/voice panel is collapsed by default and persisted, while terminal, workbench, voice orb, and heavy charts remain available.",
+        "Market polling uses the shared visibility/backoff coordinator with balanced default intervals and keeps stale data visible.",
+        "Backend exposes aggregated station and liquidations summary endpoints and paper trades support a non-breaking limit parameter.",
+        "Backtest snapshot loading is centralized with reduced columns and supports cache reuse for BTC optimizer variants.",
+        "UI-triggered backtest-all remains bounded by a safe lookback default while full-history CLI runs remain available.",
+        "No generated data, strategy evidence, credentials, live trading, or production promotion are changed.",
+        "Implementation handoff records bundle/resource evidence, verification, risks, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run build",
+        "npm run perf:budget",
+        "python3 -m unittest discover tests",
+        "npm run hf:backtest -- --strategy btc_failed_impulse_reversal --lookback-days 3",
+        "npm run hf:btc:optimize -- --max-variants 3 --lookback-days 3",
+        "npm run hf:status",
+        "npm run gateway:probe when gateway is running",
+        "npm run backend:probe when backend tunnel is running"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "package.json",
+        "scripts/perf-budget.mjs",
+        "src/components/electron/ElectronLayout.tsx",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "src/features/agents/panels/AgentsPanel.tsx",
+        "src/features/agents/components/MissionChatWorkbench.tsx",
+        "src/components/electron/Sidebar.tsx",
+        "src/contexts/LiquidationsContext.tsx",
+        "src/services/hyperliquidService.ts",
+        "src/services/liquidationsService.ts",
+        "src/features/cockpit/pages/PolymarketPage.tsx",
+        "src/features/stations/pages/HedgeFundStationPage.tsx",
+        "src/features/stations/pages/LiveTradingStationPage.tsx",
+        "src/features/paper/pages/HyperliquidPaperLabPage.tsx",
+        "src/features/hyperliquid/pages/HyperliquidDataPage.tsx",
+        "src/features/hyperliquid/pages/HyperliquidIntelligencePage.tsx",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/backtesting/snapshots.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/backtest.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/optimizer.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_failed_impulse_reversal-hyperliquid-20260508T012538Z.json",
+        "backend/hyperliquid_gateway/data/audits/btc_failed_impulse_reversal-variant-optimizer-20260508T012543Z.json",
+        "progress/impl_full_stack_resource_optimization.md"
+      ],
+      "notes": "Ready for review. Initial renderer chunk is now 590.09 KiB and perf:budget confirms xterm/three are absent from the initial bundle. Terminal, workbench, voice/WebGL, and chart-heavy code are deferred; market polling moved to balanced shared polling; station/liquidation aggregate endpoints and limited paper trades are implemented; snapshot loading is centralized and BTC optimizer reuses sampled rows. Existing .obsidian and prior in-review changes were preserved. Gateway was restarted with npm run gateway:restart and existing plus newly added endpoint smoke checks returned 200. This is local resource optimization only; any future live or production path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and a production runbook."
+    },
+    {
+      "id": "one_bitcoin_strategy",
+      "title": "Create One Bitcoin BTC accumulation strategy and backtest",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "docs/strategies/one-bitcoin.md",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "backend/hyperliquid_gateway/strategies/one_bitcoin/",
+        "tests/test_one_bitcoin.py"
+      ],
+      "acceptance": [
+        "One Bitcoin strategy docs define a BTC-only spot accumulation thesis, regime, anti-regime, inputs, triggers, costs, risk, validation, and failure modes.",
+        "Backend strategy package implements deterministic DCA, dip reserve, hybrid accumulator, hybrid trend-filtered, aggressive dip, drawdown-weighted DCA, and research-only cycle harvest variants.",
+        "Backtest metrics report BTC balance, percent of one BTC, total deposited, cash, average cost, costs, months-to-1-BTC, DCA comparison, drawdown, and cash-drag notes.",
+        "The strategy is registered for `npm run hf:backtest -- --strategy one_bitcoin` and `npm run hf:validate -- --strategy one_bitcoin`.",
+        "Validation reports blocked research status by default because this is an accumulation strategy, not an order bot.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_one_bitcoin tests.test_strategy_catalog",
+        "npm run hf:backtest -- --strategy one_bitcoin",
+        "npm run hf:validate -- --strategy one_bitcoin --report <generated_report>",
+        "npm run hf:status"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/one-bitcoin.md",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "backend/hyperliquid_gateway/strategies/one_bitcoin/",
+        "tests/test_one_bitcoin.py",
+        "backend/hyperliquid_gateway/data/backtests/one_bitcoin-one_bitcoin_btc_usd_daily-20260507T211002Z.json",
+        "backend/hyperliquid_gateway/data/validations/one_bitcoin-20260507T211009Z.json",
+        "backend/hyperliquid_gateway/data/market_data/one_bitcoin_btc_usd_daily.json",
+        "progress/impl_one_bitcoin_strategy.md"
+      ],
+      "notes": "Ready for review after follow-up. The report now selects the highest-BTC variant as primary and includes aggressive dip, drawdown-weighted DCA, and research-only cycle harvest variants. Latest real-data backtest selected dca_monthly with 2.20097648 BTC; every dip/sell variant underperformed DCA on final BTC in this sample. Latest signal recommends buying the next contribution immediately while still exposing current deep-dip context."
+    },
+    {
+      "id": "strategy_learning_memory_graph",
+      "title": "Turn Memory graph into a strategy learning loop and fix real Obsidian vault opening",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/data/strategy_memory/",
+        "electron/main/native/workspace-manager.ts",
+        "electron/main/native/obsidian-manager.ts",
+        "electron/preload/index.ts",
+        "electron/types/ipc.types.ts",
+        "src/types/electron.d.ts",
+        "src/services/hyperliquidService.ts",
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "tests/test_strategy_learning_memory.py"
+      ],
+      "acceptance": [
+        "Backend exposes GET and POST strategy learning APIs backed by JSON artifacts under backend/hyperliquid_gateway/data/strategy_memory/.",
+        "Learning events support hypothesis, decision, lesson, postmortem, and rule_change kinds with win, loss, mixed, and unknown outcomes.",
+        "The /memory route exposes learning lenses for Lessons, Mistakes, Wins, Rule Changes, and Open Follow-ups.",
+        "Strategy memory cards show lesson counts, latest learning, open follow-up, and rule-change trail context.",
+        "The graph includes learning-event nodes linked to strategies and evidence artifacts.",
+        "Capture Lesson writes a backend learning artifact and refreshes the graph.",
+        "Obsidian sync writes managed lesson notes under hedge-station/lessons/<strategy_id>/ without overwriting manual notes.",
+        "Open Vault normalizes legacy repo-root paths to the curated hedge-station vault and opens Workspace Home.md through a valid Obsidian vault/file target.",
+        "The /memory route and Open Vault button return control to the UI even if Obsidian is slow or unresponsive.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_strategy_learning_memory",
+        "npm run build",
+        "npm run gateway:probe",
+        "HTTP smoke for strategy learning list/create and strategy catalog",
+        "Electron/browser smoke for /memory, Sync Obsidian, and Open Vault when practical"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/app.py",
+        "tests/test_strategy_learning_memory.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "electron/main/native/workspace-manager.ts",
+        "electron/main/native/obsidian-manager.ts",
+        "electron/preload/index.ts",
+        "electron/types/ipc.types.ts",
+        "src/types/electron.d.ts",
+        "docs/operations/agents/memory/decisions.md",
+        "hedge-station/.obsidian/app.json",
+        "hedge-station/.obsidian/core-plugins.json",
+        "hedge-station/.obsidian/workspace.json",
+        "progress/impl_strategy_learning_memory_graph.md"
+      ],
+      "notes": "Ready for review. Backend strategy learning events now persist as JSON artifacts and expose GET/POST APIs; /memory has learning lenses, learning-event graph nodes, learning stats, and Capture Lesson; Obsidian sync mirrors learning events into managed lesson notes. Open Vault normalizes legacy repo-root config to the curated hedge-station vault, registers that vault in Obsidian, and opens Workspace Home by vault/file target so the native Obsidian graph is not polluted by repo README files. /memory and Open Vault now use timeouts/best-effort native open behavior so the UI does not wait forever if Obsidian is slow. Verification passed except visual browser smoke was limited to HTTP 200 because Playwright is not installed in the Node REPL runtime."
+    },
+    {
+      "id": "terminal_bridge_reliability",
+      "title": "Make Electron terminal bridge reliably spawn usable shells",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "package.json",
+        "scripts/fix-node-pty-permissions.mjs",
+        "electron/main/index.ts",
+        "electron/main/native/pty-manager.ts",
+        "electron/main/native/diagnostics-manager.ts",
+        "electron/main/ipc/ipc-handlers.ts",
+        "electron/preload/index.ts",
+        "electron/types/ipc.types.ts",
+        "src/types/electron.d.ts",
+        "src/components/electron/CommandPalette.tsx",
+        "src/components/electron/TerminalGrid.tsx",
+        "src/contexts/TerminalContext.tsx",
+        "src/features/agents/components/MissionChatWorkbench.tsx",
+        "src/features/agents/components/SystemHealthCard.tsx",
+        "src/features/agents/components/MissionConsoleLauncher.tsx"
+      ],
+      "acceptance": [
+        "node-pty spawn-helper permissions are repaired by a stable script wired into postinstall and terminal:doctor.",
+        "Electron terminal creation preflights helper executability, validates cwd, uses a login-shell/PATH model on macOS/Linux, and reports actionable failures.",
+        "Renderer preload/types expose terminal.smokeTest(cwd, shell?) and diagnostics command checks can resolve commands through the workspace shell.",
+        "Terminal creation failures surface the real repair path in the UI and closing a terminal consistently kills its PTY.",
+        "Workbench/System Check requires runtime commands, shell smoke, and PTY smoke to pass.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run terminal:doctor",
+        "ELECTRON_RUN_AS_NODE=1 ./node_modules/.bin/electron scripts/fix-node-pty-permissions.mjs --smoke",
+        "npm run build",
+        "npm run agent:check",
+        "Electron smoke for /terminals and Workbench System Check when practical"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "scripts/fix-node-pty-permissions.mjs",
+        "electron/main/index.ts",
+        "electron/main/native/pty-manager.ts",
+        "electron/main/native/diagnostics-manager.ts",
+        "electron/main/ipc/ipc-handlers.ts",
+        "electron/preload/index.ts",
+        "electron/types/ipc.types.ts",
+        "src/types/electron.d.ts",
+        "src/components/electron/CommandPalette.tsx",
+        "src/components/electron/TerminalGrid.tsx",
+        "src/contexts/TerminalContext.tsx",
+        "src/features/agents/components/MissionChatWorkbench.tsx",
+        "src/features/agents/components/SystemHealthCard.tsx",
+        "src/features/agents/components/MissionConsoleLauncher.tsx",
+        "progress/impl_terminal_bridge_reliability.md"
+      ],
+      "notes": "Ready for review. node-pty spawn-helper permissions are repaired by terminal:doctor/postinstall, PTY creation preflights helper/cwd and uses login-shell PATH behavior, terminal.smokeTest is exposed through IPC, Workbench System Check requires runtime commands plus shell and PTY smoke, and closeTerminal now kills the backing PTY. Native smoke passed under both Node and Electron-as-Node; visible Electron UI smoke remains the next manual check."
+    },
+    {
+      "id": "strategy_memory_actionable_cleanup",
+      "title": "Make Memory route an actionable strategy evidence map",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "src/features/memory/pages/MemoryGraphPage.tsx"
+      ],
+      "acceptance": [
+        "The /memory route defaults to an actionable strategy-centric view instead of raw node-type graph filters.",
+        "Primary lenses include Actionable, Paper Ready, Blocked, Needs Backtest, Docs Only, and All.",
+        "Strategy cards expose stage, gate, blockers, latest backtest metrics, evidence completeness, memory-note count, and links into strategy detail/source context.",
+        "The Obsidian-style graph remains available but is scoped to the selected lens or strategy neighborhood so docs/backend/artifacts support strategy review.",
+        "Raw node-type counts move to passive legend/detail and Obsidian sync/open-vault behavior remains unchanged.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run build",
+        "npm run gateway:probe",
+        "browser smoke for /memory when practical",
+        "npm run agent:check"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "progress/impl_strategy_memory_actionable_cleanup.md"
+      ],
+      "notes": "Ready for review. /memory now defaults to strategy-centric actionable lenses and cards, with the Obsidian graph scoped to the selected lens/strategy neighborhood. Scope stayed renderer-only; no backend strategy logic, trading, Obsidian IPC contract, sync safety, or credential changes."
+    },
+    {
+      "id": "obsidian_memory_graph_visual_polish",
+      "title": "Polish Memory route into an Obsidian-like graph view",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "src/features/memory/pages/MemoryGraphPage.tsx"
+      ],
+      "acceptance": [
+        "The /memory graph reads visually like an Obsidian-style knowledge map with circular nodes, graceful connections, selection focus, and clear labels.",
+        "The graph remains responsive and readable across desktop and narrow in-app browser widths.",
+        "Existing repo-first graph data, filters, sync action, and inspector behavior remain intact.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run build",
+        "npm run agent:check",
+        "in-app browser smoke for /memory"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "progress/impl_obsidian_memory_graph_visual_polish.md"
+      ],
+      "notes": "Ready for review. Scope stayed in renderer visual polish; graph data, filters, inspector actions, and safe Obsidian sync contracts are unchanged."
+    },
+    {
+      "id": "obsidian_strategy_memory_graph",
+      "title": "Build Obsidian-backed strategy memory graph",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "electron/main/native/obsidian-manager.ts",
+        "electron/main/ipc/ipc-handlers.ts",
+        "electron/preload/index.ts",
+        "electron/types/ipc.types.ts",
+        "src/types/electron.d.ts",
+        "src/features/memory/",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "src/features/README.md"
+      ],
+      "acceptance": [
+        "A dedicated /memory route opens directly to a strategy memory graph.",
+        "Obsidian IPC can recursively index hedge-station markdown notes, extract wiki links and repo path links, and return graph nodes and edges.",
+        "The app can safely sync repo-first strategy memory into managed Obsidian notes without overwriting manually authored notes.",
+        "The graph merges Hyperliquid strategy catalog evidence with Obsidian/repo memory and exposes search, node type filtering, pipeline filtering, sync, open-vault, and inspector actions.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run build",
+        "npm run gateway:probe when the local gateway is available",
+        "Browser/Electron smoke for /memory, /strategies, and /workbench when practical"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "electron/main/native/obsidian-manager.ts",
+        "electron/main/ipc/ipc-handlers.ts",
+        "electron/main/index.ts",
+        "electron/preload/index.ts",
+        "electron/types/ipc.types.ts",
+        "src/types/electron.d.ts",
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "src/features/README.md",
+        "src/pages/index.ts",
+        "src/components/electron/PreloadApiNotice.tsx",
+        "progress/impl_obsidian_strategy_memory_graph.md"
+      ],
+      "notes": "Implementation ready for review. Scope stayed in read-heavy memory visualization and safe managed-note sync; no order routing, credentials, or backend strategy logic changes."
+    },
+    {
+      "id": "strategy_pipeline_actionable_focus",
+      "title": "Make Strategy Pipeline actionable by default and safe to backtest",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "src/features/strategies/",
+        "src/services/hyperliquidService.ts"
+      ],
+      "acceptance": [
+        "The /strategies route opens to an actionable Pipeline tab by default, with the complete strategy inventory available in a separate tab.",
+        "The Pipeline board excludes docs-only/research-only rows from the main columns while preserving them in All Strategies.",
+        "UI backtest actions run only the selected strategy through the local Hyperliquid gateway with a bounded default lookback.",
+        "Strategy Detail prioritizes Hyperliquid catalog/audit evidence, loads artifacts by GET on open, and does not auto-generate backtests on page load.",
+        "Large strategy UI files are reduced by extracting reusable pipeline and backtest evidence components.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_backtest_filters tests.test_backtest_fees_and_scalper",
+        "npm run build",
+        "npm run gateway:probe",
+        "HTTP smoke for strategy catalog count, bb_squeeze_adx latest backtest, and docs-only latest-backtest 404",
+        "Browser smoke for /strategies and /strategy/bb_squeeze_adx/paper when practical"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "src/features/strategies/strategyPipelineModel.ts",
+        "src/features/strategies/components/StrategyPipelineBoard.tsx",
+        "src/features/strategies/components/StrategyInventory.tsx",
+        "src/features/strategies/components/BacktestEvidencePanels.tsx",
+        "src/features/strategies/components/PaperBaselinePanel.tsx",
+        "src/services/hyperliquidService.ts",
+        "src/services/strategyService.ts",
+        "progress/impl_strategy_pipeline_actionable_focus.md"
+      ],
+      "notes": "Implementation ready for review. The Pipeline default is actionable-first, All Strategies preserves the full catalog, UI backtests use bounded local gateway defaults, and Strategy Detail loads backend artifacts without auto-generating missing backtests."
+    },
+    {
       "id": "strategy_pipeline_responsive_layout",
       "title": "Fix Strategy Pipeline responsive layout and structure",
       "mission_class": "UI review-speed audit",
@@ -259,6 +772,559 @@
         "progress/impl_btc_failed_impulse_reversal_strategy.md"
       ],
       "notes": "Human asked for the best Bitcoin trading strategy with backtesting and maximum possible return. BTC Failed Impulse Reversal is the best current local BTC candidate: 2026-05-06 taker-fee backtest returned 0.97% with 9 trades, 88.89% win rate, 22.68 profit factor, 0.05% max drawdown, robust gate passes, and validation is ready-for-paper. Paper payload is standby because latest signal is none. This task remains research/backtesting/paper-candidate only; no live trading, credentials, production routing, or promotion is in scope. Any future live or production path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and a production runbook."
+    },
+    {
+      "id": "btc_strategy_doubling_leaderboard",
+      "title": "Add BTC strategy doubling-speed leaderboard evidence",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/backtesting/",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "backend/hyperliquid_gateway/data/backtests/",
+        "backend/hyperliquid_gateway/data/validations/"
+      ],
+      "acceptance": [
+        "Run comparable BTC-only taker-fee backtests for registered Hyperliquid BTC strategy candidates where the local dataset supports them.",
+        "Derive an inspectable doubling estimate from backend backtest artifacts using sample duration, return, trade count, fee model, robust assessment, and validation status.",
+        "Strategy Pipeline shows doubling-speed evidence without moving strategy logic into React.",
+        "Implementation handoff names files changed, generated artifacts, commands, results, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_backtest_filters tests.test_backtest_fees_and_scalper tests.test_btc_failed_impulse_reversal",
+        "npm run hf:backtest -- --strategy btc_failed_impulse_reversal --symbol BTC --fee-model taker --lookback-days 3",
+        "npm run hf:validate -- --strategy btc_failed_impulse_reversal --report <primary_report>",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/backtesting/doubling.py",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_failed_impulse_reversal-hyperliquid-20260506T220313Z.json",
+        "backend/hyperliquid_gateway/data/validations/btc_failed_impulse_reversal-20260506T220348Z.json",
+        "progress/impl_btc_strategy_doubling_leaderboard.md"
+      ],
+      "notes": "Implementation ready for review. Current BTC ranking from the local 3-day taker-fee window identifies btc_failed_impulse_reversal as the only positive, robust, ready-for-paper candidate: 0.99% return, 9 trades, 88.89% win rate, 23.12 profit factor, 0.05% max drawdown, and projected research-only 2x ETA of 211.0 days. This task creates ranking evidence only inside the research, backtest, and validation workflow; any paper, risk, operator sign-off, live trading, credential changes, or production promotion remains out of scope and blocked until an explicit gate package exists."
+    },
+    {
+      "id": "btc_failed_impulse_paper_baseline",
+      "title": "Add BTC Failed Impulse paper baseline and drift gates",
+      "mission_class": "strategy validation audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/backtesting/",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/"
+      ],
+      "acceptance": [
+        "Paper candidate artifacts for btc_failed_impulse_reversal include a quantitative baseline derived from the matched backtest and doubling estimate.",
+        "The baseline names the paper sample requirement, drift checks, blocker thresholds, and review gates before any future promotion.",
+        "Strategy Detail makes the paper baseline inspectable without moving strategy logic into React.",
+        "Implementation handoff names changed files, regenerated paper artifact, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_backtest_filters tests.test_backtest_fees_and_scalper tests.test_btc_failed_impulse_reversal",
+        "npm run hf:paper -- --strategy btc_failed_impulse_reversal --report <latest_report> --validation <latest_validation>",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/backtesting/doubling.py",
+        "backend/hyperliquid_gateway/backtesting/workflow.py",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "backend/hyperliquid_gateway/data/paper/btc_failed_impulse_reversal-20260506T221259Z.json",
+        "progress/impl_btc_failed_impulse_paper_baseline.md"
+      ],
+      "notes": "Implementation ready for review. Latest paper artifact includes paper_baseline with 14 calendar days, 30 closed paper trades, 90% review coverage, drift checks, kill switches, and blockers for sample, drift, reviews, regime, risk, and operator sign-off. This is research, backtest, validation, paper, risk, and operator-review evidence only; live trading, credential changes, and production promotion stay blocked."
+    },
+    {
+      "id": "btc_paper_readiness_evaluator",
+      "title": "Evaluate BTC paper trades against the paper baseline",
+      "mission_class": "strategy validation audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/backtesting/",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/"
+      ],
+      "acceptance": [
+        "Backend exposes a paper readiness response for btc_failed_impulse_reversal that loads the latest paper baseline and evaluates matching paper trades.",
+        "The readiness response reports sample progress, estimated fee-adjusted paper metrics, drift-check pass/fail state, blockers, and next required action.",
+        "Strategy Detail displays paper readiness next to the paper baseline without treating missing paper trades as success.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_backtest_filters tests.test_backtest_fees_and_scalper tests.test_btc_failed_impulse_reversal",
+        "curl smoke for /api/hyperliquid/paper/readiness/btc_failed_impulse_reversal",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/backtesting/doubling.py",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "backend/hyperliquid_gateway/data/paper/btc_failed_impulse_reversal-20260506T221801Z.json",
+        "progress/impl_btc_paper_readiness_evaluator.md"
+      ],
+      "notes": "Implementation ready for review. Readiness endpoint currently reports btc_failed_impulse_reversal as collecting-paper-trades with 0/30 required closed paper trades, no fee-adjusted paper return evidence yet, and blockers for sample, drift checks, regime review, risk review, and operator sign-off. This evaluates research, backtest, validation, paper, risk, and operator-review evidence only; live trading, credential changes, and production promotion stay blocked."
+    },
+    {
+      "id": "btc_failed_impulse_paper_runtime_tick",
+      "title": "Wire BTC Failed Impulse paper runtime tick",
+      "mission_class": "strategy validation audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/cli.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/",
+        "src/services/hyperliquidService.ts",
+        "src/features/paper/pages/HyperliquidPaperLabPage.tsx",
+        "tests/",
+        "package.json"
+      ],
+      "acceptance": [
+        "Backend exposes a BTC Failed Impulse paper runtime tick that evaluates the current BTC setup with backend strategy logic.",
+        "The tick opens a paper trade only when the strategy emits long/short, never when the signal is none, and never when a matching open paper trade already exists.",
+        "The tick closes matching open paper trades when stop, target, or time-stop rules trigger, and writes only to the paper SQLite ledger.",
+        "A stable local command or UI action can run the tick for scheduled paper collection without live routing or credential changes.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_btc_failed_impulse_reversal tests.test_strategy_catalog tests.test_backtest_filters tests.test_backtest_fees_and_scalper",
+        "npm run build",
+        "npm run gateway:restart",
+        "curl dry-run smoke for /api/hyperliquid/paper/runtime/btc_failed_impulse_reversal/tick",
+        "npm run hf:paper:tick -- --strategy btc_failed_impulse_reversal --dry-run"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/paper.py",
+        "backend/hyperliquid_gateway/app.py",
+        "backend/hyperliquid_gateway/cli.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/paper/pages/HyperliquidPaperLabPage.tsx",
+        "tests/test_btc_failed_impulse_reversal.py",
+        "tests/test_strategy_catalog.py",
+        "package.json",
+        "progress/impl_btc_failed_impulse_paper_runtime_tick.md"
+      ],
+      "notes": "Implementation ready for review. The paper-only tick evaluates BTC Failed Impulse with backend strategy logic, uses a 4h SQLite history fallback after restarts, opens only on long/short signals, skips when signal is none or a matching trade is already open, and closes matching open paper trades on stop, target, or time stop. Current dry-run status is flat-no-signal with no trade opened. Any future production/live path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and runbook gates."
+    },
+    {
+      "id": "btc_failed_impulse_paper_runtime_loop",
+      "title": "Add schedulable BTC paper runtime loop",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/cli.py",
+        "scripts/",
+        "package.json",
+        "docs/operations/",
+        "tests/"
+      ],
+      "acceptance": [
+        "A stable command can run repeated BTC Failed Impulse paper ticks at a configurable cadence.",
+        "The command has a dry-run mode and max-ticks option so verification never requires an endless process.",
+        "The loop output records tick status, signal, opened trade, closed trades, and block reason for auditability.",
+        "Docs explain how to run the paper loop locally or under a supervisor without live routing or credential changes.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_cli_paper_runtime_loop tests.test_btc_failed_impulse_reversal tests.test_strategy_catalog",
+        "npm run hf:paper:loop -- --strategy btc_failed_impulse_reversal --dry-run --max-ticks 1 --interval-seconds 1",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/cli.py",
+        "package.json",
+        "tests/test_cli_paper_runtime_loop.py",
+        "docs/operations/btc-paper-runtime-loop.md",
+        "progress/impl_btc_failed_impulse_paper_runtime_loop.md"
+      ],
+      "notes": "Implementation ready for review. Added a bounded, schedulable paper-only loop with dry-run and max-ticks controls, JSON-lines tick summaries, package script, tests, and runbook. Current bounded dry-run status is flat-no-signal with no trade opened. This must not place live trades, change credentials, or promote the strategy. Any future production/live path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and runbook gates."
+    },
+    {
+      "id": "btc_paper_loop_supervisor_controls",
+      "title": "Add local supervisor controls for BTC paper loop",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "scripts/",
+        "package.json",
+        "docs/operations/",
+        "tests/"
+      ],
+      "acceptance": [
+        "A local script can start, stop, status-check, and tail the BTC paper loop without editing code.",
+        "The start path supports dry-run and max-ticks so verification does not leave an unbounded process running.",
+        "The script records pid, log path, gateway URL, cadence, dry-run state, and strategy for operator inspection.",
+        "Docs explain the bounded smoke path and the operator-approved long-running paper-only path.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "bash -n scripts/btc-paper-runtime-loop.sh",
+        "npm run hf:paper:supervisor -- status",
+        "npm run hf:paper:supervisor -- start --dry-run --max-ticks 1 --interval-seconds 1",
+        "npm run hf:paper:supervisor -- status",
+        "npm run hf:paper:supervisor -- stop",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "scripts/btc-paper-runtime-loop.sh",
+        "package.json",
+        "docs/operations/btc-paper-runtime-loop.md",
+        "progress/impl_btc_paper_loop_supervisor_controls.md"
+      ],
+      "notes": "Implementation ready for review. Start/stop/status/tail controls were verified with a bounded dry-run supervisor smoke using max-ticks=1; the tick finished flat-no-signal with no trade opened and no long-running process left running. This is local supervision for paper simulation only. It must not place live trades, change credentials, or promote the strategy. Any future production/live path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and runbook gates."
+    },
+    {
+      "id": "btc_failed_impulse_start_paper_collection",
+      "title": "Start BTC Failed Impulse paper-only evidence collection",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "scripts/",
+        "docs/operations/",
+        "backend/hyperliquid_gateway/data/"
+      ],
+      "acceptance": [
+        "Confirm the local gateway and paper supervisor status before starting collection.",
+        "Start the BTC Failed Impulse paper loop without dry-run at a conservative 300 second cadence.",
+        "Confirm supervisor status and tail output so the operator can inspect whether ticks are running.",
+        "Leave explicit evidence that this is paper-only collection, not live trading or promotion.",
+        "Implementation handoff names commands, process status, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run gateway:probe",
+        "npm run hf:paper:supervisor -- status",
+        "npm run hf:paper:supervisor -- start --strategy btc_failed_impulse_reversal --interval-seconds 300",
+        "npm run hf:paper:supervisor -- status",
+        "npm run hf:paper:supervisor -- tail 20"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "scripts/btc-paper-runtime-loop.sh",
+        "docs/operations/btc-paper-runtime-loop.md",
+        "progress/impl_btc_failed_impulse_start_paper_collection.md"
+      ],
+      "notes": "Implementation ready for review. Existing research, backtest, and validation gates identify btc_failed_impulse_reversal as ready for paper evidence collection, not live execution. The paper-only loop is running in screen session btc-paper-runtime-loop at 300 second cadence with dry_run=false. Paper trade id=1 is open from the backend strategy signal; readiness remains collecting-paper-trades with 0/30 closed trades. This must not place live trades, change credentials, or promote the strategy. Future production/live path remains blocked behind research, backtest, validation, paper sample, risk review, operator sign-off, monitoring, rollback, and runbook gates."
+    },
+    {
+      "id": "btc_paper_runtime_supervisor_visibility",
+      "title": "Expose BTC paper runtime supervisor status in the app",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py"
+      ],
+      "acceptance": [
+        "Backend exposes paper runtime supervisor state, metadata, recent log tail, and last tick summary for btc_failed_impulse_reversal.",
+        "Strategy Detail shows whether BTC paper collection is running, its cadence, mode, started time, and latest tick status next to paper readiness.",
+        "The visibility layer does not start, stop, place live trades, change credentials, or alter backend strategy decisions.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_btc_failed_impulse_reversal",
+        "curl smoke for /api/hyperliquid/paper/runtime/btc_failed_impulse_reversal/supervisor",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "progress/impl_btc_paper_runtime_supervisor_visibility.md"
+      ],
+      "notes": "Implementation ready for review. Strategy Detail can now inspect the running BTC paper-only supervisor through the backend endpoint; curl smoke returned running=true, mode=screen, pid=71918, intervalSeconds=300, dryRun=false, and last tick managing-open-trade. Existing research, backtest, validation, paper, risk, and operator gates still govern promotion. This task does not place live trades, change credentials, promote production execution, or alter strategy logic."
+    },
+    {
+      "id": "btc_paper_runtime_health_gate",
+      "title": "Add BTC paper runtime health gate",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py"
+      ],
+      "acceptance": [
+        "Supervisor status includes a health state, stale threshold, log age, and blockers when paper collection is stopped, stale, dry-run, wrong-strategy, or unsupported.",
+        "Strategy Detail makes the health gate visible beside runtime status so a stale 24/7 collection loop is obvious.",
+        "The health gate is read-only and does not start, stop, place trades, change credentials, or alter strategy decisions.",
+        "Implementation handoff names changed files, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_btc_failed_impulse_reversal",
+        "curl smoke for /api/hyperliquid/paper/runtime/btc_failed_impulse_reversal/supervisor",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "progress/impl_btc_paper_runtime_health_gate.md"
+      ],
+      "notes": "Implementation ready for review. Supervisor endpoint now reports healthStatus, healthBlockers, healthChecks, stale threshold, and log age; Strategy Detail shows the health gate. Current curl smoke reports healthStatus=healthy, running=true, intervalSeconds=300, dryRun=false, no blockers, and last tick managing-open-trade. Existing research, backtest, validation, paper, risk, and operator gates still govern promotion. This task does not place live trades, change credentials, promote production execution, or alter strategy logic."
+    },
+    {
+      "id": "btc_doubling_stability_audit",
+      "title": "Audit BTC doubling estimate stability by subwindow",
+      "mission_class": "strategy validation audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/backtesting/",
+        "backend/hyperliquid_gateway/cli.py",
+        "package.json",
+        "backend/hyperliquid_gateway/data/audits/",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/"
+      ],
+      "acceptance": [
+        "A stable command writes an inspectable BTC doubling stability audit artifact for btc_failed_impulse_reversal.",
+        "The audit splits the matched backtest window into subwindows and reports returns, trade counts, win rate, profit factor, concentration, blockers, and status.",
+        "Latest stability audit path is visible in Strategy Detail artifacts so the operator can inspect it.",
+        "Implementation handoff names generated artifact, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_btc_failed_impulse_reversal",
+        "npm run hf:doubling:stability -- --strategy btc_failed_impulse_reversal",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/backtesting/doubling.py",
+        "backend/hyperliquid_gateway/backtesting/workflow.py",
+        "backend/hyperliquid_gateway/cli.py",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_strategy_catalog.py",
+        "package.json",
+        "backend/hyperliquid_gateway/data/audits/btc_failed_impulse_reversal-doubling-stability-20260506T230254Z.json",
+        "progress/impl_btc_doubling_stability_audit.md"
+      ],
+      "notes": "Implementation ready for review. Research/backtest/validation audit only. The generated BTC audit is fragile: all 3 subwindows are positive, but the largest slice contributes 56.6% of net PnL and trips return_concentration. This task did not place live trades, change credentials, change paper runtime state, or promote production execution. Existing research, backtest, validation, paper, risk, and operator gates remain required."
+    },
+    {
+      "id": "btc_failed_impulse_variant_optimizer",
+      "title": "Optimize BTC Failed Impulse variants for faster credible doubling",
+      "mission_class": "strategy validation audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/",
+        "backend/hyperliquid_gateway/backtesting/",
+        "backend/hyperliquid_gateway/cli.py",
+        "backend/hyperliquid_gateway/app.py",
+        "package.json",
+        "backend/hyperliquid_gateway/data/audits/",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/"
+      ],
+      "acceptance": [
+        "A stable command writes an inspectable BTC Failed Impulse variant optimizer artifact.",
+        "The optimizer compares parameter variants by return, trades, robust status, doubling estimate, stability, and concentration.",
+        "The default paper/runtime strategy behavior is unchanged unless a later human review explicitly promotes a variant.",
+        "Latest optimizer artifact path and top variant summary are visible in Strategy Detail artifacts.",
+        "Implementation handoff names generated artifact, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_btc_failed_impulse_reversal",
+        "npm run hf:btc:optimize -- --strategy btc_failed_impulse_reversal",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/logic.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/risk.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/backtest.py",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_reversal/optimizer.py",
+        "backend/hyperliquid_gateway/backtesting/workflow.py",
+        "backend/hyperliquid_gateway/cli.py",
+        "backend/hyperliquid_gateway/app.py",
+        "src/services/hyperliquidService.ts",
+        "src/features/strategies/pages/StrategyDetailPage.tsx",
+        "tests/test_btc_failed_impulse_reversal.py",
+        "tests/test_strategy_catalog.py",
+        "package.json",
+        "backend/hyperliquid_gateway/data/audits/btc_failed_impulse_reversal-variant-optimizer-20260506T231057Z.json",
+        "progress/impl_btc_failed_impulse_variant_optimizer.md"
+      ],
+      "notes": "Implementation ready for review. Research/backtest/validation optimizer only. The optimizer found one stable candidate, default_signal__balanced_fast: 0.54% return, 12 trades, 58.33% win rate, 3.27 profit factor, 0.11% max drawdown, projected 385.8 days to double, stable subwindows, and 43.77% largest positive slice PnL share. This task did not place live trades, change credentials, change paper runtime state, alter the running paper strategy, or promote production execution. Existing research, backtest, validation, paper, risk, and operator gates remain required."
+    },
+    {
+      "id": "strategy_pipeline_inventory_cleanup",
+      "title": "Make created strategies visible and clean pipeline review state",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "docs/strategies/",
+        "backend/hyperliquid_gateway/strategies/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "backend/hyperliquid_gateway/data/backtests/",
+        "backend/hyperliquid_gateway/data/validations/",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "tests/"
+      ],
+      "acceptance": [
+        "The stable BTC optimizer variant is promoted into a named research strategy package and appears in the backend strategy catalog.",
+        "Strategy Pipeline shows an all-strategy inventory so every registered/backend/docs strategy is visible even when blocked.",
+        "Non-working strategies remain visible with blocked/cleanup state instead of being hidden or treated as candidates.",
+        "No live trading, credential changes, paper runtime state changes, or production promotion occur.",
+        "Implementation handoff names generated artifacts, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_strategy_catalog tests.test_btc_failed_impulse_reversal",
+        "npm run hf:backtest -- --strategy btc_failed_impulse_balanced_fast --symbol BTC --fee-model taker --lookback-days 3",
+        "npm run hf:validate -- --strategy btc_failed_impulse_balanced_fast --report <generated_report>",
+        "npm run build"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/btc-failed-impulse-balanced-fast.md",
+        "backend/hyperliquid_gateway/strategies/btc_failed_impulse_balanced_fast/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "src/features/strategies/pages/StrategyLibraryPage.tsx",
+        "tests/test_btc_failed_impulse_reversal.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_failed_impulse_balanced_fast-hyperliquid-20260506T233333Z.json",
+        "backend/hyperliquid_gateway/data/validations/btc_failed_impulse_balanced_fast-20260506T233340Z.json",
+        "progress/impl_strategy_pipeline_inventory_cleanup.md"
+      ],
+      "notes": "Implementation ready for review. btc_failed_impulse_balanced_fast is now a named docs/backend/registered strategy and appears in the catalog with generated backtest and validation artifacts. The Strategy Pipeline now includes an all-strategy inventory so docs-only, blocked, paper-ready, and registered rows are visible. The new strategy is intentionally blocked by validation, not promoted: robust_gate, robust:positive_net_return, and robust:max_largest_trade_pnl_share_pct. This task did not place live trades, change credentials, change paper runtime state, or promote production execution. Existing research, backtest, validation, paper, risk, and operator gates remain required."
+    },
+    {
+      "id": "long_flush_continuation_strategy",
+      "title": "Create and backtest Long Flush Continuation strategy",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/",
+        "docs/strategies/",
+        "backend/hyperliquid_gateway/strategies/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "backend/hyperliquid_gateway/data/backtests/",
+        "backend/hyperliquid_gateway/data/validations/",
+        "backend/hyperliquid_gateway/data/paper/",
+        "tests/"
+      ],
+      "acceptance": [
+        "Strategy spec exists for long_flush_continuation with hypothesis, regimes, rules, costs, risk, validation, and failure modes.",
+        "Backend strategy package exists with deterministic short-side logic, scoring, risk, paper, and registered backtest workflow.",
+        "Backtest artifacts are generated with fee metadata, symbol leaderboard, exit reasons, and robust assessment.",
+        "Validation artifact is generated and paper candidate is created only if validation reaches ready-for-paper.",
+        "Implementation handoff names files changed, verification, risks, assumptions, and next action."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "python3 -m unittest tests.test_backtest_filters tests.test_backtest_fees_and_scalper tests.test_strategy_catalog tests.test_long_flush_continuation",
+        "npm run hf:backtest -- --strategy long_flush_continuation --symbols BTC,SOL,HYPE --fee-model taker --lookback-days 3",
+        "npm run hf:backtest -- --strategy long_flush_continuation --symbols BTC,SOL,HYPE --fee-model mixed --maker-ratio 0.35 --lookback-days 3",
+        "npm run hf:validate -- --strategy long_flush_continuation --report <primary_report>",
+        "npm run hf:paper -- --strategy long_flush_continuation --report <primary_report> --validation <validation_report> when validation is ready-for-paper"
+      ],
+      "status": "review",
+      "owner": "next-reviewer",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/long-flush-continuation.md",
+        "backend/hyperliquid_gateway/strategies/long_flush_continuation/spec.md",
+        "backend/hyperliquid_gateway/strategies/long_flush_continuation/logic.py",
+        "backend/hyperliquid_gateway/strategies/long_flush_continuation/scoring.py",
+        "backend/hyperliquid_gateway/strategies/long_flush_continuation/risk.py",
+        "backend/hyperliquid_gateway/strategies/long_flush_continuation/paper.py",
+        "backend/hyperliquid_gateway/strategies/long_flush_continuation/backtest.py",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_long_flush_continuation.py",
+        "backend/hyperliquid_gateway/data/backtests/long_flush_continuation-hyperliquid-20260507T010749Z.json",
+        "backend/hyperliquid_gateway/data/backtests/long_flush_continuation-hyperliquid-20260507T010757Z.json",
+        "backend/hyperliquid_gateway/data/validations/long_flush_continuation-20260507T010806Z.json",
+        "progress/impl_long_flush_continuation_strategy.md"
+      ],
+      "notes": "Implementation ready for review. Long Flush Continuation is registered and has docs, backend logic, tests, taker/mixed backtest artifacts, and validation evidence. Validation is blocked: the primary 3-day BTC/SOL/HYPE taker replay found 1 HYPE trade, -$2.77 net PnL, insufficient sample, and robust blockers for trade count, positive return, profit factor, and average net trade return. Paper candidate generation was intentionally skipped. Research/backtesting only. No live trading, credentials, paper runtime changes, or promotion are in scope; any future production path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, monitoring, rollback, and a runbook."
     }
   ]
 }

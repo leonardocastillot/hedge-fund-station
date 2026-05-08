@@ -128,6 +128,17 @@ function saveSessionsToStorage(sessions: TerminalSession[]): void {
   }
 }
 
+function formatTerminalCreateError(error?: string): string {
+  const message = error || 'Failed to create terminal process';
+  if (/terminal:doctor|node-pty|spawn-helper|posix_spawnp|execute permission/i.test(message)) {
+    return message.includes('terminal:doctor')
+      ? message
+      : `${message}. Run npm run terminal:doctor, then restart the Electron shell.`;
+  }
+
+  return message;
+}
+
 export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [terminals, setTerminals] = useState<TerminalSession[]>(() => loadPersistedSessions());
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(null);
@@ -233,14 +244,15 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     void window.electronAPI.terminal.create(id, cwd, shell, autoCommand)
       .then((result) => {
         if (result?.success === false) {
+          const detail = formatTerminalCreateError(result.error);
           setTerminals(prev => prev.map((item) => (
             item.id === id
               ? {
                   ...item,
                   ptyState: 'failed',
-                  ptyDetail: result.error || 'Failed to create terminal process',
+                  ptyDetail: detail,
                   runtimeState: item.runtimeProvider ? 'failed' : item.runtimeState,
-                  runtimeDetail: result.error || item.runtimeDetail
+                  runtimeDetail: detail || item.runtimeDetail
                 }
               : item
           )));
@@ -258,7 +270,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         )));
       })
       .catch((error) => {
-        const message = error instanceof Error ? error.message : 'Failed to create terminal process';
+        const message = formatTerminalCreateError(error instanceof Error ? error.message : undefined);
         setTerminals(prev => prev.map((item) => (
           item.id === id
             ? {
@@ -280,6 +292,8 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [terminals.length]);
 
   const closeTerminal = useCallback((id: string) => {
+    window.electronAPI.terminal.kill(id);
+
     setTerminals(prev => {
       const filtered = prev.filter(t => t.id !== id);
 

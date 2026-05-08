@@ -1,5 +1,6 @@
 import { execFile, spawn } from 'child_process';
 import * as os from 'os';
+import * as path from 'path';
 import { ObsidianManager } from './obsidian-manager';
 import type {
   DiagnosticsCheckCommandsParams,
@@ -10,9 +11,26 @@ import type {
   DiagnosticsMissionDrillResult
 } from '../../types/ipc.types';
 
+const PATH_PREFIX = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin',
+  '/usr/sbin',
+  '/sbin'
+];
+
+function buildEnv(): NodeJS.ProcessEnv {
+  const existing = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  return {
+    ...process.env,
+    PATH: Array.from(new Set([...PATH_PREFIX, ...existing])).join(path.delimiter)
+  };
+}
+
 function execFileAsync(file: string, args: string[], options: { cwd?: string } = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile(file, args, { cwd: options.cwd, windowsHide: true }, (error, stdout, stderr) => {
+    execFile(file, args, { cwd: options.cwd, windowsHide: true, env: buildEnv() }, (error, stdout, stderr) => {
       if (error) {
         reject({ error, stdout, stderr });
         return;
@@ -22,32 +40,50 @@ function execFileAsync(file: string, args: string[], options: { cwd?: string } =
   });
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function getExecutable(command: string): string {
+  return command.trim().split(/\s+/)[0] || command.trim();
+}
+
 export class DiagnosticsManager {
   constructor(private readonly obsidianManager = new ObsidianManager()) {}
 
   async checkCommands(params: DiagnosticsCheckCommandsParams): Promise<DiagnosticsCommandStatus[]> {
     const unique = Array.from(new Set(params.commands.map((command) => command.trim()).filter(Boolean)));
     const isWindows = os.platform() === 'win32';
+    const shell = params.shell || (isWindows ? 'powershell.exe' : process.env.SHELL || '/bin/bash');
 
     return Promise.all(unique.map(async (command) => {
+      const executable = getExecutable(command);
+
       try {
         let resolvedPath: string | undefined;
 
         if (isWindows) {
           try {
-            const { stdout } = await execFileAsync('where.exe', [command]);
+            const { stdout } = await execFileAsync('where.exe', [executable], { cwd: params.cwd });
             resolvedPath = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
           } catch {
             resolvedPath = undefined;
           }
 
           if (!resolvedPath) {
-            const psCommand = `(Get-Command '${command.replace(/'/g, "''")}' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)`;
-            const { stdout } = await execFileAsync('powershell.exe', ['-NoLogo', '-Command', psCommand]);
+            const psCommand = `(Get-Command '${executable.replace(/'/g, "''")}' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)`;
+            const powerShell = shell.toLowerCase().includes('powershell') || shell.toLowerCase().endsWith('pwsh.exe') || shell.toLowerCase() === 'pwsh'
+              ? shell
+              : 'powershell.exe';
+            const { stdout } = await execFileAsync(powerShell, ['-NoLogo', '-Command', psCommand], { cwd: params.cwd });
             resolvedPath = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
           }
         } else {
-          const { stdout } = await execFileAsync('which', [command]);
+          const { stdout } = await execFileAsync(
+            shell,
+            ['-lc', `command -v -- ${shellQuote(executable)}`],
+            { cwd: params.cwd }
+          );
           resolvedPath = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
         }
 
@@ -93,7 +129,11 @@ export class DiagnosticsManager {
   }
 
   async runMissionDrill(params: DiagnosticsMissionDrillParams): Promise<DiagnosticsMissionDrillResult> {
-    const commandStatuses = await this.checkCommands({ commands: params.commands });
+    const commandStatuses = await this.checkCommands({
+      commands: params.commands,
+      cwd: params.workspacePath,
+      shell: params.shell
+    });
     const shell = await this.shellSmokeTest({ cwd: params.workspacePath, shell: params.shell });
     const checkedAt = new Date().toISOString();
     const errors: string[] = [];

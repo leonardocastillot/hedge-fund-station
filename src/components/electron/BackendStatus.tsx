@@ -4,6 +4,7 @@ import {
   HYPERLIQUID_GATEWAY_HTTP_URL,
   LEGACY_TRADING_HTTP_URL
 } from '../../services/backendConfig';
+import { hyperliquidService, type HyperliquidAppReadiness } from '../../services/hyperliquidService';
 import { invalidateRequestCache, withRequestCache } from '../../services/requestCache';
 import { useMarketPolling } from '../../hooks/useMarketPolling';
 
@@ -161,6 +162,34 @@ function labelFor(result: BackendProbeResult, optional?: boolean): string {
   return optional ? 'off' : 'down';
 }
 
+function readinessTone(readiness: HyperliquidAppReadiness | null | undefined, fallback: BackendProbeResult) {
+  if (!readiness) {
+    return resultTone(fallback);
+  }
+  if (readiness.overallStatus === 'ready') {
+    return {
+      background: 'rgba(34, 197, 94, 0.1)',
+      border: 'rgba(34, 197, 94, 0.25)',
+      color: '#22c55e',
+      dot: '#22c55e'
+    };
+  }
+  if (readiness.overallStatus === 'blocked') {
+    return {
+      background: 'rgba(239, 68, 68, 0.1)',
+      border: 'rgba(239, 68, 68, 0.25)',
+      color: '#ef4444',
+      dot: '#ef4444'
+    };
+  }
+  return {
+    background: 'rgba(245, 158, 11, 0.1)',
+    border: 'rgba(245, 158, 11, 0.25)',
+    color: '#fbbf24',
+    dot: '#f59e0b'
+  };
+}
+
 export const BackendStatus: React.FC = () => {
   const poll = useMarketPolling(
     'backend:status-pill',
@@ -173,26 +202,43 @@ export const BackendStatus: React.FC = () => {
     },
     { intervalMs: 60_000, staleAfterMs: 90_000 }
   );
+  const readinessPoll = useMarketPolling(
+    'backend:status-readiness-pill',
+    () => hyperliquidService.getAppReadiness(500),
+    { intervalMs: 60_000, staleAfterMs: 90_000 }
+  );
 
   const checkBackend = async (force = false) => {
     if (force) {
       probes.forEach((probe) => invalidateRequestCache(`backend:${probe.id}`));
     }
-    await poll.refresh();
+    await Promise.all([poll.refresh(), readinessPoll.refresh()]);
   };
 
   const results = poll.data || initialResults;
-  const isChecking = poll.status === 'loading' || poll.isRefreshing;
+  const readiness = readinessPoll.data;
+  const isChecking = poll.status === 'loading' || poll.isRefreshing || readinessPoll.status === 'loading' || readinessPoll.isRefreshing;
 
   const alpha = results.alpha;
   const gateway = results.gateway;
   const legacy = results.legacy;
-  const tone = resultTone(alpha);
-  const title = probes.map((probe) => {
+  const tone = readinessTone(readiness, alpha);
+  const probeTitle = probes.map((probe) => {
     const result = results[probe.id];
     const latency = result.latencyMs === null ? 'n/a' : `${result.latencyMs}ms`;
     return `${probe.label}: ${result.state} (${latency}) ${probe.baseUrl} - ${result.detail}`;
   }).join('\n');
+  const readinessTitle = readiness
+    ? `Readiness: ${readiness.overallStatus} (${readiness.summary.readyChecks} ready, ${readiness.summary.attentionChecks} attention, ${readiness.summary.blockedChecks} blocked)`
+    : 'Readiness: not checked yet';
+  const title = `${readinessTitle}\n${probeTitle}`;
+  const readinessLabel = readiness?.overallStatus === 'ready'
+    ? 'Ready'
+    : readiness?.overallStatus === 'blocked'
+      ? 'Block'
+      : readiness
+        ? 'Check'
+        : 'Readiness';
 
   return (
     <div
@@ -225,7 +271,10 @@ export const BackendStatus: React.FC = () => {
         }}
       />
       <span style={{ color: isChecking ? '#fbbf24' : tone.color }}>
-        {isChecking ? 'Checking' : `VM ${labelFor(alpha)}`}
+        {isChecking ? 'Checking' : readinessLabel}
+      </span>
+      <span style={{ color: 'rgba(255, 255, 255, 0.55)' }}>
+        VM {labelFor(alpha)}
       </span>
       <span style={{ color: 'rgba(255, 255, 255, 0.55)' }}>
         H {labelFor(gateway, true)}

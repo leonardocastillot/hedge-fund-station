@@ -103,6 +103,15 @@ export interface HedgeFundInsights {
   reasoning: string[];
 }
 
+export interface LiquidationsSummary {
+  status: LiquidationsStats;
+  insights: HedgeFundInsights | null;
+  snapshots: LiquidationSnapshot[];
+  alerts: LiquidationAlert[];
+  chart: LiquidationChartData | null;
+  fetchedAt: number;
+}
+
 class LiquidationsService {
   async startMonitoring(): Promise<any> {
     const response = await fetchWithTimeout(`${API_URL}/api/liquidations/start`, {
@@ -211,6 +220,27 @@ class LiquidationsService {
       console.error('Error fetching insights:', error);
       return null;
     }
+  }
+
+  async getSummary(hours: number = 24, limits: { snapshots?: number; alerts?: number } = {}): Promise<LiquidationsSummary> {
+    const snapshotsLimit = limits.snapshots ?? 20;
+    const alertsLimit = limits.alerts ?? 10;
+    return withRequestCache(`liquidations:summary:${hours}:${snapshotsLimit}:${alertsLimit}`, 20_000, async () => {
+      const params = new URLSearchParams({
+        hours: String(hours),
+        snapshots_limit: String(snapshotsLimit),
+        alerts_limit: String(alertsLimit)
+      });
+      const response = await fetchWithTimeout(`${API_URL}/api/liquidations/summary?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      if (!result.success || !result.data) {
+        throw new Error('Backend returned invalid summary data');
+      }
+      return result.data;
+    });
   }
 
   connectWebSocket(

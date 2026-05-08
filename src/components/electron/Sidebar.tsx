@@ -94,7 +94,7 @@ export const Sidebar: React.FC = () => {
         updatedAt: overview.updatedAt
       };
     },
-    { intervalMs: 12_000, staleAfterMs: 35_000 }
+    { intervalMs: 30_000, staleAfterMs: 90_000 }
   );
 
   useEffect(() => {

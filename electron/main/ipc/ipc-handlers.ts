@@ -27,6 +27,8 @@ import type {
   ObsidianListNotesParams,
   ObsidianSearchRelevantParams,
   ObsidianListPinnedParams,
+  ObsidianGetGraphParams,
+  ObsidianSyncStrategyMemoryParams,
   ObsidianExportMissionParams,
   ObsidianOpenPathParams,
   ObsidianOpenVaultParams,
@@ -85,6 +87,10 @@ export function registerTerminalHandlers(ptyManager: PTYManager): void {
 
   ipcMain.handle('terminal:getSnapshot', async (_event, terminalId: string) => {
     return ptyManager.getTerminalSnapshot(terminalId);
+  });
+
+  ipcMain.handle('terminal:smokeTest', async (_event, params: { cwd: string; shell?: string }) => {
+    return ptyManager.smokeTest(params.cwd, params.shell);
   });
 }
 
@@ -286,6 +292,14 @@ export function registerObsidianHandlers(obsidianManager: ObsidianManager): void
 
   ipcMain.handle('obsidian:listPinned', async (_event, params: ObsidianListPinnedParams) => {
     return obsidianManager.listPinned(params);
+  });
+
+  ipcMain.handle('obsidian:getGraph', async (_event, params: ObsidianGetGraphParams) => {
+    return obsidianManager.getGraph(params);
+  });
+
+  ipcMain.handle('obsidian:syncStrategyMemory', async (_event, params: ObsidianSyncStrategyMemoryParams) => {
+    return obsidianManager.syncStrategyMemory(params);
   });
 
   ipcMain.handle('obsidian:exportMission', async (_event, params: ObsidianExportMissionParams) => {

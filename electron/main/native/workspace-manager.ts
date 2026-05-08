@@ -83,6 +83,11 @@ function readPackageScripts(workspacePath: string): Record<string, string> {
 }
 
 function findObsidianVaultPath(workspacePath: string): string | undefined {
+  const curatedVaultPath = path.join(workspacePath, 'hedge-station');
+  if (hasPath(curatedVaultPath, '.obsidian')) {
+    return curatedVaultPath;
+  }
+
   if (hasPath(workspacePath, '.obsidian')) {
     return workspacePath;
   }
@@ -99,6 +104,26 @@ function findObsidianVaultPath(workspacePath: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizeObsidianVaultPath(workspacePath: string, vaultPath?: string): string | undefined {
+  const curatedVaultPath = path.join(workspacePath, 'hedge-station');
+  const trimmedVaultPath = typeof vaultPath === 'string' && vaultPath.trim()
+    ? vaultPath.trim()
+    : undefined;
+
+  if (
+    trimmedVaultPath
+    && path.resolve(trimmedVaultPath) === path.resolve(workspacePath)
+    && (
+      hasPath(curatedVaultPath, '.obsidian')
+      || hasPath(curatedVaultPath, 'Workspace Home.md')
+    )
+  ) {
+    return curatedVaultPath;
+  }
+
+  return trimmedVaultPath || findObsidianVaultPath(workspacePath);
 }
 
 export class WorkspaceManager {
@@ -131,7 +156,7 @@ export class WorkspaceManager {
             ...workspace,
             default_commands: Array.isArray(workspace.default_commands) ? workspace.default_commands : [],
             launch_profiles: normalizeLaunchProfiles(workspace.launch_profiles),
-            obsidian_vault_path: typeof workspace.obsidian_vault_path === 'string' ? workspace.obsidian_vault_path : undefined
+            obsidian_vault_path: normalizeObsidianVaultPath(workspace.path, workspace.obsidian_vault_path)
           }))
         };
       } catch (error) {
@@ -279,9 +304,7 @@ export class WorkspaceManager {
 
     workspace.default_commands = Array.isArray(workspace.default_commands) ? workspace.default_commands : [];
     workspace.launch_profiles = Array.isArray(workspace.launch_profiles) ? workspace.launch_profiles : [];
-    workspace.obsidian_vault_path = typeof workspace.obsidian_vault_path === 'string' && workspace.obsidian_vault_path.trim()
-      ? workspace.obsidian_vault_path.trim()
-      : undefined;
+    workspace.obsidian_vault_path = normalizeObsidianVaultPath(workspace.path, workspace.obsidian_vault_path);
 
     // Check if ID already exists
     if (this.config.workspaces.some(w => w.id === workspace.id)) {
@@ -313,7 +336,7 @@ export class WorkspaceManager {
       || hasPath(normalizedPath, 'docs', 'project-architecture.md')
       || hasPath(normalizedPath, 'backend', 'hyperliquid_gateway');
     const shell = process.env.SHELL || '/bin/zsh';
-    const obsidianVaultPath = findObsidianVaultPath(normalizedPath);
+    const obsidianVaultPath = normalizeObsidianVaultPath(normalizedPath);
 
     if (isHedgeFundStation) {
       return {
@@ -431,9 +454,12 @@ export class WorkspaceManager {
       launch_profiles: Array.isArray(updates.launch_profiles)
         ? updates.launch_profiles
         : this.config.workspaces[index].launch_profiles,
-      obsidian_vault_path: typeof updates.obsidian_vault_path === 'string'
-        ? (updates.obsidian_vault_path.trim() || undefined)
-        : this.config.workspaces[index].obsidian_vault_path,
+      obsidian_vault_path: normalizeObsidianVaultPath(
+        updates.path || this.config.workspaces[index].path,
+        typeof updates.obsidian_vault_path === 'string'
+          ? updates.obsidian_vault_path
+          : this.config.workspaces[index].obsidian_vault_path
+      ),
       id // Ensure ID doesn't change
     };
 

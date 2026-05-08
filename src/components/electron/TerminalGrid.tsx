@@ -243,7 +243,6 @@ export const TerminalGrid: React.FC = () => {
   };
 
   const handleCloseTerminal = (terminalId: string) => {
-    window.electronAPI.terminal.kill(terminalId);
     closeTerminal(terminalId);
   };
 

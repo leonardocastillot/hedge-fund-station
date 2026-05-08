@@ -61,6 +61,10 @@ function stageLabel(stage: HyperliquidStrategyAuditRow['pipelineStage']): string
   return stage.replace(/_/g, ' ');
 }
 
+function isRuntimeStrategy(strategy: HyperliquidStrategyAuditRow): boolean {
+  return strategy.strategyId.startsWith('runtime:') || strategy.strategyKey.startsWith('runtime:');
+}
+
 export default function StrategyAuditPage() {
   const [audit, setAudit] = useState<HyperliquidStrategyAuditResponse | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -73,6 +77,7 @@ export default function StrategyAuditPage() {
   const [agentRunMessage, setAgentRunMessage] = useState<string | null>(null);
 
   const strategies = audit?.strategies ?? [];
+  const realStrategies = useMemo(() => strategies.filter((strategy) => !isRuntimeStrategy(strategy)), [strategies]);
   const summary = audit?.summary ?? EMPTY_SUMMARY;
 
   const loadAudit = async (showLoader = true) => {
@@ -85,8 +90,14 @@ export default function StrategyAuditPage() {
     try {
       setError(null);
       const response = await hyperliquidService.getStrategyAudit(500);
+      const realRows = response.strategies.filter((strategy) => !isRuntimeStrategy(strategy));
       setAudit(response);
-      setSelectedKey((current) => current ?? response.strategies.find((strategy) => strategy.pipelineStage === 'audit')?.strategyKey ?? response.strategies[0]?.strategyKey ?? null);
+      setSelectedKey((current) => {
+        if (current && realRows.some((strategy) => strategy.strategyKey === current)) {
+          return current;
+        }
+        return realRows.find((strategy) => strategy.pipelineStage === 'audit')?.strategyKey ?? realRows[0]?.strategyKey ?? null;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar la auditoria de estrategias.');
     } finally {
@@ -100,13 +111,13 @@ export default function StrategyAuditPage() {
   }, []);
 
   const filteredStrategies = useMemo(() => {
-    if (filter === 'all') return strategies;
-    return strategies.filter((strategy) => strategy.pipelineStage === filter);
-  }, [filter, strategies]);
+    if (filter === 'all') return realStrategies;
+    return realStrategies.filter((strategy) => strategy.pipelineStage === filter);
+  }, [filter, realStrategies]);
 
   const selectedStrategy = useMemo(() => {
-    return strategies.find((strategy) => strategy.strategyKey === selectedKey) ?? filteredStrategies[0] ?? strategies[0] ?? null;
-  }, [filteredStrategies, selectedKey, strategies]);
+    return realStrategies.find((strategy) => strategy.strategyKey === selectedKey) ?? filteredStrategies[0] ?? realStrategies[0] ?? null;
+  }, [filteredStrategies, selectedKey, realStrategies]);
 
   useEffect(() => {
     if (!selectedStrategy?.strategyId || selectedStrategy.strategyId.startsWith('runtime:')) {
@@ -146,9 +157,9 @@ export default function StrategyAuditPage() {
   };
 
   const filters = useMemo(() => {
-    const stages = Array.from(new Set(strategies.map((strategy) => strategy.pipelineStage)));
+    const stages = Array.from(new Set(realStrategies.map((strategy) => strategy.pipelineStage)));
     return ['all', ...stages] as StageFilter[];
-  }, [strategies]);
+  }, [realStrategies]);
 
   if (loading) {
     return (
@@ -188,7 +199,7 @@ export default function StrategyAuditPage() {
       </section>
 
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Strategies" value={String(summary.strategyCount)} detail={`${summary.runtimeSetups} live setups`} />
+        <Metric label="Strategies" value={String(realStrategies.length)} detail={`${summary.runtimeSetups} runtime setups excluded`} />
         <Metric label="Evidence Trades" value={formatCompact(summary.tradeCount)} detail={`${summary.backtestTrades} backtest | ${summary.paperTrades} paper`} />
         <Metric label="Total PnL" value={formatCurrency(summary.totalPnlUsd)} detail="artifact + runtime evidence" tone={pnlTone(summary.totalPnlUsd)} />
         <Metric label="DB" value={audit?.database.journalMode?.toUpperCase() ?? 'N/D'} detail={audit?.database.path ?? 'No DB path'} tone="text-cyan-300" />

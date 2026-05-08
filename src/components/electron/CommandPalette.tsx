@@ -142,7 +142,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       keywords: 'close active terminal',
       run: () => {
         if (activeTerminalId) {
-          window.electronAPI.terminal.kill(activeTerminalId);
           closeTerminal(activeTerminalId);
         }
       }

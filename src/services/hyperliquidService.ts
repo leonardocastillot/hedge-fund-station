@@ -5,7 +5,9 @@ const API_URL = HYPERLIQUID_GATEWAY_HTTP_URL;
 const BACKTEST_API_URL = API_URL;
 const REQUEST_TIMEOUT_MS = 35_000;
 const AGENT_RUN_TIMEOUT_MS = 240_000;
+const DEFAULT_UI_BACKTEST_LOOKBACK_DAYS = 3;
 const AGENT_ENDPOINT_404_HINT = `Research OS is not exposed by the Hyperliquid gateway at ${API_URL}. Restart the local gateway so it loads the current backend, then run npm run gateway:probe.`;
+const GRAPHIFY_ENDPOINT_404_HINT = `Graphify memory status is not exposed by the Hyperliquid gateway at ${API_URL}. Restart the local gateway so it loads the current backend, then run npm run gateway:probe.`;
 const STRATEGY_CATALOG_FALLBACK_WARNING = 'The local Hyperliquid gateway is missing the strategy catalog endpoint. Restart it so the Pipeline can use backend-derived gate fields; showing strategy-audit fallback data for now.';
 
 class HyperliquidGatewayHttpError extends Error {
@@ -23,9 +25,16 @@ function isAgentEndpoint(path: string): boolean {
   return path.includes('/api/hyperliquid/agent-runs') || path.includes('/api/hyperliquid/agent-runtime/');
 }
 
+function isGraphifyEndpoint(path: string): boolean {
+  return path.includes('/api/hyperliquid/memory/graphify-status');
+}
+
 function gatewayHttpError(path: string, status: number, detail = ''): Error {
   if (status === 404 && isAgentEndpoint(path)) {
     return new Error(`${AGENT_ENDPOINT_404_HINT} Missing endpoint: ${path}`);
+  }
+  if (status === 404 && isGraphifyEndpoint(path)) {
+    return new Error(`${GRAPHIFY_ENDPOINT_404_HINT} Missing endpoint: ${path}`);
   }
   return new HyperliquidGatewayHttpError(path, status, detail);
 }
@@ -260,6 +269,111 @@ export interface HyperliquidPaperSessionAnalyticsResponse {
   bestHours: HyperliquidPaperSessionHour[];
 }
 
+export interface HyperliquidPaperReadinessResponse {
+  strategyId: string;
+  paperPath: string;
+  paperArtifactId: string | null;
+  paperGeneratedAt: string | null;
+  paperBaseline: Record<string, unknown>;
+  tradeMatch: Record<string, unknown>;
+  readiness: {
+    status: string;
+    nextAction: string;
+    baselineStatus: string | null;
+    sampleProgress: {
+      calendarDays: number;
+      requiredCalendarDays: number;
+      closedTrades: number;
+      requiredClosedTrades: number;
+      openTrades: number;
+      reviewedTrades: number;
+      reviewCoveragePct: number;
+      requiredReviewCoveragePct: number;
+      checks: Record<string, boolean>;
+    };
+    paperMetrics: {
+      grossProfitUsd: number;
+      grossLossUsd: number;
+      netPnlAfterFeesUsd: number;
+      estimatedFeesUsd: number;
+      totalNotionalUsd: number;
+      paperNetReturnPct: number;
+      paperProfitFactor: number;
+      paperAvgNetTradeReturnPct: number;
+      paperMaxDrawdownPct: number;
+      winsAfterFees: number;
+      lossesAfterFees: number;
+    };
+    driftChecks: Array<{
+      key: string | null;
+      metric: string;
+      operator: string | null;
+      threshold: number;
+      value: number | null;
+      passed: boolean;
+    }>;
+    blockers: string[];
+    matchingTradeIds: Array<number | string | null>;
+    closedTradeSamples: Array<Record<string, unknown>>;
+  };
+}
+
+export interface HyperliquidPaperRuntimeTickResponse {
+  success: boolean;
+  strategyId: string;
+  dryRun: boolean;
+  status: string;
+  closedTradeIds: number[];
+  openedTradeId: number | null;
+  createdSignalId: number | null;
+  skippedEntryReason: string | null;
+  plan: {
+    status: string;
+    market: Record<string, unknown> | null;
+    signalEval: Record<string, unknown>;
+    setupScore: Record<string, unknown> | null;
+    openTradeCount?: number;
+    exitActions: Array<Record<string, unknown>>;
+    entry: {
+      shouldOpen: boolean;
+      blockReason: string | null;
+      tradePayload: Record<string, unknown> | null;
+      signalPayload: Record<string, unknown> | null;
+    };
+  };
+}
+
+export interface HyperliquidPaperRuntimeSupervisorResponse {
+  strategyId: string;
+  supported: boolean;
+  running: boolean;
+  healthStatus: 'healthy' | 'degraded' | 'stale' | 'stopped' | 'unsupported' | string;
+  healthBlockers: string[];
+  healthChecks: Record<string, boolean>;
+  mode: 'screen' | 'pid' | 'stopped' | string;
+  screenSession: string;
+  pid: string | null;
+  pidFileValue: string | null;
+  strategyMatches: boolean;
+  metadata: Record<string, string>;
+  gatewayUrl: string | null;
+  intervalSeconds: number | null;
+  maxTicks: number | null;
+  dryRun: boolean | null;
+  failFast: boolean | null;
+  portfolioValue: number | null;
+  startedAt: string | null;
+  logPath: string;
+  logExists: boolean;
+  lastLogAtMs: number | null;
+  lastLogAt: string | null;
+  lastLogAgeSeconds: number | null;
+  staleAfterSeconds: number;
+  logTail: string[];
+  lastEvent: Record<string, unknown> | null;
+  lastTick: Record<string, unknown> | null;
+}
+
 export interface HyperliquidPaperSignal {
   id: number;
   createdAt: number;
@@ -323,6 +437,56 @@ export interface HyperliquidStrategyNextAction {
   targetStage: HyperliquidPipelineStage;
 }
 
+export interface HyperliquidDoublingEstimate {
+  status: 'candidate' | 'unvalidated' | 'blocked' | 'no-positive-return' | 'insufficient-window' | 'insufficient-trades' | string;
+  candidate: boolean;
+  strategyId: string | null;
+  artifactId: string | null;
+  reportPath: string | null;
+  sampleStart: string | null;
+  sampleEnd: string | null;
+  sampleDays: number | null;
+  returnPct: number;
+  geometricDailyReturnPct: number | null;
+  projectedDaysToDouble: number | null;
+  projectedTradesToDouble: number | null;
+  periodsToDouble: number | null;
+  totalTrades: number;
+  feeModel: string | null;
+  riskFraction: number | null;
+  robustStatus: string | null;
+  validationStatus: string | null;
+  blockers: string[];
+}
+
+export interface HyperliquidDoublingStability {
+  status: 'stable' | 'fragile' | 'insufficient-sample' | 'insufficient-window' | string;
+  artifactId: string | null;
+  reportArtifactId: string | null;
+  validationArtifactId: string | null;
+  positiveSliceRatioPct: number | null;
+  largestPositiveSlicePnlSharePct: number | null;
+  activeSliceCount: number;
+  sliceCount: number;
+  blockers: string[];
+}
+
+export interface HyperliquidBtcOptimization {
+  status: string;
+  artifactId: string | null;
+  variantCount: number;
+  stableCandidateCount: number;
+  fragileCandidateCount: number;
+  topVariantId: string | null;
+  topReviewStatus: string | null;
+  topProjectedDaysToDouble: number | null;
+  topReturnPct: number | null;
+  topTotalTrades: number | null;
+  topStabilityStatus: string | null;
+  topStabilityBlockers: string[];
+  topLargestPositiveSlicePnlSharePct: number | null;
+}
+
 export interface HyperliquidStrategyAuditRow {
   strategyKey: string;
   strategyId: string;
@@ -339,6 +503,9 @@ export interface HyperliquidStrategyAuditRow {
   setupTag: string | null;
   side: 'long' | 'short' | 'neutral' | 'binary' | 'n/a';
   validationPolicy: Record<string, number> | null;
+  doublingEstimate: HyperliquidDoublingEstimate | null;
+  doublingStability: HyperliquidDoublingStability | null;
+  btcOptimization: HyperliquidBtcOptimization | null;
   latestBacktestSummary: (HyperliquidBacktestRunResponse['summary'] & Record<string, unknown>) | null;
   latestBacktestConfig: Record<string, unknown> | null;
   robustAssessment: {
@@ -355,6 +522,8 @@ export interface HyperliquidStrategyAuditRow {
     backtest: string | null;
     validation: string | null;
     paper: string | null;
+    doublingStability: string | null;
+    btcOptimization: string | null;
   };
   validationStatus: string | null;
   evidenceCounts: {
@@ -395,7 +564,7 @@ export interface HyperliquidStrategyAuditRow {
   missingAuditItems: string[];
   timeline: Array<{
     id: string;
-    type: 'backtest_trade' | 'validation_report' | 'paper_candidate' | 'paper_signal' | 'paper_trade' | 'polymarket_trade' | 'runtime_setup';
+    type: 'backtest_trade' | 'validation_report' | 'paper_candidate' | 'paper_signal' | 'paper_trade' | 'polymarket_trade' | 'runtime_setup' | 'doubling_stability_audit' | 'btc_variant_optimizer';
     source: string;
     timestampMs: number | null;
     title: string;
@@ -455,6 +624,66 @@ export interface HyperliquidStrategyCatalogResponse {
   strategies: HyperliquidStrategyCatalogRow[];
 }
 
+export type HyperliquidStrategyLearningKind = 'hypothesis' | 'decision' | 'lesson' | 'postmortem' | 'rule_change';
+export type HyperliquidStrategyLearningOutcome = 'win' | 'loss' | 'mixed' | 'unknown';
+
+export interface HyperliquidStrategyLearningEvent {
+  eventId: string;
+  strategyId: string;
+  kind: HyperliquidStrategyLearningKind;
+  outcome: HyperliquidStrategyLearningOutcome;
+  stage: string | null;
+  title: string;
+  summary: string;
+  evidencePaths: string[];
+  lesson: string | null;
+  ruleChange: string | null;
+  nextAction: string | null;
+  generatedAt: string | null;
+  updatedAt: string | null;
+  path: string | null;
+}
+
+export interface HyperliquidStrategyLearningResponse {
+  updatedAt: number;
+  strategyId: string | null;
+  count: number;
+  events: HyperliquidStrategyLearningEvent[];
+}
+
+export interface HyperliquidStrategyLearningCreate {
+  strategyId: string;
+  kind: HyperliquidStrategyLearningKind;
+  outcome: HyperliquidStrategyLearningOutcome;
+  stage?: string | null;
+  title: string;
+  summary?: string;
+  evidencePaths?: string[];
+  lesson?: string | null;
+  ruleChange?: string | null;
+  nextAction?: string | null;
+}
+
+export interface HyperliquidStrategyLearningCreateResponse {
+  created: boolean;
+  event: HyperliquidStrategyLearningEvent;
+}
+
+export interface HyperliquidGraphifyStatus {
+  available: boolean;
+  updatedAt: number | null;
+  outputDir: string;
+  reportPath: string;
+  graphJsonPath: string;
+  htmlPath: string;
+  explorerUrl: string;
+  htmlUrl: string;
+  nodeCount: number | null;
+  edgeCount: number | null;
+  communityCount: number | null;
+  warnings: string[];
+}
+
 export interface HyperliquidGatewayHealth {
   ok: boolean;
   upstream: string;
@@ -465,6 +694,84 @@ export interface HyperliquidGatewayHealth {
   lastRefreshOkAt: number | null;
   lastRefreshError: string | null;
   refreshLoopSeconds: number;
+}
+
+export type HyperliquidReadinessStatus = 'ready' | 'attention' | 'blocked' | string;
+
+export interface HyperliquidReadinessCheck {
+  id: string;
+  label: string;
+  status: HyperliquidReadinessStatus;
+  detail: string;
+  actionLabel?: string | null;
+  command?: string | null;
+  route?: string | null;
+  evidencePath?: string | null;
+}
+
+export interface HyperliquidReadinessArtifact {
+  path: string;
+  generatedAt: number;
+  artifactId: string;
+  strategyId: string;
+  artifactType?: string | null;
+}
+
+export interface HyperliquidReadinessStrategyBlocker {
+  strategyId: string;
+  displayName: string;
+  pipelineStage: string | null;
+  gateStatus: string | null;
+  reasons: string[];
+  latestArtifactPaths: Record<string, string | null>;
+}
+
+export interface HyperliquidAppReadiness {
+  updatedAt: number;
+  overallStatus: HyperliquidReadinessStatus;
+  summary: {
+    readyChecks: number;
+    attentionChecks: number;
+    blockedChecks: number;
+    strategyCount: number;
+    blockedStrategies: number;
+    paperTrades: number;
+    openPaperTrades: number;
+    reviewCoverage: number;
+    cacheFresh: boolean;
+    paperRuntimeStatus: string;
+    liveExecutionLocked: boolean;
+  };
+  gateway: HyperliquidGatewayHealth | null;
+  paperRuntime: HyperliquidPaperRuntimeSupervisorResponse | null;
+  strategyBlockers: HyperliquidReadinessStrategyBlocker[];
+  latestEvidence: {
+    backtest: HyperliquidReadinessArtifact | null;
+    validation: HyperliquidReadinessArtifact | null;
+    paper: HyperliquidReadinessArtifact | null;
+    audit: HyperliquidReadinessArtifact | null;
+  };
+  dailyCommands: Array<{ label: string; command: string }>;
+  checks: HyperliquidReadinessCheck[];
+  errors: string[];
+  fetchedAt: number;
+}
+
+export interface HyperliquidHedgeFundStationSnapshot {
+  audit: HyperliquidStrategyAuditResponse | null;
+  health: HyperliquidGatewayHealth | null;
+  errors: string[];
+  fetchedAt: number;
+}
+
+export interface HyperliquidLiveStationSnapshot {
+  health: HyperliquidGatewayHealth | null;
+  overview: HyperliquidOverviewResponse | null;
+  watchlist: HyperliquidWatchlistResponse | null;
+  trades: HyperliquidPaperTrade[];
+  audit: HyperliquidStrategyAuditResponse | null;
+  errors: string[];
+  fetchedAt: number;
 }
 
 export interface HyperliquidBacktestRunResponse {
@@ -497,6 +804,19 @@ export interface HyperliquidBacktestRunResponse {
   } | null;
 }
 
+export interface HyperliquidBacktestRunOptions {
+  lookbackDays?: number;
+  runValidation?: boolean;
+  buildPaperCandidate?: boolean;
+  symbol?: string;
+  symbols?: string[] | string;
+  universe?: string;
+  start?: string;
+  end?: string;
+  feeModel?: 'taker' | 'maker' | 'mixed';
+  makerRatio?: number;
+}
+
 export interface HyperliquidBacktestArtifactSummary {
   artifactId: string;
   reportPath: string;
@@ -510,6 +830,7 @@ export interface HyperliquidBacktestArtifactSummary {
     notes?: string[];
   } | null;
   validationStatus: string | null;
+  doublingEstimate: HyperliquidDoublingEstimate | null;
 }
 
 export interface HyperliquidBacktestArtifactsResponse {
@@ -809,6 +1130,10 @@ function numberOrDefault(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 function booleanOrDefault(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
@@ -819,6 +1144,20 @@ function stringArray(value: unknown): string[] {
 
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function normalizeLearningKind(value: unknown): HyperliquidStrategyLearningKind {
+  const normalized = typeof value === 'string' ? value : 'lesson';
+  return ['hypothesis', 'decision', 'lesson', 'postmortem', 'rule_change'].includes(normalized)
+    ? normalized as HyperliquidStrategyLearningKind
+    : 'lesson';
+}
+
+function normalizeLearningOutcome(value: unknown): HyperliquidStrategyLearningOutcome {
+  const normalized = typeof value === 'string' ? value : 'unknown';
+  return ['win', 'loss', 'mixed', 'unknown'].includes(normalized)
+    ? normalized as HyperliquidStrategyLearningOutcome
+    : 'unknown';
 }
 
 function recordAt(raw: Record<string, unknown>, key: string): Record<string, unknown> {
@@ -841,7 +1180,9 @@ function normalizeArtifactPaths(raw: Record<string, unknown>) {
     spec: stringOrNull(artifacts.spec),
     backtest: stringOrNull(artifacts.backtest),
     validation: stringOrNull(artifacts.validation),
-    paper: stringOrNull(artifacts.paper)
+    paper: stringOrNull(artifacts.paper),
+    doublingStability: stringOrNull(artifacts.doublingStability),
+    btcOptimization: stringOrNull(artifacts.btcOptimization)
   };
 }
 
@@ -868,6 +1209,65 @@ function normalizeEvidenceCounts(raw: Record<string, unknown>) {
     paperTrades: numberOrDefault(counts.paperTrades),
     polymarketTrades: numberOrDefault(counts.polymarketTrades),
     runtimeSetups: numberOrDefault(counts.runtimeSetups)
+  };
+}
+
+function normalizeDoublingEstimate(value: unknown): HyperliquidDoublingEstimate | null {
+  if (!isRecord(value)) return null;
+  return {
+    status: stringOrNull(value.status) ?? 'blocked',
+    candidate: booleanOrDefault(value.candidate),
+    strategyId: stringOrNull(value.strategyId),
+    artifactId: stringOrNull(value.artifactId),
+    reportPath: stringOrNull(value.reportPath),
+    sampleStart: stringOrNull(value.sampleStart),
+    sampleEnd: stringOrNull(value.sampleEnd),
+    sampleDays: numberOrNull(value.sampleDays),
+    returnPct: numberOrDefault(value.returnPct),
+    geometricDailyReturnPct: numberOrNull(value.geometricDailyReturnPct),
+    projectedDaysToDouble: numberOrNull(value.projectedDaysToDouble),
+    projectedTradesToDouble: numberOrNull(value.projectedTradesToDouble),
+    periodsToDouble: numberOrNull(value.periodsToDouble),
+    totalTrades: numberOrDefault(value.totalTrades),
+    feeModel: stringOrNull(value.feeModel),
+    riskFraction: numberOrNull(value.riskFraction),
+    robustStatus: stringOrNull(value.robustStatus),
+    validationStatus: stringOrNull(value.validationStatus),
+    blockers: stringArray(value.blockers)
+  };
+}
+
+function normalizeDoublingStability(value: unknown): HyperliquidDoublingStability | null {
+  if (!isRecord(value)) return null;
+  return {
+    status: stringOrNull(value.status) ?? 'fragile',
+    artifactId: stringOrNull(value.artifactId),
+    reportArtifactId: stringOrNull(value.reportArtifactId),
+    validationArtifactId: stringOrNull(value.validationArtifactId),
+    positiveSliceRatioPct: numberOrNull(value.positiveSliceRatioPct),
+    largestPositiveSlicePnlSharePct: numberOrNull(value.largestPositiveSlicePnlSharePct),
+    activeSliceCount: numberOrDefault(value.activeSliceCount),
+    sliceCount: numberOrDefault(value.sliceCount),
+    blockers: stringArray(value.blockers)
+  };
+}
+
+function normalizeBtcOptimization(value: unknown): HyperliquidBtcOptimization | null {
+  if (!isRecord(value)) return null;
+  return {
+    status: stringOrNull(value.status) ?? 'unknown',
+    artifactId: stringOrNull(value.artifactId),
+    variantCount: numberOrDefault(value.variantCount),
+    stableCandidateCount: numberOrDefault(value.stableCandidateCount),
+    fragileCandidateCount: numberOrDefault(value.fragileCandidateCount),
+    topVariantId: stringOrNull(value.topVariantId),
+    topReviewStatus: stringOrNull(value.topReviewStatus),
+    topProjectedDaysToDouble: numberOrNull(value.topProjectedDaysToDouble),
+    topReturnPct: numberOrNull(value.topReturnPct),
+    topTotalTrades: numberOrNull(value.topTotalTrades),
+    topStabilityStatus: stringOrNull(value.topStabilityStatus),
+    topStabilityBlockers: stringArray(value.topStabilityBlockers),
+    topLargestPositiveSlicePnlSharePct: numberOrNull(value.topLargestPositiveSlicePnlSharePct)
   };
 }
 
@@ -1071,6 +1471,9 @@ function normalizeCatalogRowForPipeline(row: HyperliquidStrategyAuditRow | Hyper
     setupTag: stringOrNull(raw.setupTag),
     side: (stringOrNull(raw.side) as HyperliquidStrategyCatalogRow['side'] | null) ?? 'n/a',
     validationPolicy: isRecord(raw.validationPolicy) ? raw.validationPolicy as Record<string, number> : null,
+    doublingEstimate: normalizeDoublingEstimate(raw.doublingEstimate),
+    doublingStability: normalizeDoublingStability(raw.doublingStability),
+    btcOptimization: normalizeBtcOptimization(raw.btcOptimization),
     latestBacktestSummary: isRecord(raw.latestBacktestSummary)
       ? raw.latestBacktestSummary as HyperliquidStrategyCatalogRow['latestBacktestSummary']
       : null,
@@ -1105,10 +1508,118 @@ function normalizeCatalogRowForPipeline(row: HyperliquidStrategyAuditRow | Hyper
   };
 }
 
+function normalizeStrategyLearningEvent(rawEvent: unknown): HyperliquidStrategyLearningEvent {
+  const raw = isRecord(rawEvent) ? rawEvent : {};
+  const eventId = stringOrNull(raw.eventId) ?? stringOrNull(raw.event_id) ?? 'learning-event';
+  const strategyId = stringOrNull(raw.strategyId) ?? stringOrNull(raw.strategy_id) ?? 'unknown_strategy';
+  return {
+    eventId,
+    strategyId,
+    kind: normalizeLearningKind(raw.kind),
+    outcome: normalizeLearningOutcome(raw.outcome),
+    stage: stringOrNull(raw.stage),
+    title: stringOrNull(raw.title) ?? 'Strategy learning event',
+    summary: stringOrNull(raw.summary) ?? '',
+    evidencePaths: uniqueStrings([
+      ...stringArray(raw.evidencePaths),
+      ...stringArray(raw.evidence_paths)
+    ]),
+    lesson: stringOrNull(raw.lesson),
+    ruleChange: stringOrNull(raw.ruleChange) ?? stringOrNull(raw.rule_change),
+    nextAction: stringOrNull(raw.nextAction) ?? stringOrNull(raw.next_action),
+    generatedAt: stringOrNull(raw.generatedAt) ?? stringOrNull(raw.generated_at),
+    updatedAt: stringOrNull(raw.updatedAt) ?? stringOrNull(raw.updated_at),
+    path: stringOrNull(raw.path)
+  };
+}
+
+function learningCreatePayload(input: HyperliquidStrategyLearningCreate) {
+  return {
+    strategy_id: input.strategyId,
+    kind: input.kind,
+    outcome: input.outcome,
+    stage: input.stage ?? null,
+    title: input.title,
+    summary: input.summary ?? '',
+    evidence_paths: input.evidencePaths ?? [],
+    lesson: input.lesson ?? null,
+    rule_change: input.ruleChange ?? null,
+    next_action: input.nextAction ?? null
+  };
+}
+
+function normalizeGatewayUrl(path: string | null | undefined, fallback: string): string {
+  const value = path || fallback;
+  if (/^https?:\/\//i.test(value)) return value;
+  return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
+}
+
+function normalizeBacktestRunOptions(options: HyperliquidBacktestRunOptions | boolean = {}) {
+  const rawOptions = typeof options === 'boolean' ? { buildPaperCandidate: options } : options;
+  return {
+    ...rawOptions,
+    lookbackDays: rawOptions.lookbackDays ?? DEFAULT_UI_BACKTEST_LOOKBACK_DAYS,
+    runValidation: rawOptions.runValidation ?? true,
+    buildPaperCandidate: rawOptions.buildPaperCandidate ?? false,
+    universe: rawOptions.universe ?? 'default'
+  };
+}
+
+function backtestRunPayload(strategyId: string, options: HyperliquidBacktestRunOptions | boolean = {}) {
+  const normalized = normalizeBacktestRunOptions(options);
+  return {
+    strategy_id: strategyId,
+    lookback_days: normalized.lookbackDays,
+    run_validation: normalized.runValidation,
+    build_paper_candidate: normalized.buildPaperCandidate,
+    symbol: normalized.symbol,
+    symbols: normalized.symbols,
+    universe: normalized.universe,
+    start: normalized.start,
+    end: normalized.end,
+    fee_model: normalized.feeModel,
+    maker_ratio: normalized.makerRatio
+  };
+}
+
+function ensureBacktestQuery(options: HyperliquidBacktestRunOptions | boolean = {}): string {
+  const normalized = normalizeBacktestRunOptions(options);
+  const params = new URLSearchParams({
+    run_validation: String(normalized.runValidation),
+    build_paper_candidate: String(normalized.buildPaperCandidate),
+    lookback_days: String(normalized.lookbackDays),
+    universe: normalized.universe
+  });
+  if (normalized.symbol) params.set('symbol', normalized.symbol);
+  if (normalized.symbols) params.set('symbols', Array.isArray(normalized.symbols) ? normalized.symbols.join(',') : normalized.symbols);
+  if (normalized.start) params.set('start', normalized.start);
+  if (normalized.end) params.set('end', normalized.end);
+  if (normalized.feeModel) params.set('fee_model', normalized.feeModel);
+  if (normalized.makerRatio !== undefined) params.set('maker_ratio', String(normalized.makerRatio));
+  return params.toString();
+}
+
 class HyperliquidService {
   async health(): Promise<HyperliquidGatewayHealth> {
     return withRequestCache('hyperliquid:health', 5_000, async () => {
       return fetchJson<HyperliquidGatewayHealth>('/health');
+    });
+  }
+
+  async getAppReadiness(auditLimit = 500): Promise<HyperliquidAppReadiness> {
+    return withRequestCache(`hyperliquid:app-readiness:${auditLimit}`, 12_000, async () => {
+      return fetchJson<HyperliquidAppReadiness>(`/api/hyperliquid/app-readiness?audit_limit=${auditLimit}`);
+    });
+  }
+
+  async getGraphifyStatus(): Promise<HyperliquidGraphifyStatus> {
+    return withRequestCache('hyperliquid:memory:graphify-status', 8_000, async () => {
+      const status = await fetchJson<HyperliquidGraphifyStatus>('/api/hyperliquid/memory/graphify-status');
+      return {
+        ...status,
+        explorerUrl: normalizeGatewayUrl(status.explorerUrl, '/api/hyperliquid/memory/graphify-explorer'),
+        htmlUrl: normalizeGatewayUrl(status.htmlUrl, '/api/hyperliquid/memory/graphify-html')
+      };
     });
   }
 
@@ -1148,6 +1659,28 @@ class HyperliquidService {
     });
   }
 
+  async getHedgeFundStationSnapshot(limit = 500): Promise<HyperliquidHedgeFundStationSnapshot> {
+    return withRequestCache(`hyperliquid:station:hedge-fund:${limit}`, 20_000, async () => {
+      return fetchJson<HyperliquidHedgeFundStationSnapshot>(`/api/hyperliquid/stations/hedge-fund?limit=${limit}`);
+    });
+  }
+
+  async getLiveStationSnapshot(options: { marketLimit?: number; watchlistLimit?: number; tradeLimit?: number; auditLimit?: number } = {}): Promise<HyperliquidLiveStationSnapshot> {
+    const marketLimit = options.marketLimit ?? 28;
+    const watchlistLimit = options.watchlistLimit ?? 12;
+    const tradeLimit = options.tradeLimit ?? 100;
+    const auditLimit = options.auditLimit ?? 500;
+    return withRequestCache(`hyperliquid:station:live:${marketLimit}:${watchlistLimit}:${tradeLimit}:${auditLimit}`, 15_000, async () => {
+      const params = new URLSearchParams({
+        market_limit: String(marketLimit),
+        watchlist_limit: String(watchlistLimit),
+        trade_limit: String(tradeLimit),
+        audit_limit: String(auditLimit)
+      });
+      return fetchJson<HyperliquidLiveStationSnapshot>(`/api/hyperliquid/stations/live?${params.toString()}`);
+    });
+  }
+
   async getPaperSignals(limit = 20): Promise<{ signals: HyperliquidPaperSignal[] }> {
     return withRequestCache(`hyperliquid:paper-signals:${limit}`, 5_000, async () => {
       return fetchJson<{ signals: HyperliquidPaperSignal[] }>(`/api/hyperliquid/paper/signals?limit=${limit}`);
@@ -1174,9 +1707,13 @@ class HyperliquidService {
     }
   }
 
-  async getPaperTrades(status: 'all' | 'open' | 'closed' = 'all'): Promise<{ trades: HyperliquidPaperTrade[] }> {
-    return withRequestCache(`hyperliquid:paper-trades:${status}`, 5_000, async () => {
-      return fetchJson<{ trades: HyperliquidPaperTrade[] }>(`/api/hyperliquid/paper/trades?status=${status}`);
+  async getPaperTrades(status: 'all' | 'open' | 'closed' = 'all', limit?: number): Promise<{ trades: HyperliquidPaperTrade[] }> {
+    return withRequestCache(`hyperliquid:paper-trades:${status}:${limit ?? 'default'}`, 5_000, async () => {
+      const params = new URLSearchParams({ status });
+      if (limit !== undefined) {
+        params.set('limit', String(limit));
+      }
+      return fetchJson<{ trades: HyperliquidPaperTrade[] }>(`/api/hyperliquid/paper/trades?${params.toString()}`);
     });
   }
 
@@ -1214,13 +1751,47 @@ class HyperliquidService {
     });
   }
 
-  async runBacktest(strategyId: string, buildPaperCandidate = false): Promise<HyperliquidBacktestRunResponse> {
-    const response = await postJson<HyperliquidBacktestRunResponse>('/api/hyperliquid/backtests/run', {
-      strategy_id: strategyId,
-      lookback_days: 3650,
-      run_validation: true,
-      build_paper_candidate: buildPaperCandidate
-    }, BACKTEST_API_URL);
+  async getStrategyLearning(strategyId?: string, limit = 200): Promise<HyperliquidStrategyLearningResponse> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (strategyId) {
+      params.set('strategy_id', strategyId);
+    }
+    return withRequestCache(`hyperliquid:strategy-learning:${strategyId || 'all'}:${limit}`, 5_000, async () => {
+      const response = await fetchJson<{
+        updatedAt: number;
+        strategyId?: string | null;
+        strategy_id?: string | null;
+        count: number;
+        events: unknown[];
+      }>(`/api/hyperliquid/strategies/learning?${params.toString()}`);
+      return {
+        updatedAt: response.updatedAt,
+        strategyId: response.strategyId ?? response.strategy_id ?? null,
+        count: response.count,
+        events: (response.events || []).map(normalizeStrategyLearningEvent)
+      };
+    });
+  }
+
+  async createStrategyLearningEvent(input: HyperliquidStrategyLearningCreate): Promise<HyperliquidStrategyLearningCreateResponse> {
+    const response = await postJson<{ created: boolean; event: unknown }>(
+      '/api/hyperliquid/strategies/learning',
+      learningCreatePayload(input)
+    );
+    invalidateRequestCache('hyperliquid:strategy-learning:');
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    return {
+      created: response.created,
+      event: normalizeStrategyLearningEvent(response.event)
+    };
+  }
+
+  async runBacktest(strategyId: string, options: HyperliquidBacktestRunOptions | boolean = {}): Promise<HyperliquidBacktestRunResponse> {
+    const response = await postJson<HyperliquidBacktestRunResponse>(
+      '/api/hyperliquid/backtests/run',
+      backtestRunPayload(strategyId, options),
+      BACKTEST_API_URL
+    );
     invalidateRequestCache('hyperliquid:strategy-audit:');
     invalidateRequestCache('hyperliquid:strategy-catalog:');
     invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
@@ -1333,9 +1904,10 @@ class HyperliquidService {
     return response;
   }
 
-  async ensureBacktest(strategyId: string): Promise<HyperliquidLatestBacktestResponse> {
+  async ensureBacktest(strategyId: string, options: HyperliquidBacktestRunOptions | boolean = {}): Promise<HyperliquidLatestBacktestResponse> {
+    const query = ensureBacktestQuery(options);
     const response = await postJson<HyperliquidLatestBacktestResponse>(
-      `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/ensure?run_validation=true&build_paper_candidate=false`,
+      `/api/hyperliquid/backtests/${encodeURIComponent(strategyId)}/ensure?${query}`,
       undefined,
       BACKTEST_API_URL
     );
@@ -1347,9 +1919,22 @@ class HyperliquidService {
     return response;
   }
 
-  async runAllBacktests(buildPaperCandidate = false): Promise<{ success: boolean; results: HyperliquidBacktestRunResponse[] }> {
+  async runAllBacktests(options: HyperliquidBacktestRunOptions | boolean = {}): Promise<{ success: boolean; results: HyperliquidBacktestRunResponse[] }> {
+    const normalized = normalizeBacktestRunOptions(options);
+    const params = new URLSearchParams({
+      run_validation: String(normalized.runValidation),
+      build_paper_candidate: String(normalized.buildPaperCandidate),
+      lookback_days: String(normalized.lookbackDays),
+      universe: normalized.universe
+    });
+    if (normalized.symbol) params.set('symbol', normalized.symbol);
+    if (normalized.symbols) params.set('symbols', Array.isArray(normalized.symbols) ? normalized.symbols.join(',') : normalized.symbols);
+    if (normalized.start) params.set('start', normalized.start);
+    if (normalized.end) params.set('end', normalized.end);
+    if (normalized.feeModel) params.set('fee_model', normalized.feeModel);
+    if (normalized.makerRatio !== undefined) params.set('maker_ratio', String(normalized.makerRatio));
     const response = await postJson<{ success: boolean; results: HyperliquidBacktestRunResponse[] }>(
-      `/api/hyperliquid/backtests/run-all?run_validation=true&build_paper_candidate=${buildPaperCandidate ? 'true' : 'false'}`,
+      `/api/hyperliquid/backtests/run-all?${params.toString()}`,
       undefined,
       BACKTEST_API_URL
     );
@@ -1364,6 +1949,32 @@ class HyperliquidService {
   async getPaperSessionAnalytics(): Promise<HyperliquidPaperSessionAnalyticsResponse> {
     return withRequestCache('hyperliquid:paper-session-analytics', 10_000, async () => {
       return fetchJson<HyperliquidPaperSessionAnalyticsResponse>('/api/hyperliquid/paper/session-analytics');
+    });
+  }
+
+  async getPaperReadiness(strategyId: string): Promise<HyperliquidPaperReadinessResponse> {
+    return withRequestCache(`hyperliquid:paper-readiness:${strategyId}`, 5_000, async () => {
+      return fetchJson<HyperliquidPaperReadinessResponse>(
+        `/api/hyperliquid/paper/readiness/${encodeURIComponent(strategyId)}`
+      );
+    });
+  }
+
+  async runPaperRuntimeTick(strategyId = 'btc_failed_impulse_reversal', dryRun = false): Promise<HyperliquidPaperRuntimeTickResponse> {
+    const response = await postJson<HyperliquidPaperRuntimeTickResponse>(
+      `/api/hyperliquid/paper/runtime/${encodeURIComponent(strategyId)}/tick?dry_run=${dryRun ? 'true' : 'false'}`,
+      undefined,
+      API_URL
+    );
+    invalidatePaperCaches();
+    return response;
+  }
+
+  async getPaperRuntimeSupervisor(strategyId = 'btc_failed_impulse_reversal'): Promise<HyperliquidPaperRuntimeSupervisorResponse> {
+    return withRequestCache(`hyperliquid:paper-runtime-supervisor:${strategyId}`, 5_000, async () => {
+      return fetchJson<HyperliquidPaperRuntimeSupervisorResponse>(
+        `/api/hyperliquid/paper/runtime/${encodeURIComponent(strategyId)}/supervisor`
+      );
     });
   }
 
@@ -1465,6 +2076,7 @@ export const hyperliquidService = new HyperliquidService();
 function invalidatePaperCaches() {
   invalidateRequestCache('hyperliquid:paper-trades:');
   invalidateRequestCache('hyperliquid:paper-signals:');
+  invalidateRequestCache('hyperliquid:paper-readiness:');
   invalidateRequestCache('hyperliquid:strategy-audit:');
   invalidateRequestCache('hyperliquid:strategy-catalog:');
 }

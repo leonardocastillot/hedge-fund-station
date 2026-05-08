@@ -16,24 +16,10 @@ import {
 } from 'lucide-react';
 import {
   hyperliquidService,
-  type HyperliquidGatewayHealth,
-  type HyperliquidMarketRow,
-  type HyperliquidOverviewResponse,
-  type HyperliquidPaperTrade,
-  type HyperliquidStrategyAuditResponse,
-  type HyperliquidWatchlistResponse
+  type HyperliquidLiveStationSnapshot,
+  type HyperliquidMarketRow
 } from '@/services/hyperliquidService';
 import { useMarketPolling } from '@/hooks/useMarketPolling';
-
-type LiveTradingSnapshot = {
-  health: HyperliquidGatewayHealth | null;
-  overview: HyperliquidOverviewResponse | null;
-  watchlist: HyperliquidWatchlistResponse | null;
-  trades: HyperliquidPaperTrade[];
-  audit: HyperliquidStrategyAuditResponse | null;
-  errors: string[];
-  fetchedAt: number;
-};
 
 const MONITOR_LINKS = [
   { label: 'Hyperliquid', to: '/hyperliquid', icon: RadioTower },
@@ -41,10 +27,6 @@ const MONITOR_LINKS = [
   { label: 'Paper Lab', to: '/paper', icon: Activity },
   { label: 'Portfolio', to: '/portfolio', icon: Wallet }
 ];
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown service error.';
-}
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -83,40 +65,16 @@ function marketPressure(market: HyperliquidMarketRow): number {
     ?? ((market.estimatedLongLiquidationUsd ?? 0) + (market.estimatedShortLiquidationUsd ?? 0));
 }
 
-async function loadLiveSnapshot(): Promise<LiveTradingSnapshot> {
-  const [healthResult, overviewResult, watchlistResult, tradesResult, auditResult] = await Promise.allSettled([
-    hyperliquidService.health(),
-    hyperliquidService.getOverview(48),
-    hyperliquidService.getWatchlist(18),
-    hyperliquidService.getPaperTrades('all'),
-    hyperliquidService.getStrategyAudit(500)
-  ]);
-  const errors: string[] = [];
-
-  const health = healthResult.status === 'fulfilled'
-    ? healthResult.value
-    : (errors.push(`Gateway: ${errorMessage(healthResult.reason)}`), null);
-  const overview = overviewResult.status === 'fulfilled'
-    ? overviewResult.value
-    : (errors.push(`Overview: ${errorMessage(overviewResult.reason)}`), null);
-  const watchlist = watchlistResult.status === 'fulfilled'
-    ? watchlistResult.value
-    : (errors.push(`Watchlist: ${errorMessage(watchlistResult.reason)}`), null);
-  const trades = tradesResult.status === 'fulfilled'
-    ? tradesResult.value.trades
-    : (errors.push(`Paper trades: ${errorMessage(tradesResult.reason)}`), []);
-  const audit = auditResult.status === 'fulfilled'
-    ? auditResult.value
-    : (errors.push(`Audit: ${errorMessage(auditResult.reason)}`), null);
-
-  return { health, overview, watchlist, trades, audit, errors, fetchedAt: Date.now() };
-}
-
 export default function LiveTradingStationPage() {
   const livePoll = useMarketPolling(
     'station:live-trading',
-    loadLiveSnapshot,
-    { intervalMs: 10_000, staleAfterMs: 35_000 }
+    (): Promise<HyperliquidLiveStationSnapshot> => hyperliquidService.getLiveStationSnapshot({
+      marketLimit: 28,
+      watchlistLimit: 12,
+      tradeLimit: 100,
+      auditLimit: 500
+    }),
+    { intervalMs: 20_000, staleAfterMs: 60_000 }
   );
   const snapshot = livePoll.data;
   const health = snapshot?.health ?? null;

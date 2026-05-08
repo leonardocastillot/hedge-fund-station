@@ -10,6 +10,7 @@ import {
   Database,
   Droplets,
   FlaskConical,
+  Network,
   ShieldCheck,
   RadioTower,
   Settings,
@@ -19,7 +20,6 @@ import {
 
 import { LiquidationsProvider } from '@/contexts/LiquidationsContext';
 import { recordTelemetry } from '@/services/performanceTelemetry';
-import { TerminalGrid } from '@/components/electron/TerminalGrid';
 import { CENTER_NAVIGATION_EVENT, publishCenterRouteChanged, type CenterNavigationDetail } from '@/utils/centerNavigation';
 
 const HedgeFundStationPage = React.lazy(() => import('@/features/stations/pages/HedgeFundStationPage'));
@@ -31,6 +31,7 @@ const PolymarketPage = React.lazy(() => import('./pages/PolymarketPage'));
 const StrategyLibraryPage = React.lazy(() => import('@/features/strategies/pages/StrategyLibraryPage'));
 const StrategyDetailPage = React.lazy(() => import('@/features/strategies/pages/StrategyDetailPage'));
 const StrategyAuditPage = React.lazy(() => import('@/features/strategies/pages/StrategyAuditPage'));
+const MemoryGraphPage = React.lazy(() => import('@/features/memory/pages/MemoryGraphPage'));
 const HyperliquidDataPage = React.lazy(() => import('@/features/hyperliquid/pages/HyperliquidDataPage'));
 const HyperliquidIntelligencePage = React.lazy(() => import('@/features/hyperliquid/pages/HyperliquidIntelligencePage'));
 const HyperliquidPaperLabPage = React.lazy(() => import('@/features/paper/pages/HyperliquidPaperLabPage'));
@@ -39,6 +40,7 @@ const PortfolioDashboardPage = React.lazy(() => import('@/features/paper/pages/P
 const AgentsPanel = React.lazy(() => import('@/features/agents/panels/AgentsPanel').then((module) => ({ default: module.AgentsPanel })));
 const SettingsPage = React.lazy(() => import('@/features/settings/pages/SettingsPage'));
 const DiagnosticsPage = React.lazy(() => import('@/features/diagnostics/pages/DiagnosticsPage'));
+const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid').then((module) => ({ default: module.TerminalGrid })));
 
 const navItems = [
   { path: '/station/hedge-fund', label: 'Hedge Fund', icon: ShieldCheck },
@@ -49,6 +51,7 @@ const navItems = [
   { path: '/hyperliquid', label: 'Hyperliquid', icon: CandlestickChart },
   { path: '/strategies', label: 'Pipeline', icon: FlaskConical },
   { path: '/strategy-audit', label: 'Audit Focus', icon: ShieldCheck },
+  { path: '/memory', label: 'Memory', icon: Network },
   { path: '/paper', label: 'Paper', icon: BarChart3 },
   { path: '/liquidations', label: 'Liquidations', icon: Droplets },
   { path: '/portfolio', label: 'Portfolio', icon: Wallet },
@@ -263,6 +266,7 @@ export const WidgetPanel: React.FC = () => {
                   <Route path="/strategies" element={<StrategyLibraryPage />} />
                   <Route path="/strategy/:strategyName/:timeframe" element={<StrategyDetailPage />} />
                   <Route path="/strategy-audit" element={<StrategyAuditPage />} />
+                  <Route path="/memory" element={<MemoryGraphPage />} />
                   <Route path="/hyperliquid" element={<HyperliquidIntelligencePage />} />
                   <Route path="/paper" element={<HyperliquidPaperLabPage />} />
                   <Route path="/polymarket" element={<PolymarketPage />} />

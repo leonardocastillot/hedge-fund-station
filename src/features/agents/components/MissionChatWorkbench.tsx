@@ -22,7 +22,6 @@ import type { ApprovedMission, MissionBackendAction, MissionDraft, MissionPacket
 import { getProviderMeta, inferRequestedProvider } from '@/utils/agentRuntime';
 import { launchAgentRun } from '@/utils/agentOrchestration';
 import { runMissionAction } from '@/utils/missionActions';
-import { VoiceOrbScene } from './VoiceOrbScene';
 import {
   buildMissionMetadata,
   formatRoleLabel,
@@ -33,6 +32,8 @@ import {
 } from '@/utils/missionControl';
 
 type SafeVoiceSceneStatus = 'idle' | 'recording' | 'transcribing' | 'ready' | 'error';
+
+const LazyVoiceOrbScene = React.lazy(() => import('./VoiceOrbScene').then((module) => ({ default: module.VoiceOrbScene })));
 
 type VoiceSceneBoundaryProps = {
   children: React.ReactNode;
@@ -383,29 +384,32 @@ const SafeVoiceScene: React.FC<{
   }, []);
 
   const fallback = <div style={voiceSceneSafePulseStyle(status, audioLevel)} />;
+  const shouldRenderThree = canRenderThree && (status === 'recording' || status === 'transcribing');
 
-  if (!canRenderThree) {
+  if (!shouldRenderThree) {
     return fallback;
   }
 
   return (
-    <VoiceSceneBoundary
-      fallback={fallback}
-      onError={() => {
-        window.localStorage.setItem('hedge.voiceOrb.webglDisabled', '1');
-        setCanRenderThree(false);
-      }}
-    >
-      <VoiceOrbScene
-        status={status}
-        durationSeconds={durationSeconds}
-        audioLevel={audioLevel}
-        onRenderError={() => {
+    <React.Suspense fallback={fallback}>
+      <VoiceSceneBoundary
+        fallback={fallback}
+        onError={() => {
           window.localStorage.setItem('hedge.voiceOrb.webglDisabled', '1');
           setCanRenderThree(false);
         }}
-      />
-    </VoiceSceneBoundary>
+      >
+        <LazyVoiceOrbScene
+          status={status}
+          durationSeconds={durationSeconds}
+          audioLevel={audioLevel}
+          onRenderError={() => {
+            window.localStorage.setItem('hedge.voiceOrb.webglDisabled', '1');
+            setCanRenderThree(false);
+          }}
+        />
+      </VoiceSceneBoundary>
+    </React.Suspense>
   );
 };
 
@@ -1020,7 +1024,6 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
 
   const cancelDraft = React.useCallback((draft: MissionDraft) => {
     draft.terminalIds?.forEach((terminalId) => {
-      window.electronAPI.terminal.kill(terminalId);
       closeTerminal(terminalId);
     });
     if (draft.runId) {

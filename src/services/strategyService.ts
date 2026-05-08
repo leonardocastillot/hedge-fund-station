@@ -235,7 +235,7 @@ export const strategyService = {
   async runBacktest(strategyName: string, timeframe: string = '4h', years: number = 3) {
     void timeframe;
     void years;
-    return hyperliquidService.runBacktest(strategyName, false);
+    return hyperliquidService.runBacktest(strategyName);
   },
 
   async runAllBacktests(_timeframe: string = '4h', _years: number = 3) {

@@ -11,9 +11,15 @@ from backend.hyperliquid_gateway.backtesting.registry import available_strategie
 from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.backtest import (
     load_sampled_snapshots,
     run_backtest,
+    run_backtest_with_params,
 )
 from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.logic import evaluate_signal
-from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.risk import calculate_position_size
+from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.optimizer import build_variant_optimizer_report
+from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.paper import (
+    build_paper_runtime_plan,
+    evaluate_paper_runtime_exit,
+)
+from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.risk import build_risk_plan, calculate_position_size
 from backend.hyperliquid_gateway.strategies.btc_failed_impulse_reversal.scoring import score_setup
 
 
@@ -27,6 +33,21 @@ class BtcFailedImpulseReversalTest(unittest.TestCase):
 
         no_trade = evaluate_signal(base_market_data(symbol="ETH", change1h=-0.4, change15m=0.0))
         self.assertEqual(no_trade["signal"], "none")
+
+    def test_variant_params_can_tighten_signal_and_risk_without_changing_defaults(self) -> None:
+        market = base_market_data(change1h=-0.35, change15m=-0.04)
+
+        default_signal = evaluate_signal(market)
+        strict_signal = evaluate_signal(market, params={"min_impulse_1h_pct": 0.50})
+        variant_risk = build_risk_plan({"price": 100.0, "side": "long"}, side="long", params={"stop_loss_pct": 0.5, "take_profit_pct": 1.2, "max_hold_minutes": 240})
+        default_risk = build_risk_plan({"price": 100.0, "side": "long"}, side="long")
+
+        self.assertEqual(default_signal["signal"], "long")
+        self.assertEqual(strict_signal["signal"], "none")
+        self.assertEqual(variant_risk["stop_loss_pct"], 0.5)
+        self.assertEqual(variant_risk["take_profit_pct"], 1.2)
+        self.assertEqual(variant_risk["max_hold_minutes"], 240)
+        self.assertEqual(default_risk["stop_loss_pct"], 0.65)
 
     def test_score_setup_rewards_failed_followthrough_and_liquidity(self) -> None:
         good_market = base_market_data(change1h=-0.40, change15m=-0.01, volume24h=3_500_000_000)
@@ -105,8 +126,16 @@ class BtcFailedImpulseReversalTest(unittest.TestCase):
                 insert_snapshot(db_path, index, base_ts + ((index - 1) * 300_000), "BTC", price)
 
             result = run_backtest(db_path, BacktestConfig(symbols=("BTC",), risk_fraction=0.10))
+            variant = run_backtest_with_params(
+                db_path,
+                BacktestConfig(symbols=("BTC",), risk_fraction=0.10),
+                params={"take_profit_pct": 1.2, "max_hold_minutes": 240},
+                variant_id="test_fast",
+            )
 
         self.assertEqual(result["summary"]["total_trades"], 1)
+        self.assertEqual(variant["variant"]["variant_id"], "test_fast")
+        self.assertEqual(variant["variant"]["params"]["take_profit_pct"], 1.2)
         trade = result["trades"][0]
         self.assertEqual(trade["side"], "long")
         self.assertEqual(trade["exit_reason"], "take_profit")
@@ -114,8 +143,132 @@ class BtcFailedImpulseReversalTest(unittest.TestCase):
         self.assertEqual(trade["exit_fee_rate"], 0.00045)
         self.assertGreater(float(trade["net_pnl"]), 0.0)
 
+    def test_variant_optimizer_report_ranks_research_variants(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "hyperliquid.db"
+            create_market_db(db_path)
+            base_ts = 1_000_000_000_000
+            prices = [
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                99.72,
+                99.69,
+                99.67,
+                99.65,
+                100.4,
+                100.9,
+                101.6,
+                101.8,
+            ]
+            for index, price in enumerate(prices, start=1):
+                insert_snapshot(db_path, index, base_ts + ((index - 1) * 300_000), "BTC", price)
+
+            report = build_variant_optimizer_report(
+                dataset_path=db_path,
+                config=BacktestConfig(symbols=("BTC",), risk_fraction=0.10),
+                variants=[
+                    {"variantId": "default", "params": {}},
+                    {"variantId": "fast", "params": {"take_profit_pct": 1.2, "max_hold_minutes": 240}},
+                ],
+            )
+
+        self.assertEqual(report["strategyId"], "btc_failed_impulse_reversal")
+        self.assertEqual(report["variantCount"], 2)
+        self.assertIn(report["status"], {"stable-candidate-found", "fragile-best-candidate", "no-candidate"})
+        self.assertEqual([row["rank"] for row in report["variants"]], [1, 2])
+        self.assertIsNotNone(report["topVariant"])
+
+    def test_paper_runtime_opens_only_on_strategy_signal(self) -> None:
+        prices = [
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            99.66,
+            99.65,
+            99.64,
+            99.65,
+        ]
+        plan = build_paper_runtime_plan(runtime_history(prices), [], portfolio_value=100_000)
+
+        self.assertEqual(plan["status"], "entry-ready")
+        self.assertTrue(plan["entry"]["shouldOpen"])
+        self.assertEqual(plan["entry"]["tradePayload"]["setup_tag"], "btc_failed_impulse_reversal")
+        self.assertEqual(plan["entry"]["tradePayload"]["side"], "long")
+        self.assertEqual(plan["entry"]["tradePayload"]["size_usd"], 10_000.0)
+
+        blocked = build_paper_runtime_plan(
+            runtime_history(prices),
+            [
+                {
+                    "id": 1,
+                    "symbol": "BTC",
+                    "setupTag": "btc_failed_impulse_reversal",
+                    "side": "long",
+                    "status": "open",
+                    "entryPrice": 100.0,
+                    "sizeUsd": 10_000.0,
+                    "createdAt": 1_000_000_000_000,
+                }
+            ],
+        )
+
+        self.assertFalse(blocked["entry"]["shouldOpen"])
+        self.assertEqual(blocked["entry"]["blockReason"], "matching_open_trade")
+
+        flat = build_paper_runtime_plan(runtime_history([100.0] * 13), [], portfolio_value=100_000)
+
+        self.assertEqual(flat["status"], "flat-no-signal")
+        self.assertFalse(flat["entry"]["shouldOpen"])
+        self.assertEqual(flat["entry"]["blockReason"], "no_reversal_signal")
+
+    def test_paper_runtime_exit_uses_stop_target_and_time_stop(self) -> None:
+        trade = {
+            "id": 9,
+            "symbol": "BTC",
+            "setupTag": "btc_failed_impulse_reversal",
+            "side": "long",
+            "status": "open",
+            "entryPrice": 100.0,
+            "sizeUsd": 10_000.0,
+            "stopLossPct": 0.65,
+            "takeProfitPct": 1.75,
+            "createdAt": 1_000_000_000_000,
+        }
+
+        take_profit = evaluate_paper_runtime_exit(
+            trade,
+            base_market_data(price=101.8, timestamp_ms=1_000_000_600_000),
+        )
+        stop_loss = evaluate_paper_runtime_exit(
+            trade,
+            base_market_data(price=99.3, timestamp_ms=1_000_000_600_000),
+        )
+        time_stop = evaluate_paper_runtime_exit(
+            trade,
+            base_market_data(price=100.2, timestamp_ms=1_000_000_000_000 + (481 * 60_000)),
+        )
+
+        self.assertEqual(take_profit["exitReason"], "take_profit")
+        self.assertEqual(take_profit["realizedPnlUsd"], 180.0)
+        self.assertEqual(stop_loss["exitReason"], "stop_loss")
+        self.assertEqual(time_stop["exitReason"], "time_stop")
+
     def test_registry_exposes_strategy(self) -> None:
         self.assertIn("btc_failed_impulse_reversal", available_strategies())
+        self.assertIn("btc_failed_impulse_balanced_fast", available_strategies())
 
 
 def base_market_data(**overrides: object) -> dict[str, object]:
@@ -139,6 +292,29 @@ def base_market_data(**overrides: object) -> dict[str, object]:
     }
     data.update(overrides)
     return data
+
+
+def runtime_history(prices: list[float]) -> list[dict[str, object]]:
+    base_ts = 1_000_000_000_000
+    return [
+        {
+            "time": base_ts + (index * 300_000),
+            "symbol": "BTC",
+            "price": price,
+            "change24hPct": 0.0,
+            "openInterestUsd": 2_500_000_000,
+            "volume24h": 3_000_000_000,
+            "fundingRate": 0.00001,
+            "opportunityScore": 70,
+            "signalLabel": "neutral",
+            "riskLabel": "normal",
+            "estimatedTotalLiquidationUsd": 0.0,
+            "crowdingBias": "balanced",
+            "primarySetup": "fade",
+            "setupScores": {"fade": 55, "longFlush": 45, "shortSqueeze": 44, "breakoutContinuation": 62},
+        }
+        for index, price in enumerate(prices)
+    ]
 
 
 def create_market_db(db_path: Path) -> None:

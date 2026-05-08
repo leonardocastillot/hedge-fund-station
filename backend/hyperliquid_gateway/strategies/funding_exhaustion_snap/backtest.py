@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import sqlite3
 from bisect import bisect_right
 from collections import defaultdict
 from pathlib import Path
@@ -10,13 +8,13 @@ from typing import Any
 try:
     from ...backtesting.engine import BacktestConfig, calculate_trade_fee
     from ...backtesting.diagnostics import build_trade_diagnostics
-    from ...backtesting.filters import build_snapshot_filter
     from ...backtesting.metrics import build_summary
+    from ...backtesting.snapshots import load_sampled_market_snapshots
 except ImportError:
     from backtesting.engine import BacktestConfig, calculate_trade_fee
     from backtesting.diagnostics import build_trade_diagnostics
-    from backtesting.filters import build_snapshot_filter
     from backtesting.metrics import build_summary
+    from backtesting.snapshots import load_sampled_market_snapshots
 from .logic import calculate_funding_percentile, evaluate_signal
 from .paper import generate_invalidation_plan, generate_paper_trade_thesis, generate_trigger_plan
 from .risk import calculate_position_size
@@ -185,69 +183,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
 
 
 def load_sampled_snapshots(dataset_path: Path, config: BacktestConfig) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    connection = sqlite3.connect(dataset_path)
-    connection.row_factory = sqlite3.Row
-    where_sql, where_params, replay_filter = build_snapshot_filter(
-        connection,
-        table="market_snapshots",
-        timestamp_column="timestamp_ms",
-        config=config,
-    )
-    query = f"""
-    WITH filtered AS (
-        SELECT id, timestamp_ms, symbol
-        FROM market_snapshots
-        {where_sql}
-    ),
-    sampled AS (
-        SELECT MAX(id) AS id
-        FROM filtered
-        GROUP BY symbol, CAST(timestamp_ms / ? AS INTEGER)
-    )
-    SELECT
-        ms.timestamp_ms,
-        ms.symbol,
-        ms.price,
-        ms.change24h_pct,
-        ms.open_interest_usd,
-        ms.volume24h,
-        ms.funding_rate,
-        ms.opportunity_score,
-        ms.signal_label,
-        ms.risk_label,
-        ms.estimated_total_liquidation_usd,
-        ms.crowding_bias,
-        ms.primary_setup,
-        ms.setup_scores_json
-    FROM market_snapshots ms
-    JOIN sampled s ON s.id = ms.id
-    ORDER BY ms.timestamp_ms ASC, ms.symbol ASC
-    """
-    rows = connection.execute(query, (*where_params, FIVE_MINUTES_MS)).fetchall()
-    connection.close()
-
-    normalized: list[dict[str, Any]] = []
-    for row in rows:
-        normalized.append(
-            {
-                "timestamp_ms": int(row["timestamp_ms"]),
-                "timestamp": iso_from_ms(int(row["timestamp_ms"])),
-                "symbol": row["symbol"],
-                "price": float(row["price"] or 0.0),
-                "change24h_pct": float(row["change24h_pct"] or 0.0),
-                "open_interest_usd": float(row["open_interest_usd"] or 0.0),
-                "volume24h": float(row["volume24h"] or 0.0),
-                "funding_rate": float(row["funding_rate"] or 0.0),
-                "opportunity_score": float(row["opportunity_score"] or 0.0),
-                "signal_label": row["signal_label"],
-                "risk_label": row["risk_label"],
-                "estimated_total_liquidation_usd": float(row["estimated_total_liquidation_usd"] or 0.0),
-                "crowding_bias": row["crowding_bias"] or "balanced",
-                "primary_setup": row["primary_setup"] or "no-trade",
-                "setup_scores": json.loads(row["setup_scores_json"] or "{}"),
-            }
-        )
-    return normalized, replay_filter
+    return load_sampled_market_snapshots(dataset_path, config, bucket_ms=FIVE_MINUTES_MS)
 
 
 def build_market_data(history: list[dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
@@ -511,9 +447,3 @@ def build_latest_signal(symbol_histories: dict[str, list[dict[str, Any]]]) -> di
         **top,
         "status": "ready" if top["signal"] in {"long", "short"} else "watch",
     }
-
-
-def iso_from_ms(timestamp_ms: int) -> str:
-    from datetime import datetime, timezone
-
-    return datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
