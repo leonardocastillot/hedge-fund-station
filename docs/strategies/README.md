@@ -48,6 +48,10 @@ Fees, slippage, latency assumptions.
 
 Backtest, replay, and paper-trade plan.
 
+Per-strategy validation thresholds are tracked in
+`docs/operations/strategy-validation-thresholds.md` and must match the backend
+registry in `backend/hyperliquid_gateway/backtesting/registry.py`.
+
 ## Failure Modes
 
 Where the strategy is likely to break.

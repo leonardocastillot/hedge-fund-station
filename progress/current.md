@@ -21,5 +21,6 @@ next agent.
 
 ## Next Step
 
-Pick the highest-priority `pending` task in `agent_tasks.json`. The recommended
-next task is `confirm_hyperliquid_gateway_port_story`.
+No pending harness tasks remain. `live_production_gate_package` stays blocked
+and human-gated. The next useful backlog item is adding a recurring
+health-check report format for `hf:doctor`, `hf:status`, and backend `/health`.

@@ -8,26 +8,26 @@ to the product objective.
 
 ## Priority 0: Safety And Operating Clarity
 
-- [ ] Confirm the canonical Hyperliquid gateway port story across Docker,
+- [x] Confirm the canonical Hyperliquid gateway port story across Docker,
   tunnel scripts, app config, and docs.
-- [ ] Add a short backend startup runbook under `docs/operations/`.
+- [x] Add a short backend startup runbook under `docs/operations/`.
 - [ ] Add a recurring health-check report format for `hf:doctor`, `hf:status`,
   and backend `/health`.
-- [ ] Document which generated artifacts are curated examples versus local
+- [x] Document which generated artifacts are curated examples versus local
   runtime evidence.
 
 ## Priority 1: Research And Validation Loop
 
 - [ ] Add a strategy readiness matrix that shows spec, backend, backtest,
   validation, paper, and UI status for each strategy.
-- [ ] Add explicit validation thresholds per strategy in docs and backend
+- [x] Add explicit validation thresholds per strategy in docs and backend
   registration.
 - [ ] Add replay requirements for each serious strategy.
-- [ ] Add paper-trade review criteria that map outcomes back to strategy rules.
+- [x] Add paper-trade review criteria that map outcomes back to strategy rules.
 
 ## Priority 2: Data Quality
 
-- [ ] Create a data quality checklist for market snapshots, alerts,
+- [x] Create a data quality checklist for market snapshots, alerts,
   liquidations, paper signals, and paper trades.
 - [ ] Add schema documentation for the gateway responses consumed by
   `src/services/`.

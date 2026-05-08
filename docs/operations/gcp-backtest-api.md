@@ -2,7 +2,9 @@
 
 ## Owner
 
-Backtesting and validation must run in `backend/hyperliquid_gateway/` on the GCP VM or through the VM tunnel. Electron and React only call the API and inspect artifacts.
+Backtesting and validation must run in `backend/hyperliquid_gateway/` on the
+GCP VM or through the VM tunnel. Electron and React only call the API and
+inspect artifacts.
 
 The VM is also the canonical storage location for heavy backend evidence. Keep
 agent runs, checkpoints, SQLite runtime state, replay outputs, and full
@@ -75,4 +77,14 @@ curl -fsS http://127.0.0.1:18001/health
 curl -fsS http://127.0.0.1:18001/api/hyperliquid/backtests/status
 ```
 
-Do not promote a strategy to live execution from these endpoints. A passing backtest only unlocks paper review; production still requires paper journal evidence and human sign-off.
+Do not promote a strategy to live execution from these endpoints. A passing
+backtest only unlocks paper review; production still requires paper journal
+evidence, risk review, operator sign-off, monitoring, rollback, and a separate
+production runbook.
+
+For local cleanup, verify the VM data path exists before purging ignored local
+runtime outputs:
+
+```bash
+gcloud compute ssh hf-backend-01 --project=leonard-489819 --zone=us-central1-a --command='du -sh /data/hedge-fund-station/hyperliquid_gateway/data'
+```
