@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -57,6 +57,12 @@ type EvidenceItem = {
   ok: boolean;
 };
 
+type GraphifyOpenPathMessage = {
+  type: 'graphify:open-path';
+  path: string;
+  label?: string | null;
+};
+
 type StrategyMemorySummary = {
   strategy: HyperliquidStrategyCatalogRow;
   nodeIds: Set<string>;
@@ -80,6 +86,12 @@ type StrategyMemorySummary = {
   nextReview: string;
   queryText: string;
 };
+
+function isGraphifyOpenPathMessage(value: unknown): value is GraphifyOpenPathMessage {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Record<string, unknown>;
+  return payload.type === 'graphify:open-path' && typeof payload.path === 'string' && payload.path.length > 0;
+}
 
 type CaptureFormState = {
   kind: HyperliquidStrategyLearningKind;
@@ -1026,6 +1038,7 @@ function summarizeTypeCounts(nodes: MemoryNode[]): Array<{ type: ObsidianGraphNo
 
 export default function MemoryGraphPage() {
   const { activeWorkspace, updateWorkspace } = useWorkspaceContext();
+  const repoGraphIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [strategies, setStrategies] = useState<HyperliquidStrategyCatalogRow[]>([]);
   const [learningEvents, setLearningEvents] = useState<HyperliquidStrategyLearningEvent[]>([]);
   const [obsidianGraph, setObsidianGraph] = useState<ObsidianGraphResponse | null>(null);
@@ -1098,6 +1111,31 @@ export default function MemoryGraphPage() {
   useEffect(() => {
     void loadMemory(true);
   }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    const handleGraphifyMessage = async (event: MessageEvent) => {
+      const sourceWindow = repoGraphIframeRef.current?.contentWindow;
+      if (!sourceWindow || event.source !== sourceWindow || !isGraphifyOpenPathMessage(event.data)) {
+        return;
+      }
+      if (!window.electronAPI?.obsidian?.openPath) {
+        setError('Opening Graphify source files is only available inside the Electron app.');
+        return;
+      }
+
+      setError(null);
+      setMessage(null);
+      try {
+        await window.electronAPI.obsidian.openPath(event.data.path);
+        setMessage(`Opening Graphify source: ${event.data.label || event.data.path}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to open Graphify source file.');
+      }
+    };
+
+    window.addEventListener('message', handleGraphifyMessage);
+    return () => window.removeEventListener('message', handleGraphifyMessage);
+  }, []);
 
   const visibleLearningEvents = useMemo(
     () => filterLearningEvents(learningEvents, activeLearningLens, query),
@@ -1390,6 +1428,7 @@ export default function MemoryGraphPage() {
         status={graphifyStatus}
         canOpen={Boolean(window.electronAPI?.obsidian?.openPath)}
         expanded={repoGraphExpanded}
+        iframeRef={repoGraphIframeRef}
         onToggleExpanded={() => setRepoGraphExpanded((value) => !value)}
         onOpenReport={() => void openGraphifyPath(graphifyStatus?.reportPath)}
         onOpenHtml={() => void openGraphifyPath(graphifyStatus?.htmlPath)}
@@ -1465,6 +1504,7 @@ function RepoGraphPanel({
   status,
   canOpen,
   expanded,
+  iframeRef,
   onToggleExpanded,
   onOpenReport,
   onOpenHtml
@@ -1472,6 +1512,7 @@ function RepoGraphPanel({
   status: HyperliquidGraphifyStatus | null;
   canOpen: boolean;
   expanded: boolean;
+  iframeRef: RefObject<HTMLIFrameElement>;
   onToggleExpanded: () => void;
   onOpenReport: () => void;
   onOpenHtml: () => void;
@@ -1550,6 +1591,7 @@ function RepoGraphPanel({
       {expanded && iframeSrc ? (
         <div className="border-t border-white/10 bg-[#0f0f1a]">
           <iframe
+            ref={iframeRef}
             src={iframeSrc}
             title="Interactive Graphify repository map"
             className="h-[min(78vh,880px)] w-full bg-[#0f0f1a]"
