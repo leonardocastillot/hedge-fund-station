@@ -879,3 +879,26 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Graphify reports `dirty` while this uncommitted workspace is in
   review, which is expected; rebuild/check after commit if a clean committed
   graph baseline is needed.
+
+---
+
+## 2026-05-09 - Remove Marketing Surface
+
+- Agent: Codex
+- Mission class: repo health audit / UI review-speed audit
+- Summary: Removed the unused campaign/autoblogger/LinkedIn/website Electron
+  surface and public renderer contract, then preserved Gemini Live and direct
+  loop through a neutral `hedge-fund-ai.json` config and `ai:*` IPC bridge.
+- Evidence:
+  `electron/main/native/ai-config-manager.ts`,
+  `electron/main/native/marketing-automation.ts` deleted,
+  `electron/main/index.ts`, `electron/main/ipc/ipc-handlers.ts`,
+  `electron/preload/index.ts`, `src/types/electron.d.ts`,
+  `src/features/settings/pages/SettingsPage.tsx`, and
+  `progress/impl_remove_marketing_surface.md`.
+- Verification: `npm run agent:check`, `npm run build`,
+  source/build searches for removed marketing channels, and `git diff --check`
+  passed. Live key-save smoke was skipped to avoid mutating local credentials.
+- Status: done. Memory was intentionally unchanged because the backend-first
+  cockpit boundary is already documented and this cleanup updates the relevant
+  architecture docs directly.

@@ -5,11 +5,20 @@ next agent.
 
 - Task: none
 - Status: idle
-- Last updated: 2026-05-08
-- Owner: `next-agent`
+- Last updated: 2026-05-09
+- Owner: `codex`
+
+## Active Plan
+
+- No active implementation task.
 
 ## Last Completed Work
 
+- `remove_marketing_surface` removed unused campaign/autoblogger code from
+  Electron and the renderer contract, replaced `marketing:*` with neutral
+  `ai:*` Gemini config IPC, preserved Gemini Live/direct loop, and verified the
+  build and source searches.
+- Handoff: `progress/impl_remove_marketing_surface.md`
 - `repo_cleanup_harness_simplification` simplified the active harness queue,
   untracked media/local editor state/generated evidence, kept only curated
   backend fixtures, pruned unused dependencies, and prepared Graphify refresh.

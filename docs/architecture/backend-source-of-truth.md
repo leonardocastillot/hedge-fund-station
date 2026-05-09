@@ -41,7 +41,6 @@ gateway.
 
 ## Current Cleanup Boundary
 
-The first cleanup pass hides non-core routes from the main cockpit navigation,
-but does not remove internal routes or Electron IPC that are still consumed by
-agent workflows. Marketing/LinkedIn/Gemini UI is not part of the core hedge fund
-cockpit; the IPC remains until agent dependencies are reviewed.
+Non-core campaign and blog-generation surfaces are not part of the Hedge Fund
+Station cockpit. Gemini remains available only as neutral AI provider
+infrastructure for voice, planning, and agent workbench flows.

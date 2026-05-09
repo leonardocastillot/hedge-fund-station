@@ -6,10 +6,10 @@ import { existsSync, readdirSync, statSync } from 'fs';
 import { request as httpRequest } from 'http';
 import { PTYManager } from './native/pty-manager';
 import { WorkspaceManager } from './native/workspace-manager';
-import { registerAgentLoopHandlers, registerDiagnosticsHandlers, registerMarketingHandlers, registerMissionConsoleHandlers, registerObsidianHandlers, registerTerminalHandlers, registerVoiceHandlers, registerWorkspaceHandlers } from './ipc/ipc-handlers';
+import { registerAgentLoopHandlers, registerAIConfigHandlers, registerDiagnosticsHandlers, registerMissionConsoleHandlers, registerObsidianHandlers, registerTerminalHandlers, registerVoiceHandlers, registerWorkspaceHandlers } from './ipc/ipc-handlers';
 import { createApplicationMenu } from './app/menu';
 import { UpdateManager } from './app/updater';
-import { MarketingAutomationManager } from './native/marketing-automation';
+import { AIConfigManager } from './native/ai-config-manager';
 import { VoiceTranscriptionManager } from './native/voice-transcription';
 import { GeminiLiveVoiceManager } from './native/gemini-live-voice';
 import { ObsidianManager } from './native/obsidian-manager';
@@ -21,7 +21,7 @@ let mainWindow: BrowserWindow | null = null;
 let ptyManager: PTYManager | null = null;
 let workspaceManager: WorkspaceManager | null = null;
 let updateManager: UpdateManager | null = null;
-let marketingAutomationManager: MarketingAutomationManager | null = null;
+let aiConfigManager: AIConfigManager | null = null;
 let voiceTranscriptionManager: VoiceTranscriptionManager | null = null;
 let geminiLiveVoiceManager: GeminiLiveVoiceManager | null = null;
 let obsidianManager: ObsidianManager | null = null;
@@ -402,12 +402,8 @@ function clearIpcChannels(): void {
     'workspace:update',
     'workspace:delete',
     'workspace:pickDirectory',
-    'marketing:runAutoBlogger',
-    'marketing:listBlogPosts',
-    'marketing:getAIConfigStatus',
-    'marketing:saveGeminiApiKey',
-    'marketing:generateIdeas',
-    'marketing:generateImage',
+    'ai:getConfigStatus',
+    'ai:saveGeminiApiKey',
     'voice:transcribe',
     'obsidian:getStatus',
     'obsidian:ensureVault',
@@ -715,7 +711,7 @@ function createWindow(): void {
   ptyManager = new PTYManager(mainWindow);
   workspaceManager = new WorkspaceManager();
   updateManager = new UpdateManager(mainWindow);
-  marketingAutomationManager = new MarketingAutomationManager();
+  aiConfigManager = new AIConfigManager();
   voiceTranscriptionManager = new VoiceTranscriptionManager();
   geminiLiveVoiceManager = new GeminiLiveVoiceManager();
   obsidianManager = new ObsidianManager();
@@ -726,7 +722,7 @@ function createWindow(): void {
   clearIpcChannels();
   registerTerminalHandlers(ptyManager);
   registerWorkspaceHandlers(workspaceManager);
-  registerMarketingHandlers(marketingAutomationManager);
+  registerAIConfigHandlers(aiConfigManager);
   registerVoiceHandlers(voiceTranscriptionManager, geminiLiveVoiceManager);
   registerObsidianHandlers(obsidianManager);
   registerDiagnosticsHandlers(diagnosticsManager);
@@ -784,7 +780,7 @@ function createWindow(): void {
       updateManager = null;
     }
     stopBackendServer();
-    marketingAutomationManager = null;
+    aiConfigManager = null;
     voiceTranscriptionManager = null;
     geminiLiveVoiceManager = null;
     obsidianManager = null;

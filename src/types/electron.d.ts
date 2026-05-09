@@ -286,57 +286,12 @@ export interface MissionConsoleExportHandoffResult {
   run: MissionConsoleRun;
 }
 
-export interface MarketingBlogPost {
-  slug: string;
-  title: string;
-  description: string;
-  date: string;
-  readingTime: string;
-  tag: string;
-  filePath: string;
-  url: string;
-  excerpt: string;
-  updatedAt: string;
-}
-
-export interface MarketingAutomationRunResult {
-  post: MarketingBlogPost | null;
-  stdout: string;
-  stderr: string;
-}
-
-export interface MarketingAIConfigStatus {
+export interface AIConfigStatus {
   isConfigured: boolean;
-  hasApiKey: boolean;
-  imageModel: string;
+  hasGeminiApiKey: boolean;
   textModel: string;
-  assetsDir: string;
+  liveModel: string;
   keyPreview: string | null;
-}
-
-export interface MarketingGeneratedIdea {
-  id: string;
-  title: string;
-  hook: string;
-  summary: string;
-  channel: 'linkedin' | 'website' | 'multi';
-  angle: string;
-  cta: string;
-  imagePrompt: string;
-  linkedinDraft: string;
-  websiteDraft: string;
-  sourceSlug?: string;
-}
-
-export interface MarketingGeneratedImageResult {
-  filePath: string;
-  dataUrl: string;
-  mimeType: string;
-  prompt: string;
-  channel: 'linkedin' | 'website-hero' | 'website-inline';
-  width: number;
-  height: number;
-  createdAt: string;
 }
 
 export interface UpdateStatus {
@@ -418,22 +373,9 @@ export interface ElectronAPI {
     delete: (id: string) => Promise<void>;
     pickDirectory: () => Promise<string | null>;
   };
-  marketing: {
-    runAutoBlogger: () => Promise<MarketingAutomationRunResult>;
-    listBlogPosts: (limit?: number) => Promise<MarketingBlogPost[]>;
-    getAIConfigStatus: () => Promise<MarketingAIConfigStatus>;
-    saveGeminiApiKey: (apiKey: string) => Promise<MarketingAIConfigStatus>;
-    generateIdeas: (params: {
-      brief?: string;
-      selectedPostSlug?: string;
-      count?: number;
-      channel?: 'linkedin' | 'website' | 'multi';
-    }) => Promise<MarketingGeneratedIdea[]>;
-    generateImage: (params: {
-      prompt: string;
-      channel?: 'linkedin' | 'website-hero' | 'website-inline';
-      title?: string;
-    }) => Promise<MarketingGeneratedImageResult>;
+  ai: {
+    getConfigStatus: () => Promise<AIConfigStatus>;
+    saveGeminiApiKey: (apiKey: string) => Promise<AIConfigStatus>;
   };
   voice: {
     transcribe: (audio: ArrayBuffer, mimeType?: string) => Promise<VoiceTranscriptionResult>;

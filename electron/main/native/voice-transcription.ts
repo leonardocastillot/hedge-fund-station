@@ -1,6 +1,7 @@
-import { app } from 'electron';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import {
+  readLocalEnvValue,
+  resolveGeminiApiKey
+} from './ai-config-manager';
 
 const OPENAI_TRANSCRIPTION_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const DEFAULT_MODEL = 'gpt-4o-mini-transcribe';
@@ -8,62 +9,10 @@ const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_GEMINI_TRANSCRIPTION_MODEL = 'gemini-2.5-flash';
 const GEMINI_TRANSCRIPTION_TIMEOUT_MS = 30000;
 const GEMINI_PLANNER_TIMEOUT_MS = 20000;
-const CONFIG_FILE = 'marketing-ai.json';
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
 };
-
-function parseDotEnv(contents: string): Record<string, string> {
-  const values: Record<string, string> = {};
-
-  for (const line of contents.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
-
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex <= 0) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    let value = trimmed.slice(separatorIndex + 1).trim();
-
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith('\'') && value.endsWith('\''))
-    ) {
-      value = value.slice(1, -1);
-    }
-
-    values[key] = value;
-  }
-
-  return values;
-}
-
-function loadLocalEnv(): Record<string, string> {
-  const candidatePaths = [
-    join(process.cwd(), '.env'),
-    join(app.getAppPath(), '.env')
-  ];
-
-  for (const envPath of candidatePaths) {
-    if (!existsSync(envPath)) {
-      continue;
-    }
-
-    try {
-      return parseDotEnv(readFileSync(envPath, 'utf8'));
-    } catch (error) {
-      console.warn(`Failed to read env file at ${envPath}:`, error);
-    }
-  }
-
-  return {};
-}
 
 function getOpenAIApiKey(): string {
   const envKey = process.env.OPENAI_API_KEY;
@@ -71,30 +20,11 @@ function getOpenAIApiKey(): string {
     return envKey;
   }
 
-  const localEnv = loadLocalEnv();
-  return localEnv.OPENAI_API_KEY || '';
+  return readLocalEnvValue('OPENAI_API_KEY');
 }
 
 function getGeminiApiKey(): string {
-  const configPath = join(app.getPath('userData'), CONFIG_FILE);
-  if (existsSync(configPath)) {
-    try {
-      const config = JSON.parse(readFileSync(configPath, 'utf8')) as { geminiApiKey?: string };
-      if (config.geminiApiKey) {
-        return config.geminiApiKey;
-      }
-    } catch {
-      // Ignore invalid local settings and continue with env fallbacks.
-    }
-  }
-
-  const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (envKey) {
-    return envKey;
-  }
-
-  const localEnv = loadLocalEnv();
-  return localEnv.GEMINI_API_KEY || localEnv.GOOGLE_API_KEY || '';
+  return resolveGeminiApiKey();
 }
 
 function normalizeMimeType(mimeType?: string): string {
