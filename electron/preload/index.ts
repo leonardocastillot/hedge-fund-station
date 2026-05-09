@@ -47,22 +47,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pickDirectory: () => ipcRenderer.invoke('workspace:pickDirectory')
   },
 
-  marketing: {
-    runAutoBlogger: () => ipcRenderer.invoke('marketing:runAutoBlogger'),
-    listBlogPosts: (limit?: number) => ipcRenderer.invoke('marketing:listBlogPosts', { limit }),
-    getAIConfigStatus: () => ipcRenderer.invoke('marketing:getAIConfigStatus'),
-    saveGeminiApiKey: (apiKey: string) => ipcRenderer.invoke('marketing:saveGeminiApiKey', { apiKey }),
-    generateIdeas: (params: {
-      brief?: string;
-      selectedPostSlug?: string;
-      count?: number;
-      channel?: 'linkedin' | 'website' | 'multi';
-    }) => ipcRenderer.invoke('marketing:generateIdeas', params),
-    generateImage: (params: {
-      prompt: string;
-      channel?: 'linkedin' | 'website-hero' | 'website-inline';
-      title?: string;
-    }) => ipcRenderer.invoke('marketing:generateImage', params)
+  ai: {
+    getConfigStatus: () => ipcRenderer.invoke('ai:getConfigStatus'),
+    saveGeminiApiKey: (apiKey: string) => ipcRenderer.invoke('ai:saveGeminiApiKey', { apiKey })
   },
 
   voice: {

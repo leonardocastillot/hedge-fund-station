@@ -1,6 +1,8 @@
-import { app } from 'electron';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  readAIConfig,
+  resolveGeminiApiKey,
+  resolveGeminiTextModel
+} from './ai-config-manager';
 import type {
   AgentLoopRunSnapshot,
   AgentLoopStageUpdate,
@@ -10,12 +12,6 @@ import type {
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_TEXT_MODEL = 'gemini-2.5-flash';
 const TEXT_MODEL_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.0-flash'];
-const CONFIG_FILE = 'marketing-ai.json';
-
-interface AgentLoopConfig {
-  geminiApiKey?: string;
-  textModel?: string;
-}
 
 interface AgentLoopModelResponse {
   summary?: string;
@@ -65,13 +61,8 @@ function normalizeConfidence(value?: string): 'low' | 'medium' | 'high' {
 }
 
 export class AgentLoopManager {
-  private readonly configPath: string;
   private readonly runs = new Map<string, AgentLoopRunSnapshot>();
   private readonly cancellations = new Set<string>();
-
-  constructor() {
-    this.configPath = path.join(app.getPath('userData'), CONFIG_FILE);
-  }
 
   async startMission(params: AgentLoopStartParams): Promise<AgentLoopRunSnapshot> {
     const run: AgentLoopRunSnapshot = {
@@ -269,13 +260,14 @@ export class AgentLoopManager {
     unmetGates: string[],
     lastSummary: string
   ): Promise<AgentLoopModelResponse> {
-    const config = this.readConfig();
-    const apiKey = this.getApiKey(config);
+    const config = readAIConfig();
+    const apiKey = resolveGeminiApiKey(config);
     if (!apiKey) {
-      throw new Error('Gemini API key is not configured. Configure it in Marketing AI settings first.');
+      throw new Error('Gemini API key is not configured. Configure it in AI Provider settings first.');
     }
 
-    const models = [config.textModel || DEFAULT_TEXT_MODEL, ...TEXT_MODEL_FALLBACKS.filter((model) => model !== (config.textModel || DEFAULT_TEXT_MODEL))];
+    const preferredModel = resolveGeminiTextModel(config, DEFAULT_TEXT_MODEL);
+    const models = [preferredModel, ...TEXT_MODEL_FALLBACKS.filter((model) => model !== preferredModel)];
     let lastError: unknown = null;
 
     const payload = {
@@ -349,18 +341,6 @@ export class AgentLoopManager {
       ...updates,
       updatedAt: updates.updatedAt ?? Date.now()
     });
-  }
-
-  private readConfig(): AgentLoopConfig {
-    if (!fs.existsSync(this.configPath)) {
-      return {};
-    }
-
-    return safeJsonParse<AgentLoopConfig>(fs.readFileSync(this.configPath, 'utf-8'), {});
-  }
-
-  private getApiKey(config: AgentLoopConfig): string | null {
-    return config.geminiApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || null;
   }
 
   private extractTextFromResponse(response: any): string {
