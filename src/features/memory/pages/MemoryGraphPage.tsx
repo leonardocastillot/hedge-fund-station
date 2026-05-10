@@ -9,14 +9,25 @@ import {
   ExternalLink,
   FileText,
   GitBranch,
-  Layers,
   Network,
   RefreshCw,
-  Search,
   ShieldCheck,
   Target
 } from 'lucide-react';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import StrategyMemoryGraphExplorer from '@/features/memory/components/StrategyMemoryGraphExplorer';
+import {
+  LEARNING_LENSES,
+  MEMORY_LENSES,
+  NODE_TYPE_LABELS,
+  type EvidenceFilterId,
+  type EvidenceItem,
+  type LearningLensId,
+  type MemoryGraph,
+  type MemoryLensId,
+  type MemoryNode,
+  type StrategyMemorySummary
+} from '@/features/memory/memoryGraphTypes';
 import {
   hyperliquidService,
   type HyperliquidGraphifyStatus,
@@ -28,63 +39,16 @@ import {
 } from '@/services/hyperliquidService';
 import type {
   ObsidianGraphEdge,
-  ObsidianGraphNode,
   ObsidianGraphNodeType,
   ObsidianGraphResponse,
   ObsidianStrategyMemoryInput,
   ObsidianSyncStrategyMemoryResult
 } from '@/types/electron';
 
-type MemoryNode = ObsidianGraphNode & {
-  x?: number;
-  y?: number;
-  r?: number;
-  degree?: number;
-};
-
-type MemoryGraph = {
-  nodes: MemoryNode[];
-  edges: ObsidianGraphEdge[];
-};
-
-type MemoryLensId = 'actionable' | 'paper-ready' | 'blocked' | 'needs-backtest' | 'docs-only' | 'all';
-
-type LearningLensId = 'lessons' | 'mistakes' | 'wins' | 'rule-changes' | 'follow-ups';
-
-type EvidenceItem = {
-  key: 'docs' | 'backend' | 'backtest' | 'validation' | 'paper';
-  label: string;
-  ok: boolean;
-};
-
 type GraphifyOpenPathMessage = {
   type: 'graphify:open-path';
   path: string;
   label?: string | null;
-};
-
-type StrategyMemorySummary = {
-  strategy: HyperliquidStrategyCatalogRow;
-  nodeIds: Set<string>;
-  edgeIds: Set<string>;
-  memoryNoteCount: number;
-  learningEventCount: number;
-  mistakeCount: number;
-  winCount: number;
-  ruleChangeCount: number;
-  openFollowUpCount: number;
-  latestLearning: HyperliquidStrategyLearningEvent | null;
-  latestLesson: HyperliquidStrategyLearningEvent | null;
-  latestRuleChange: HyperliquidStrategyLearningEvent | null;
-  openFollowUp: HyperliquidStrategyLearningEvent | null;
-  evidenceItems: EvidenceItem[];
-  evidenceComplete: number;
-  evidenceTotal: number;
-  blockers: string[];
-  statusLabel: string;
-  statusTone: string;
-  nextReview: string;
-  queryText: string;
 };
 
 function isGraphifyOpenPathMessage(value: unknown): value is GraphifyOpenPathMessage {
@@ -103,43 +67,6 @@ type CaptureFormState = {
   ruleChange: string;
   nextAction: string;
 };
-
-const NODE_TYPE_LABELS: Record<ObsidianGraphNodeType, string> = {
-  strategy: 'Strategy',
-  'strategy-doc': 'Strategy Doc',
-  'backend-package': 'Backend',
-  'backtest-artifact': 'Backtest',
-  'validation-artifact': 'Validation',
-  'paper-artifact': 'Paper',
-  'learning-event': 'Learning Event',
-  'agent-memory': 'Agent Memory',
-  'progress-handoff': 'Handoff',
-  'obsidian-note': 'Obsidian Note',
-  'repo-path': 'Repo Path'
-};
-
-const NODE_TYPE_TONES: Record<ObsidianGraphNodeType, { fill: string; stroke: string; text: string; glow: string }> = {
-  strategy: { fill: '#0f766e', stroke: '#5eead4', text: '#ecfeff', glow: '#2dd4bf' },
-  'strategy-doc': { fill: '#1d4ed8', stroke: '#93c5fd', text: '#eff6ff', glow: '#60a5fa' },
-  'backend-package': { fill: '#0e7490', stroke: '#67e8f9', text: '#ecfeff', glow: '#22d3ee' },
-  'backtest-artifact': { fill: '#15803d', stroke: '#86efac', text: '#f0fdf4', glow: '#4ade80' },
-  'validation-artifact': { fill: '#4d7c0f', stroke: '#bef264', text: '#f7fee7', glow: '#a3e635' },
-  'paper-artifact': { fill: '#047857', stroke: '#6ee7b7', text: '#ecfdf5', glow: '#34d399' },
-  'learning-event': { fill: '#9333ea', stroke: '#f0abfc', text: '#faf5ff', glow: '#e879f9' },
-  'agent-memory': { fill: '#7e22ce', stroke: '#d8b4fe', text: '#faf5ff', glow: '#c084fc' },
-  'progress-handoff': { fill: '#a16207', stroke: '#fde047', text: '#fefce8', glow: '#facc15' },
-  'obsidian-note': { fill: '#be123c', stroke: '#fda4af', text: '#fff1f2', glow: '#fb7185' },
-  'repo-path': { fill: '#475569', stroke: '#cbd5e1', text: '#f8fafc', glow: '#94a3b8' }
-};
-
-const MEMORY_LENSES: Array<{ id: MemoryLensId; label: string; detail: string }> = [
-  { id: 'actionable', label: 'Actionable', detail: 'review queue' },
-  { id: 'paper-ready', label: 'Paper Ready', detail: 'paper gate' },
-  { id: 'blocked', label: 'Blocked', detail: 'repair list' },
-  { id: 'needs-backtest', label: 'Needs Backtest', detail: 'test next' },
-  { id: 'docs-only', label: 'Docs Only', detail: 'needs backend' },
-  { id: 'all', label: 'All', detail: 'full catalog' }
-];
 
 const OBSIDIAN_GRAPH_TIMEOUT_MS = 5000;
 const OBSIDIAN_OPEN_TIMEOUT_MS = 3000;
@@ -162,40 +89,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
   });
 }
 
-const LEARNING_LENSES: Array<{ id: LearningLensId; label: string; detail: string }> = [
-  { id: 'lessons', label: 'Lessons', detail: 'latest learning' },
-  { id: 'mistakes', label: 'Mistakes', detail: 'loss reviews' },
-  { id: 'wins', label: 'Wins', detail: 'what worked' },
-  { id: 'rule-changes', label: 'Rule Changes', detail: 'rules changed' },
-  { id: 'follow-ups', label: 'Open Follow-ups', detail: 'next actions' }
-];
-
-const GRAPH_WIDTH = 980;
-const GRAPH_HEIGHT = 760;
-const GRAPH_CENTER = { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 };
-
-const TYPE_RANK: Record<ObsidianGraphNodeType, number> = {
-  strategy: 0,
-  'strategy-doc': 1,
-  'backend-package': 2,
-  'backtest-artifact': 3,
-  'validation-artifact': 4,
-  'paper-artifact': 5,
-  'learning-event': 6,
-  'agent-memory': 7,
-  'obsidian-note': 8,
-  'progress-handoff': 9,
-  'repo-path': 10
-};
-
-const STAGE_ANGLE: Record<HyperliquidPipelineStage, number> = {
-  paper: -0.58,
-  audit: 0.18,
-  backtesting: 1.12,
-  research: 2.58,
-  blocked: 3.72
-};
-
 function slug(value: string): string {
   return value
     .toLowerCase()
@@ -203,18 +96,6 @@ function slug(value: string): string {
     .replace(/\.md$/i, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'node';
-}
-
-function stableHash(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
-}
-
-function jitter(value: string, amount: number): number {
-  return ((stableHash(value) % 1000) / 1000 - 0.5) * amount;
 }
 
 function isAbsolutePath(value: string): boolean {
@@ -251,6 +132,7 @@ function inferPathNodeType(repoPath: string): ObsidianGraphNodeType {
   if (repoPath.startsWith('backend/hyperliquid_gateway/data/backtests/')) return 'backtest-artifact';
   if (repoPath.startsWith('backend/hyperliquid_gateway/data/validations/')) return 'validation-artifact';
   if (repoPath.startsWith('backend/hyperliquid_gateway/data/paper/')) return 'paper-artifact';
+  if (repoPath.startsWith('backend/hyperliquid_gateway/data/audits/')) return 'audit-artifact';
   if (repoPath.startsWith('docs/operations/agents/memory/')) return 'agent-memory';
   if (repoPath.startsWith('progress/')) return 'progress-handoff';
   return 'repo-path';
@@ -935,105 +817,40 @@ function scopeGraph(
 
   const nodes = graph.nodes.filter((node) => visibleNodes.has(node.id));
   const edges = graph.edges.filter((edge) => visibleEdges.has(edge.id) && visibleNodes.has(edge.source) && visibleNodes.has(edge.target));
-  return layoutGraph(nodes, edges);
+  return { nodes, edges };
 }
 
-function layoutGraph(nodes: MemoryNode[], edges: ObsidianGraphEdge[]): MemoryGraph {
-  const positioned = nodes.map((node) => ({ ...node }));
-  const degree = new Map<string, number>();
-  edges.forEach((edge) => {
-    degree.set(edge.source, (degree.get(edge.source) || 0) + 1);
-    degree.set(edge.target, (degree.get(edge.target) || 0) + 1);
-  });
-
-  positioned.forEach((node) => {
-    node.degree = degree.get(node.id) || 0;
-    const baseRadius = node.type === 'strategy' ? 19 : node.type.includes('artifact') ? 12 : 10;
-    node.r = Math.min(baseRadius + Math.sqrt(node.degree || 0) * 2.4, node.type === 'strategy' ? 31 : 22);
-  });
-
-  const strategyNodes = positioned
-    .filter((node) => node.type === 'strategy')
-    .sort((a, b) => {
-      const stageDelta = (a.pipelineStage || '').localeCompare(b.pipelineStage || '');
-      return stageDelta || a.label.localeCompare(b.label);
-    });
-  const strategyPosition = new Map<string, { x: number; y: number; angle: number }>();
-
-  strategyNodes.forEach((node, index) => {
-    const stage = (node.pipelineStage || 'research') as HyperliquidPipelineStage;
-    const baseAngle = STAGE_ANGLE[stage] ?? ((Math.PI * 2 * index) / Math.max(strategyNodes.length, 1));
-    const sameStageIndex = strategyNodes.slice(0, index).filter((item) => item.pipelineStage === node.pipelineStage).length;
-    const angle = baseAngle + (sameStageIndex - 1.5) * 0.18 + jitter(node.id, 0.1);
-    const radius = stage === 'paper' ? 150 : stage === 'audit' ? 170 : stage === 'backtesting' ? 190 : stage === 'blocked' ? 214 : 224;
-    const x = GRAPH_CENTER.x + Math.cos(angle) * radius * 1.08;
-    const y = GRAPH_CENTER.y + Math.sin(angle) * radius * 0.82;
-    node.x = x;
-    node.y = y;
-    strategyPosition.set(node.id, { x, y, angle });
-  });
-
-  const companionGroups = new Map<string, MemoryNode[]>();
-  const unanchored: MemoryNode[] = [];
-
-  positioned
-    .filter((node) => node.type !== 'strategy')
-    .forEach((node) => {
-      const strategyId = node.strategyId ? `strategy:${node.strategyId}` : null;
-      const directStrategy = strategyId && strategyPosition.has(strategyId)
-        ? strategyId
-        : edges.find((edge) => {
-          if (edge.source === node.id && strategyPosition.has(edge.target)) return true;
-          if (edge.target === node.id && strategyPosition.has(edge.source)) return true;
-          return false;
-        });
-      const anchorId = typeof directStrategy === 'string'
-        ? directStrategy
-        : directStrategy
-          ? strategyPosition.has(directStrategy.source) ? directStrategy.source : directStrategy.target
-          : null;
-      if (anchorId) {
-        const group = companionGroups.get(anchorId) || [];
-        group.push(node);
-        companionGroups.set(anchorId, group);
-      } else {
-        unanchored.push(node);
-      }
-    });
-
-  companionGroups.forEach((group, anchorId) => {
-    const anchor = strategyPosition.get(anchorId);
-    if (!anchor) return;
-    group
-      .sort((a, b) => TYPE_RANK[a.type] - TYPE_RANK[b.type] || a.label.localeCompare(b.label))
-      .forEach((node, index) => {
-        const total = group.length;
-        const spread = Math.min(2.7, Math.max(1.2, total * 0.22));
-        const localAngle = anchor.angle + Math.PI + (index - (total - 1) / 2) * (spread / Math.max(total - 1, 1));
-        const ring = 74 + Math.floor(index / 9) * 50 + (node.type.includes('artifact') ? 22 : 0);
-        node.x = anchor.x + Math.cos(localAngle) * ring + jitter(node.id, 18);
-        node.y = anchor.y + Math.sin(localAngle) * ring + jitter(`${node.id}:y`, 18);
-      });
-  });
-
-  unanchored
-    .sort((a, b) => TYPE_RANK[a.type] - TYPE_RANK[b.type] || a.label.localeCompare(b.label))
-    .forEach((node, index) => {
-      const angle = (Math.PI * 2 * index) / Math.max(unanchored.length, 1) + jitter(node.id, 0.18);
-      const radius = 270 + (index % 3) * 28;
-      node.x = GRAPH_CENTER.x + Math.cos(angle) * radius * 1.18;
-      node.y = GRAPH_CENTER.y + Math.sin(angle) * radius * 0.88;
-    });
-
-  return { nodes: positioned, edges };
+function evidenceFilterMatches(node: MemoryNode, filter: EvidenceFilterId): boolean {
+  if (node.type === 'strategy' || filter === 'all') return true;
+  if (filter === 'agent-path') {
+    return [
+      'strategy-doc',
+      'backend-package',
+      'backtest-artifact',
+      'validation-artifact',
+      'paper-artifact',
+      'audit-artifact',
+      'learning-event'
+    ].includes(node.type);
+  }
+  if (filter === 'artifacts') {
+    return ['backtest-artifact', 'validation-artifact', 'paper-artifact', 'audit-artifact'].includes(node.type);
+  }
+  if (filter === 'learning') return node.type === 'learning-event';
+  return ['obsidian-note', 'agent-memory', 'progress-handoff'].includes(node.type);
 }
 
-function summarizeTypeCounts(nodes: MemoryNode[]): Array<{ type: ObsidianGraphNodeType; count: number }> {
-  const counts = new Map<ObsidianGraphNodeType, number>();
-  nodes.forEach((node) => counts.set(node.type, (counts.get(node.type) || 0) + 1));
-  return Object.entries(NODE_TYPE_LABELS)
-    .map(([type]) => ({ type: type as ObsidianGraphNodeType, count: counts.get(type as ObsidianGraphNodeType) || 0 }))
-    .filter((item) => item.count > 0);
+function filterGraphByEvidence(graph: MemoryGraph, filter: EvidenceFilterId): MemoryGraph {
+  if (filter === 'all') return graph;
+  const visibleNodes = new Set(
+    graph.nodes
+      .filter((node) => evidenceFilterMatches(node, filter))
+      .map((node) => node.id)
+  );
+  return {
+    nodes: graph.nodes.filter((node) => visibleNodes.has(node.id)),
+    edges: graph.edges.filter((edge) => visibleNodes.has(edge.source) && visibleNodes.has(edge.target))
+  };
 }
 
 export default function MemoryGraphPage() {
@@ -1047,6 +864,7 @@ export default function MemoryGraphPage() {
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [activeLens, setActiveLens] = useState<MemoryLensId>('actionable');
   const [activeLearningLens, setActiveLearningLens] = useState<LearningLensId>('lessons');
+  const [activeEvidenceFilter, setActiveEvidenceFilter] = useState<EvidenceFilterId>('agent-path');
   const [query, setQuery] = useState('');
   const [repoGraphExpanded, setRepoGraphExpanded] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -1176,16 +994,21 @@ export default function MemoryGraphPage() {
   }, [filteredSummaries, selectedStrategyId]);
 
   const scopedGraph = useMemo(
-    () => scopeGraph(mergedGraph, filteredSummaries, selectedStrategyId, query),
-    [filteredSummaries, mergedGraph, query, selectedStrategyId]
+    () => scopeGraph(mergedGraph, filteredSummaries, null, query),
+    [filteredSummaries, mergedGraph, query]
+  );
+
+  const visibleGraph = useMemo(
+    () => filterGraphByEvidence(scopedGraph, activeEvidenceFilter),
+    [activeEvidenceFilter, scopedGraph]
   );
 
   const selectedNode = useMemo(
-    () => scopedGraph.nodes.find((node) => node.id === selectedNodeId)
-      || (selectedStrategyId ? scopedGraph.nodes.find((node) => node.id === `strategy:${selectedStrategyId}`) : null)
-      || scopedGraph.nodes[0]
+    () => visibleGraph.nodes.find((node) => node.id === selectedNodeId)
+      || (selectedStrategyId ? visibleGraph.nodes.find((node) => node.id === `strategy:${selectedStrategyId}`) : null)
+      || visibleGraph.nodes[0]
       || null,
-    [scopedGraph.nodes, selectedNodeId, selectedStrategyId]
+    [visibleGraph.nodes, selectedNodeId, selectedStrategyId]
   );
 
   const selectedSummary = useMemo(() => {
@@ -1197,6 +1020,11 @@ export default function MemoryGraphPage() {
     accumulator[lens.id] = strategySummaries.filter((summary) => matchesLens(summary, lens.id)).length;
     return accumulator;
   }, {} as Record<MemoryLensId, number>), [strategySummaries]);
+
+  const learningLensCounts = useMemo(() => LEARNING_LENSES.reduce((accumulator, lens) => {
+    accumulator[lens.id] = learningEvents.filter((event) => learningLensMatches(event, lens.id)).length;
+    return accumulator;
+  }, {} as Record<LearningLensId, number>), [learningEvents]);
 
   const handleSelectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
@@ -1210,13 +1038,12 @@ export default function MemoryGraphPage() {
     setSelectedNodeId(`strategy:${strategyId}`);
   };
 
-  const visibleEdgeCount = scopedGraph.edges.length;
-  const visibleNodeCount = scopedGraph.nodes.length;
-
-  const typeCounts = useMemo(
-    () => summarizeTypeCounts(mergedGraph.nodes),
-    [mergedGraph.nodes]
-  );
+  const resetGraphExplorer = () => {
+    setQuery('');
+    setActiveLens('actionable');
+    setActiveLearningLens('lessons');
+    setActiveEvidenceFilter('agent-path');
+  };
 
   const runSync = async () => {
     if (!activeWorkspace || !window.electronAPI?.obsidian?.syncStrategyMemory) {
@@ -1434,67 +1261,33 @@ export default function MemoryGraphPage() {
         onOpenHtml={() => void openGraphifyPath(graphifyStatus?.htmlPath)}
       />
 
-      <section className="grid gap-3">
-        <label className="flex min-h-11 min-w-0 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3">
-          <Search className="h-4 w-4 shrink-0 text-white/45" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search strategies, notes, artifacts..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/35"
-          />
-        </label>
-        <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr))]">
-          {MEMORY_LENSES.map((lens) => (
-            <LensButton
-              key={lens.id}
-              lens={lens}
-              count={lensCounts[lens.id] || 0}
-              active={activeLens === lens.id}
-              onClick={() => setActiveLens(lens.id)}
-            />
-          ))}
-        </div>
-        <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,8.5rem),1fr))]">
-          {LEARNING_LENSES.map((lens) => (
-            <LearningLensButton
-              key={lens.id}
-              lens={lens}
-              count={learningEvents.filter((event) => learningLensMatches(event, lens.id)).length}
-              active={activeLearningLens === lens.id}
-              onClick={() => setActiveLearningLens(lens.id)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="grid min-w-0 items-start gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
-        <StrategyMemoryList
-          summaries={filteredSummaries}
-          selectedStrategyId={selectedSummary?.strategy.strategyId || null}
-          onSelect={handleSelectStrategy}
+      <section className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_25rem]">
+        <StrategyMemoryGraphExplorer
+          graph={visibleGraph}
+          totalGraph={mergedGraph}
+          selectedNodeId={selectedNode?.id || null}
+          query={query}
+          activeLens={activeLens}
+          activeLearningLens={activeLearningLens}
+          activeEvidenceFilter={activeEvidenceFilter}
+          lensCounts={lensCounts}
+          learningLensCounts={learningLensCounts}
+          onQueryChange={setQuery}
+          onLensChange={setActiveLens}
+          onLearningLensChange={setActiveLearningLens}
+          onEvidenceFilterChange={setActiveEvidenceFilter}
+          onSelectNode={handleSelectNode}
+          onResetView={resetGraphExplorer}
         />
 
-        <div className="min-w-0 rounded-md border border-white/10 bg-black/20">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <GitBranch className="h-4 w-4 text-cyan-200" />
-                Evidence Neighborhood
-              </div>
-              <div className="mt-1 text-xs text-white/45">
-                {visibleNodeCount}/{mergedGraph.nodes.length} nodes, {visibleEdgeCount}/{mergedGraph.edges.length} edges
-              </div>
-            </div>
-            <div className="rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-semibold text-white/55">
-              {selectedSummary ? selectedSummary.strategy.displayName : MEMORY_LENSES.find((lens) => lens.id === activeLens)?.label}
-            </div>
-          </div>
-          <MemoryGraphCanvas graph={scopedGraph} selectedNodeId={selectedNode?.id || null} onSelect={handleSelectNode} />
-          <PassiveLegend counts={typeCounts} />
+        <div className="grid min-w-0 gap-3">
+          <NodeInspector node={selectedNode} summary={selectedSummary} />
+          <StrategyMemoryList
+            summaries={filteredSummaries}
+            selectedStrategyId={selectedSummary?.strategy.strategyId || null}
+            onSelect={handleSelectStrategy}
+          />
         </div>
-
-        <NodeInspector node={selectedNode} summary={selectedSummary} />
       </section>
     </div>
   );
@@ -1601,64 +1394,6 @@ function RepoGraphPanel({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function LensButton({
-  lens,
-  count,
-  active,
-  onClick
-}: {
-  lens: { id: MemoryLensId; label: string; detail: string };
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-left transition ${
-        active ? 'border-cyan-300/45 bg-cyan-400/15 text-cyan-50' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.07]'
-      }`}
-    >
-      <Target className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold leading-4">{lens.label}</span>
-        <span className="block text-xs leading-4 text-white/40">{lens.detail}</span>
-      </span>
-      <span className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-xs font-bold">{count}</span>
-    </button>
-  );
-}
-
-function LearningLensButton({
-  lens,
-  count,
-  active,
-  onClick
-}: {
-  lens: { id: LearningLensId; label: string; detail: string };
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex min-h-11 min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-left transition ${
-        active ? 'border-fuchsia-300/45 bg-fuchsia-400/15 text-fuchsia-50' : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.07]'
-      }`}
-    >
-      <GitBranch className="h-4 w-4 shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold leading-4">{lens.label}</span>
-        <span className="block text-xs leading-4 text-white/40">{lens.detail}</span>
-      </span>
-      <span className="rounded-md border border-white/10 bg-black/20 px-2 py-1 text-xs font-bold">{count}</span>
-    </button>
   );
 }
 
@@ -1963,179 +1698,90 @@ function EvidenceMeter({ items, complete, total }: { items: EvidenceItem[]; comp
   );
 }
 
-function PassiveLegend({ counts }: { counts: Array<{ type: ObsidianGraphNodeType; count: number }> }) {
+function suggestedAgentCommands(strategy: HyperliquidStrategyCatalogRow): string[] {
+  const strategyId = strategy.strategyId;
+  const commands = ['npm run hf:status'];
+  if (isDocsOnlyStrategy(strategy)) {
+    commands.push(`npm run hf:strategy:new -- --strategy-id ${strategyId}`);
+  }
+  if (strategy.registeredForBacktest || strategy.canBacktest || needsBacktest(strategy)) {
+    commands.push(`npm run hf:backtest -- --strategy ${strategyId}`);
+  }
+  if (strategy.gateStatus === 'audit-eligible' || isBlockedStrategy(strategy)) {
+    commands.push(`npm run hf:agent:audit -- --strategy ${strategyId}`);
+  }
+  if (isPaperReadyStrategy(strategy)) {
+    commands.push(`npm run hf:paper -- --strategy ${strategyId}`);
+  }
+  return uniqueStrings(commands).slice(0, 4);
+}
+
+function sourcePathsForAgent(strategy: HyperliquidStrategyCatalogRow): string[] {
+  const artifacts = strategy.latestArtifactPaths;
+  return uniqueStrings([
+    ...strategy.documentationPaths,
+    artifacts.docs,
+    artifacts.spec
+  ]).slice(0, 5);
+}
+
+function evidencePathsForAgent(strategy: HyperliquidStrategyCatalogRow): string[] {
+  const artifacts = strategy.latestArtifactPaths;
+  return uniqueStrings([
+    artifacts.backtest,
+    artifacts.validation,
+    artifacts.paper,
+    artifacts.doublingStability,
+    artifacts.btcOptimization
+  ]).slice(0, 6);
+}
+
+function AgentPathPanel({ summary }: { summary: StrategyMemorySummary }) {
+  const strategy = summary.strategy;
+  const missing = summary.evidenceItems.filter((item) => !item.ok).map((item) => item.label);
+  const sourcePaths = sourcePathsForAgent(strategy);
+  const evidencePaths = evidencePathsForAgent(strategy);
+  const commands = suggestedAgentCommands(strategy);
+
   return (
-    <div className="border-t border-white/10 p-3">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white/45">
-        <Layers className="h-4 w-4" />
-        Node Legend
+    <div className="rounded-md border border-cyan-300/20 bg-cyan-500/[0.08] p-3 text-xs leading-5">
+      <div className="flex items-center gap-2 font-bold uppercase tracking-[0.12em] text-cyan-100/75">
+        <Target className="h-4 w-4" />
+        Agent Path
       </div>
-      <div className="flex flex-wrap gap-2">
-        {counts.map((item) => {
-          const tone = NODE_TYPE_TONES[item.type];
-          return (
-            <span
-              key={item.type}
-              className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
-              style={{ borderColor: `${tone.stroke}55`, color: tone.text, background: `${tone.fill}33` }}
-            >
-              <span className="h-2 w-2 rounded-full" style={{ background: tone.stroke }} />
-              {NODE_TYPE_LABELS[item.type]} {item.count}
-            </span>
-          );
-        })}
+      <div className="mt-2 text-white/70">{summary.nextReview}</div>
+      <div className="mt-3 grid gap-3">
+        <AgentPathList label="Missing" empty="No missing evidence in this lens." items={missing} />
+        <AgentPathList label="Source" empty="No source path reported yet." items={sourcePaths} mono />
+        <AgentPathList label="Evidence" empty="No artifact path reported yet." items={evidencePaths} mono />
+        <AgentPathList label="Commands" empty="No stable command suggestion." items={commands} mono />
       </div>
     </div>
   );
 }
 
-function MemoryGraphCanvas({
-  graph,
-  selectedNodeId,
-  onSelect
+function AgentPathList({
+  label,
+  items,
+  empty,
+  mono = false
 }: {
-  graph: MemoryGraph;
-  selectedNodeId: string | null;
-  onSelect: (nodeId: string) => void;
+  label: string;
+  items: string[];
+  empty: string;
+  mono?: boolean;
 }) {
-  const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
-  const selectedLinks = useMemo(() => {
-    if (!selectedNodeId) return new Set<string>();
-    const linked = new Set<string>([selectedNodeId]);
-    graph.edges.forEach((edge) => {
-      if (edge.source === selectedNodeId) linked.add(edge.target);
-      if (edge.target === selectedNodeId) linked.add(edge.source);
-    });
-    return linked;
-  }, [graph.edges, selectedNodeId]);
-
-  if (graph.nodes.length === 0) {
-    return (
-      <div className="flex min-h-[520px] items-center justify-center p-6 text-center text-sm text-white/45">
-        No graph nodes match the current lens.
-      </div>
-    );
-  }
-
   return (
-    <div className="relative aspect-[1.25/1] min-h-[340px] max-h-[720px] overflow-hidden rounded-t-md bg-[#05070d]">
-      <svg
-        viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
-        preserveAspectRatio="xMidYMid meet"
-        className="h-full w-full"
-        role="img"
-        aria-label="Obsidian strategy memory graph"
-      >
-        <defs>
-          <pattern id="memoryDots" width="34" height="34" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="1" fill="#94a3b8" opacity="0.16" />
-          </pattern>
-          <filter id="nodeGlow" x="-70%" y="-70%" width="240%" height="240%">
-            <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#67e8f9" floodOpacity="0.34" />
-          </filter>
-          <filter id="selectedGlow" x="-90%" y="-90%" width="280%" height="280%">
-            <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#f8fafc" floodOpacity="0.42" />
-          </filter>
-        </defs>
-
-        <rect width={GRAPH_WIDTH} height={GRAPH_HEIGHT} fill="#05070d" />
-        <rect width={GRAPH_WIDTH} height={GRAPH_HEIGHT} fill="url(#memoryDots)" />
-        <circle cx={GRAPH_CENTER.x} cy={GRAPH_CENTER.y} r="132" fill="none" stroke="#334155" strokeOpacity="0.3" strokeWidth="1" />
-        <circle cx={GRAPH_CENTER.x} cy={GRAPH_CENTER.y} r="246" fill="none" stroke="#334155" strokeOpacity="0.18" strokeWidth="1" />
-        <circle cx={GRAPH_CENTER.x} cy={GRAPH_CENTER.y} r="340" fill="none" stroke="#334155" strokeOpacity="0.12" strokeWidth="1" />
-        <text x={GRAPH_CENTER.x} y={GRAPH_CENTER.y - 8} textAnchor="middle" fill="#cbd5e1" fillOpacity="0.5" fontSize="12" fontWeight="700" letterSpacing="0">
-          Hedge Fund Memory
-        </text>
-        <text x={GRAPH_CENTER.x} y={GRAPH_CENTER.y + 13} textAnchor="middle" fill="#94a3b8" fillOpacity="0.44" fontSize="10" fontWeight="600" letterSpacing="0">
-          repo evidence + Obsidian notes
-        </text>
-
-        {graph.edges.map((edge) => {
-          const source = nodeById.get(edge.source);
-          const target = nodeById.get(edge.target);
-          if (!source || !target) return null;
-          const sourceX = source.x || 0;
-          const sourceY = source.y || 0;
-          const targetX = target.x || 0;
-          const targetY = target.y || 0;
-          const midX = (sourceX + targetX) / 2;
-          const midY = (sourceY + targetY) / 2;
-          const dx = targetX - sourceX;
-          const dy = targetY - sourceY;
-          const curve = Math.min(70, Math.max(-70, (dx * 0.08) - (dy * 0.04)));
-          const controlX = midX - dy * 0.08;
-          const controlY = midY + curve;
-          const isFocus = !selectedNodeId || edge.source === selectedNodeId || edge.target === selectedNodeId;
-          const stroke = edge.type === 'artifact'
-            ? '#86efac'
-            : edge.type === 'wiki-link'
-              ? '#d8b4fe'
-              : edge.type === 'related-note'
-                ? '#fda4af'
-                : edge.type === 'learning-link'
-                  ? '#f0abfc'
-                  : '#94a3b8';
-          return (
-            <path
-              key={edge.id}
-              d={`M ${sourceX} ${sourceY} Q ${controlX} ${controlY} ${targetX} ${targetY}`}
-              stroke={stroke}
-              strokeOpacity={isFocus ? 0.58 : 0.08}
-              strokeWidth={isFocus ? (edge.type === 'artifact' ? 1.8 : 1.35) : 0.8}
-              fill="none"
-            />
-          );
-        })}
-
-        {graph.nodes.map((node) => {
-          const tone = NODE_TYPE_TONES[node.type];
-          const isSelected = node.id === selectedNodeId;
-          const isLinked = selectedLinks.has(node.id);
-          const isDimmed = Boolean(selectedNodeId) && !isLinked;
-          const radius = node.r || 11;
-          const label = node.label.length > 26 ? `${node.label.slice(0, 25)}...` : node.label;
-          const showLabel = node.type === 'strategy' || isSelected || isLinked || graph.nodes.length <= 36;
-          return (
-            <g
-              key={node.id}
-              transform={`translate(${node.x || 0}, ${node.y || 0})`}
-              onClick={() => onSelect(node.id)}
-              className="cursor-pointer"
-              filter={isSelected ? 'url(#selectedGlow)' : node.type === 'strategy' ? 'url(#nodeGlow)' : undefined}
-              opacity={isDimmed ? 0.32 : 1}
-            >
-              <title>{`${node.label} - ${NODE_TYPE_LABELS[node.type]}`}</title>
-              <circle
-                r={radius + 10}
-                fill={tone.glow}
-                opacity={isSelected ? 0.2 : node.type === 'strategy' ? 0.12 : 0.045}
-              />
-              <circle
-                r={radius}
-                fill={tone.fill}
-                stroke={isSelected ? '#f8fafc' : tone.stroke}
-                strokeWidth={isSelected ? 2.6 : node.type === 'strategy' ? 1.8 : 1.1}
-                opacity={0.96}
-              />
-              <circle r={Math.max(2.8, radius * 0.32)} fill={tone.stroke} opacity={0.78} />
-              {showLabel ? (
-                <>
-                  <text x="0" y={radius + 17} textAnchor="middle" fill={tone.text} fontSize={node.type === 'strategy' ? 11 : 9.5} fontWeight="700" letterSpacing="0">
-                    {label}
-                  </text>
-                  {node.type === 'strategy' ? (
-                    <text x="0" y={radius + 32} textAnchor="middle" fill="#cbd5e1" fillOpacity="0.72" fontSize="8.5" fontWeight="700" letterSpacing="0">
-                      {(node.pipelineStage || 'research').toUpperCase()}
-                    </text>
-                  ) : null}
-                </>
-              ) : null}
-            </g>
-          );
-        })}
-      </svg>
-      <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/10 bg-black/35 px-3 py-2 text-xs text-white/55 backdrop-blur">
-        Focused evidence neighborhood
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">{label}</div>
+      <div className={`mt-1 grid gap-1 text-white/60 ${mono ? 'font-mono text-[11px]' : ''}`}>
+        {items.length ? items.map((item) => (
+          <div key={`${label}:${item}`} className="break-words rounded border border-white/10 bg-black/20 px-2 py-1">
+            {item.replace(/_/g, label === 'Missing' ? ' ' : '_')}
+          </div>
+        )) : (
+          <div className="text-white/35">{empty}</div>
+        )}
       </div>
     </div>
   );
@@ -2208,6 +1854,7 @@ function NodeInspector({
               </div>
               {summary ? <LearningSnapshot summary={summary} /> : null}
               {summary ? <EvidenceMeter items={summary.evidenceItems} complete={summary.evidenceComplete} total={summary.evidenceTotal} /> : null}
+              {summary ? <AgentPathPanel summary={summary} /> : null}
               {summary?.blockers.length ? (
                 <div className="rounded-md border border-amber-400/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-50">
                   {summary.blockers.slice(0, 5).map((blocker) => (

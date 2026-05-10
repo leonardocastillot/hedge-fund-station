@@ -270,6 +270,7 @@ export type ObsidianGraphNodeType =
   | 'backtest-artifact'
   | 'validation-artifact'
   | 'paper-artifact'
+  | 'audit-artifact'
   | 'learning-event'
   | 'agent-memory'
   | 'progress-handoff'

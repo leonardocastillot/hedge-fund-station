@@ -14,6 +14,12 @@ next agent.
 
 ## Last Completed Work
 
+- `strategy_memory_graph_explorer` redesigned the lower `/memory` Strategy
+  Memory section as a Graphify-style evidence graph with local `vis-network`,
+  search, lenses, evidence filters, graph controls, reduced default noise,
+  first-class audit artifacts, and an Agent Path inspector for future strategy
+  agents.
+- Handoff: `progress/impl_strategy_memory_graph_explorer.md`
 - `remove_marketing_surface` removed unused campaign/autoblogger code from
   Electron and the renderer contract, replaced `marketing:*` with neutral
   `ai:*` Gemini config IPC, preserved Gemini Live/direct loop, and verified the

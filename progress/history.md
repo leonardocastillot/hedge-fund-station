@@ -1023,3 +1023,30 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Memory was intentionally unchanged because the backend-first
   cockpit boundary is already documented and this cleanup updates the relevant
   architecture docs directly.
+
+---
+
+## 2026-05-10 - Strategy Memory Graph Explorer
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced the dense lower `/memory` strategy/memory surface with an
+  interactive Graphify-style Strategy Evidence Graph backed by local
+  `vis-network`. The explorer defaults to actionable strategy paths, supports
+  search, strategy and learning lenses, evidence filters, Focus, Neighborhood,
+  Labels, Physics, Fit, Reset, node inspection, and an Agent Path section with
+  missing evidence, source/evidence paths, and suggested stable `hf:*` commands.
+- Evidence:
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/features/memory/components/StrategyMemoryGraphExplorer.tsx`,
+  `src/features/memory/memoryGraphTypes.ts`,
+  `electron/main/native/obsidian-manager.ts`,
+  `docs/operations/agents/graph-memory-operating-system.md`,
+  `src/features/README.md`, `graphify-out/GRAPH_REPORT.md`, and
+  `progress/impl_strategy_memory_graph_explorer.md`.
+- Verification: `npm run build`, `npm run graph:build`,
+  `npm run graph:check`, `npm run agent:check`, `git diff --check`, and
+  desktop/mobile `/memory` visual smoke passed.
+- Status: done. Memory rule promoted into
+  `docs/operations/agents/graph-memory-operating-system.md`; backend docs,
+  backend artifacts, and the file harness remain canonical truth.

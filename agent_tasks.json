@@ -349,6 +349,58 @@
       "notes": "Done. Added agent:brief and graph:status, aligned agent docs around the short orientation flow, added the existing Obsidian vault Agent Navigation Index, resolved the daily plus weekly cadence decision, updated the nightly Hedge Fund automation, created weekly-hedge-fund-agent-health-report, refreshed Graphify, and preserved unrelated Electron/Gemini worktree changes."
     },
     {
+      "id": "strategy_memory_graph_explorer",
+      "title": "Redesign Strategy Memory as an interactive graph-first explorer",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_strategy_memory_graph_explorer.md",
+        "package.json",
+        "package-lock.json",
+        "src/features/memory/",
+        "src/features/README.md",
+        "src/types/electron.d.ts",
+        "electron/types/ipc.types.ts",
+        "electron/main/native/obsidian-manager.ts",
+        "docs/operations/agents/graph-memory-operating-system.md",
+        "graphify-out/"
+      ],
+      "acceptance": [
+        "The second half of /memory is graph-first and interactive for strategies, artifacts, Obsidian notes, and learning events.",
+        "Strategy Memory keeps backend/docs/artifacts as the source of truth and Obsidian as curated memory.",
+        "The graph supports search, lens filtering, evidence filtering, Focus, Neighborhood, Labels, Physics, Fit, Reset, node selection, and path/detail actions.",
+        "Default graph scope reduces noise by focusing actionable strategies and direct evidence neighbors while keeping Memory/All available.",
+        "Audit artifacts are represented as first-class graph nodes.",
+        "The inspector gives future agents an Agent Path with next action, evidence routes, suggested hf:* commands, and missing pieces.",
+        "Documentation and handoff explain the new graph role and verification."
+      ],
+      "verification": [
+        "npm run agent:check",
+        "npm run build",
+        "npm run graph:build",
+        "npm run graph:check",
+        "git diff --check",
+        "Visual smoke on /memory for desktop and mobile graph interactions"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/memory/pages/MemoryGraphPage.tsx",
+        "src/features/memory/components/StrategyMemoryGraphExplorer.tsx",
+        "src/features/memory/memoryGraphTypes.ts",
+        "electron/main/native/obsidian-manager.ts",
+        "docs/operations/agents/graph-memory-operating-system.md",
+        "src/features/README.md",
+        "graphify-out/GRAPH_REPORT.md",
+        "progress/impl_strategy_memory_graph_explorer.md"
+      ],
+      "notes": "Done. Redesigned the lower /memory Strategy Memory section as an interactive graph-first explorer with local vis-network, search/lens/evidence filters, Focus/Neighborhood/Labels/Physics/Fit/Reset controls, reduced default noise, first-class audit artifacts, Agent Path guidance, docs updates, and refreshed Graphify. No strategy promotion, live execution, or backend trading logic changes were made; research, backtest, validation, paper, risk, and operator gates were explicitly not advanced."
+    },
+    {
       "id": "live_production_gate_package",
       "title": "Define the future live trading promotion gate package",
       "mission_class": "production review",
