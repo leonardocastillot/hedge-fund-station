@@ -41,6 +41,6 @@ gateway.
 
 ## Current Cleanup Boundary
 
-Non-core campaign and blog-generation surfaces are not part of the Hedge Fund
-Station cockpit. Gemini remains available only as neutral AI provider
-infrastructure for voice, planning, and agent workbench flows.
+Retired content-growth surfaces are not part of the Hedge Fund Station cockpit.
+Gemini remains available only as neutral AI provider infrastructure for voice,
+planning, and agent workbench flows.

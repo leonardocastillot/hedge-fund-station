@@ -64,10 +64,10 @@ from `~/.codex/config.toml`.
 Environment and CLI controls:
 
 - `HF_AGENT_USE_AI=true` enables LLM synthesis by default
-- `npm run hf:agent:research -- --strategy <id> --runtime auto`
-- `npm run hf:agent:research -- --strategy <id> --runtime codex-local`
-- `npm run hf:agent:research -- --strategy <id> --runtime api-provider`
-- `npm run hf:agent:research -- --strategy <id> --runtime deterministic`
+- `rtk npm run hf:agent:research -- --strategy <id> --runtime auto`
+- `rtk npm run hf:agent:research -- --strategy <id> --runtime codex-local`
+- `rtk npm run hf:agent:research -- --strategy <id> --runtime api-provider`
+- `rtk npm run hf:agent:research -- --strategy <id> --runtime deterministic`
 - `AI_PROVIDER_ORDER=deepseek,openai` chooses fallback order
 - `DEEPSEEK_API_KEY=...`
 - `DEEPSEEK_MODEL=deepseek-v4-flash` or `deepseek-v4-pro`
@@ -79,15 +79,15 @@ One-login Codex flow:
 ```bash
 npm install -g @openai/codex
 codex login
-npm run hf:agent:runtime
-npm run hf:agent:research -- --strategy funding_exhaustion_snap
+rtk npm run hf:agent:runtime
+rtk npm run hf:agent:research -- --strategy funding_exhaustion_snap
 ```
 
 The synthesis runtime is intentionally constrained:
 
 - it cannot set `promotion_allowed` to true
 - it cannot change the deterministic recommendation
-- commands are filtered to `npm run hf:*`
+- commands are filtered to the stable `npm run hf:*` surface
 - validation gaps remain deterministic
 
 ## CLI
@@ -95,31 +95,31 @@ The synthesis runtime is intentionally constrained:
 Run an agentic research mission:
 
 ```bash
-npm run hf:agent:research -- --strategy funding_exhaustion_snap
+rtk npm run hf:agent:research -- --strategy funding_exhaustion_snap
 ```
 
 Show runtime status:
 
 ```bash
-npm run hf:agent:runtime
+rtk npm run hf:agent:runtime
 ```
 
 Run a stricter audit mission:
 
 ```bash
-npm run hf:agent:audit -- --strategy funding_exhaustion_snap
+rtk npm run hf:agent:audit -- --strategy funding_exhaustion_snap
 ```
 
 Run the deterministic graph plus an LLM synthesis pass:
 
 ```bash
-npm run hf:agent:research -- --strategy funding_exhaustion_snap --ai
+rtk npm run hf:agent:research -- --strategy funding_exhaustion_snap --ai
 ```
 
 Try DeepSeek V4 Pro for the final synthesis:
 
 ```bash
-DEEPSEEK_API_KEY=... npm run hf:agent:research -- \
+DEEPSEEK_API_KEY=... rtk npm run hf:agent:research -- \
   --strategy funding_exhaustion_snap \
   --ai \
   --provider-order deepseek,openai \
@@ -129,7 +129,7 @@ DEEPSEEK_API_KEY=... npm run hf:agent:research -- \
 Fast/default DeepSeek V4 Flash:
 
 ```bash
-DEEPSEEK_API_KEY=... npm run hf:agent:research -- \
+DEEPSEEK_API_KEY=... rtk npm run hf:agent:research -- \
   --strategy funding_exhaustion_snap \
   --ai \
   --provider-order deepseek \
@@ -139,16 +139,16 @@ DEEPSEEK_API_KEY=... npm run hf:agent:research -- \
 List recent runs:
 
 ```bash
-npm run hf:agent:status
-npm run hf:agent:status -- --strategy funding_exhaustion_snap
+rtk npm run hf:agent:status
+rtk npm run hf:agent:status -- --strategy funding_exhaustion_snap
 ```
 
 Use the resulting recommendations to continue through the stable workflow:
 
 ```bash
-npm run hf:backtest -- --strategy <strategy_id>
-npm run hf:validate -- --strategy <strategy_id>
-npm run hf:paper -- --strategy <strategy_id>
+rtk npm run hf:backtest -- --strategy <strategy_id>
+rtk npm run hf:validate -- --strategy <strategy_id>
+rtk npm run hf:paper -- --strategy <strategy_id>
 ```
 
 ## API

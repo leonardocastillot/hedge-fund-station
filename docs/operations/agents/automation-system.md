@@ -27,8 +27,8 @@ instead of changing code.
 Recurring Hedge Fund Station automations should start with:
 
 ```bash
-npm run agent:brief
-npm run graph:status
+rtk npm run agent:brief
+rtk npm run graph:status
 ```
 
 Use the brief to choose the active task or safe next improvement. Use Graphify

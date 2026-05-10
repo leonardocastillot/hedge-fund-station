@@ -89,3 +89,15 @@ needs status, date, decision, and reason.
   docs, specs, smoke artifacts, and curated examples.
 - Reason: agent runs, checkpoints, SQLite state, backtests, replay outputs, and
   logs grow too quickly for Git and should not pollute the local workspace.
+
+## RTK And Caveman Token Discipline
+
+- Status: accepted
+- Date: 2026-05-10
+- Decision: Codex and future repo agents should load `RTK.md` for compact shell
+  output and `CAVEMAN.md` for output-only concise replies. Caveman must not
+  rewrite repo memory, compress strategy docs, add MCP shrink, or install global
+  hooks without explicit human approval.
+- Reason: RTK reduces command-output token noise and Caveman reduces
+  user-facing output verbosity without changing backend-first architecture,
+  stable `hf:*` commands, or handoff evidence rules.

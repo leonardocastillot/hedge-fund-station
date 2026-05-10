@@ -19,6 +19,8 @@ OBSIDIAN_VAULT_PATH = REPO_ROOT / "hedge-station"
 VALID_STATUSES = {"pending", "in_progress", "review", "done", "blocked"}
 REQUIRED_FILES = [
     "AGENTS.md",
+    "RTK.md",
+    "CAVEMAN.md",
     "CHECKPOINTS.md",
     "agent_tasks.json",
     "progress/README.md",
@@ -215,7 +217,7 @@ def graphify_status_summary() -> dict[str, Any]:
     else:
         freshness = "unknown"
     node_count, edge_count, community_count = graphify_counts(required["graph"])
-    command = "npm run graph:build" if freshness in {"missing", "stale", "dirty"} else "npm run graph:check"
+    command = "rtk npm run graph:build" if freshness in {"missing", "stale", "dirty"} else "rtk npm run graph:check"
     return {
         "available": available,
         "freshness": freshness,
@@ -442,10 +444,12 @@ def command_brief(_: argparse.Namespace) -> int:
             print(f"- [{label}] {issue.message}")
     print("Next reads:")
     print("1. AGENTS.md")
-    print("2. progress/current.md")
-    print("3. agent_tasks.json")
-    print("4. docs/operations/agents/graph-memory-operating-system.md for memory/Graphify/Obsidian work")
-    print("5. graphify-out/GRAPH_REPORT.md or npm run graph:query -- \"<question>\" when Graphify is fresh")
+    print("2. RTK.md")
+    print("3. CAVEMAN.md")
+    print("4. progress/current.md")
+    print("5. agent_tasks.json")
+    print("6. docs/operations/agents/graph-memory-operating-system.md for memory/Graphify/Obsidian work")
+    print("7. graphify-out/GRAPH_REPORT.md or rtk npm run graph:query -- \"<question>\" when Graphify is fresh")
     return 0 if not failures else 1
 
 

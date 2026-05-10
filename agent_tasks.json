@@ -311,7 +311,7 @@
         "The existing Obsidian vault has an Agent Navigation Index linked from Workspace Home.",
         "The Hedge Fund Station nightly automation uses the improved orientation commands and one-small-patch constraint.",
         "A weekly read-only health report automation is created for this repo.",
-        "Career-Ops and LinkedIn automations are not changed."
+        "External non-Hedge-Fund automations are not changed."
       ],
       "verification": [
         "npm run agent:check",
@@ -425,6 +425,130 @@
       "parallelizable": false,
       "evidence_paths": [],
       "notes": "Blocked until the human explicitly requests production/live gate design. Live remains a future path, not an agent shortcut."
+    },
+    {
+      "id": "rtk_repo_context_cleanup",
+      "title": "Finish retired content-growth cleanup and add RTK Codex instructions",
+      "mission_class": "repo health audit",
+      "priority": 0,
+      "scope": [
+        "AGENTS.md",
+        "RTK.md",
+        "CLAUDE.md",
+        "CODEX.md",
+        "README.md",
+        "CHECKPOINTS.md",
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_rtk_repo_context_cleanup.md",
+        "scripts/agent_harness.py",
+        "docs/project-architecture.md",
+        "docs/architecture/backend-source-of-truth.md",
+        "docs/operations/agents/",
+        "docs/operations/media-artifact-archive.md"
+      ],
+      "acceptance": [
+        "Active source, agent docs, package metadata, and current harness state no longer advertise unused content-growth code or stale external automation references.",
+        "The stale local git worktree metadata for the retired surface is pruned and the active branch has a neutral name.",
+        "RTK is configured for local Codex use through AGENTS.md and RTK.md.",
+        "Core agent orientation docs tell future agents to prefer RTK-prefixed shell commands while preserving stable hf:* commands and raw-output escape hatches.",
+        "Verification and a handoff are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk init --codex --show",
+        "rtk --version",
+        "rtk gain",
+        "rtk rg -n -i \"m[a]rketing|a[u]toblog|a[u]to-blogger|c[a]mpaign|l[i]nkedin|w[e]bsite-hero|m[a]rketing-ai|window\\\\.electronAPI\\\\.m[a]rketing|m[a]rketing:\" electron src docs scripts package.json package-lock.json agent_tasks.json progress/current.md CHECKPOINTS.md README.md CLAUDE.md CODEX.md",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "AGENTS.md",
+        "RTK.md",
+        "CLAUDE.md",
+        "CODEX.md",
+        "README.md",
+        "CHECKPOINTS.md",
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_rtk_repo_context_cleanup.md",
+        "scripts/agent_harness.py",
+        "docs/project-architecture.md",
+        "docs/architecture/backend-source-of-truth.md",
+        "docs/operations/agents/harness.md",
+        "docs/operations/agents/file-harness.md",
+        "docs/operations/agents/orientation.md",
+        "docs/operations/agents/automation-system.md",
+        "docs/operations/agents/graph-memory-operating-system.md",
+        "docs/operations/agents/research-os.md",
+        "docs/operations/agents/workbench.md",
+        "docs/operations/agents/templates/tasks.md",
+        "docs/operations/agents/memory/shared-memory.md",
+        "docs/operations/agents/memory/decisions.md",
+        "docs/operations/media-artifact-archive.md"
+      ],
+      "notes": "Done. Finished active cleanup for the retired content-growth surface, pruned stale worktree metadata, renamed the current branch to codex/rtk-repo-context-cleanup, configured RTK for local Codex with RTK.md and AGENTS.md, and updated core agent docs so future shell commands prefer RTK while preserving raw-output escape hatches. No trading behavior, backend strategy logic, credentials, or broker/order side effects changed."
+    },
+    {
+      "id": "caveman_output_only_agent_style",
+      "title": "Add Caveman output-only token discipline for agents",
+      "mission_class": "repo health audit",
+      "priority": 0,
+      "scope": [
+        "AGENTS.md",
+        "CAVEMAN.md",
+        "CLAUDE.md",
+        "CODEX.md",
+        "README.md",
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_caveman_output_only_agent_style.md",
+        "scripts/agent_harness.py",
+        "docs/operations/agents/harness.md",
+        "docs/operations/agents/orientation.md",
+        "docs/operations/agents/memory/shared-memory.md",
+        "docs/operations/agents/memory/decisions.md"
+      ],
+      "acceptance": [
+        "Caveman is documented as output-only for user-facing agent replies.",
+        "Repo docs explicitly forbid Caveman context or memory compression, MCP shrink, global hooks, and generated artifact rewriting without human approval.",
+        "AGENTS.md includes the local Caveman instruction file and the agent brief lists it as a next read.",
+        "RTK and Caveman responsibilities are clearly separated: command-output filtering versus assistant-output brevity.",
+        "Verification and a handoff are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run agent:brief",
+        "rtk npm run build",
+        "rtk rg -n \"CAVEMAN|Caveman|caveman\" AGENTS.md CAVEMAN.md README.md CLAUDE.md CODEX.md docs/operations/agents scripts/agent_harness.py",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "AGENTS.md",
+        "CAVEMAN.md",
+        "CLAUDE.md",
+        "CODEX.md",
+        "README.md",
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_caveman_output_only_agent_style.md",
+        "scripts/agent_harness.py",
+        "docs/operations/agents/harness.md",
+        "docs/operations/agents/orientation.md",
+        "docs/operations/agents/memory/shared-memory.md",
+        "docs/operations/agents/memory/decisions.md"
+      ],
+      "notes": "Done. Added Caveman as an output-only user-facing response discipline for Codex/repo agents, separate from RTK command-output filtering. No Caveman context compression, memory rewriting, MCP shrink, global hooks, credentials, backend strategy logic, or broker/order side effects changed."
     }
   ]
 }

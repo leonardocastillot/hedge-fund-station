@@ -20,7 +20,8 @@ The app may draft, route, approve, launch, stop, summarize, and display
 terminal output. It must not become the trading engine. Heavy market logic,
 replay, backtesting, validation, paper execution, persistence, and audit
 artifacts remain in `backend/hyperliquid_gateway/`, stable `npm run hf:*`
-commands, or external workers.
+commands, or external workers. Codex/agent terminals should use RTK wrappers
+for those shell commands when available.
 
 ## Mission Flow
 
@@ -47,13 +48,13 @@ text is there for review and cleanup, and terminal output stays secondary.
 - Do not change credentials from a mission draft or Codex prompt.
 - Do not run mutating commands without explicit operator approval.
 - Prefer read-only probes and stable command surfaces first:
-  - `npm run hf:doctor`
-  - `npm run hf:status`
-  - `npm run hf:backtest`
-  - `npm run hf:validate`
-  - `npm run hf:paper`
-  - `npm run backend:health`
-  - `npm run gateway:probe`
+  - `rtk npm run hf:doctor`
+  - `rtk npm run hf:status`
+  - `rtk npm run hf:backtest`
+  - `rtk npm run hf:validate`
+  - `rtk npm run hf:paper`
+  - `rtk npm run backend:health`
+  - `rtk npm run gateway:probe`
 - Strategy claims need a validation path: spec, backend mapping, backtest,
   replay or paper evidence, and human review surface.
 

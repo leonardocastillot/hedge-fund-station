@@ -190,6 +190,10 @@ npm run hf:status
 The command wrappers live in `package.json` and `scripts/hf.py`; backend
 implementation lives in `backend/hyperliquid_gateway/cli.py`.
 
+Codex and repo agents should run these shell commands through `rtk` when
+available, for example `rtk npm run hf:doctor`, while keeping the underlying
+stable `npm run hf:*` command surface unchanged.
+
 ## Agent Automation Contract
 
 Automated agents should optimize for the product objective, not random cleanup.

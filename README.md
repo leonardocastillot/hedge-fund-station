@@ -122,6 +122,10 @@ npm run backend:tunnel
 The `hf:*` command wrappers live in `scripts/hf.py`; backend CLI behavior lives
 in `backend/hyperliquid_gateway/cli.py`.
 
+Codex and repo agents should load `RTK.md` and `CAVEMAN.md`: use RTK for compact
+command output, for example `rtk npm run hf:doctor`, and use Caveman output-only
+style for compact user-facing replies. Neither rule changes the stable scripts.
+
 ## Local Development
 
 Prerequisites:

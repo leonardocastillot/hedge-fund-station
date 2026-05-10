@@ -24,11 +24,12 @@ harness.
 ## Operating Loop
 
 1. Start with `AGENTS.md`, `progress/current.md`, and `agent_tasks.json`.
-2. Run `npm run agent:brief` for the current harness, memory, Graphify, and
+2. Run `rtk npm run agent:brief` for the current harness, memory, Graphify, and
    Obsidian snapshot.
 3. For broad repo, architecture, harness, memory, or ownership questions, run
-   `npm run graph:status` first. If Graphify is fresh enough, read
-   `graphify-out/GRAPH_REPORT.md` or run `npm run graph:query -- "<question>"`.
+   `rtk npm run graph:status` first. If Graphify is fresh enough, read
+   `graphify-out/GRAPH_REPORT.md` or run
+   `rtk npm run graph:query -- "<question>"`.
 4. Verify Graphify leads against source files, canonical docs, tests, and stable
    command output before changing behavior.
 5. For strategy lessons, decisions, postmortems, and open questions, use
@@ -39,19 +40,20 @@ harness.
    report under `progress/`, update `progress/history.md`, and record evidence
    paths in `agent_tasks.json`.
 7. If the work moves files, adds major modules, changes architecture, or edits
-   agent operating docs, run `npm run graph:build` and `npm run graph:check`.
+   agent operating docs, run `rtk npm run graph:build` and
+   `rtk npm run graph:check`.
 8. If the work creates durable context, update memory only when
    `memory/memory-policy.md` says it is worth preserving.
 
 ## Useful Graphify Commands
 
 ```bash
-npm run graph:status
-npm run graph:build
-npm run graph:check
-npm run graph:query -- "where should a new agent start for repo architecture work?"
-npm run graph:explain -- "backend/hyperliquid_gateway/app.py"
-npm run graph:path -- "MemoryGraphPage" "graphify_status_payload"
+rtk npm run graph:status
+rtk npm run graph:build
+rtk npm run graph:check
+rtk npm run graph:query -- "where should a new agent start for repo architecture work?"
+rtk npm run graph:explain -- "backend/hyperliquid_gateway/app.py"
+rtk npm run graph:path -- "MemoryGraphPage" "graphify_status_payload"
 ```
 
 Use `graph:build` after structural changes. Use `graph:query` before wide

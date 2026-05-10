@@ -14,17 +14,25 @@ next agent.
 
 ## Last Completed Work
 
+- `caveman_output_only_agent_style` added `CAVEMAN.md` as an output-only
+  instruction layer for compact user-facing agent replies, wired it into
+  `AGENTS.md` and `agent:brief`, and explicitly kept context/memory compression,
+  MCP shrink, and global hooks out of scope.
+- Handoff: `progress/impl_caveman_output_only_agent_style.md`
+- `rtk_repo_context_cleanup` finished active cleanup for the retired
+  content-growth surface, pruned stale worktree metadata, renamed the branch to
+  `codex/rtk-repo-context-cleanup`, and configured local Codex RTK instructions
+  through `AGENTS.md` and `RTK.md`.
+- Handoff: `progress/impl_rtk_repo_context_cleanup.md`
 - `strategy_memory_graph_explorer` redesigned the lower `/memory` Strategy
   Memory section as a Graphify-style evidence graph with local `vis-network`,
   search, lenses, evidence filters, graph controls, reduced default noise,
   first-class audit artifacts, and an Agent Path inspector for future strategy
   agents.
 - Handoff: `progress/impl_strategy_memory_graph_explorer.md`
-- `remove_marketing_surface` removed unused campaign/autoblogger code from
-  Electron and the renderer contract, replaced `marketing:*` with neutral
+- Retired the old content-growth Electron surface, replaced it with neutral
   `ai:*` Gemini config IPC, preserved Gemini Live/direct loop, and verified the
   build and source searches.
-- Handoff: `progress/impl_remove_marketing_surface.md`
 - `repo_cleanup_harness_simplification` simplified the active harness queue,
   untracked media/local editor state/generated evidence, kept only curated
   backend fixtures, pruned unused dependencies, and prepared Graphify refresh.
@@ -59,5 +67,5 @@ next agent.
 
 ## Next Step
 
-Run the weekly health report once after this change lands and confirm its
-summary is concise enough for recurring use.
+Run one fresh Codex session and confirm it loads `RTK.md` and `CAVEMAN.md`
+before running `rtk npm run agent:brief`.

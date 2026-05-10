@@ -23,6 +23,10 @@ canonical docs.
 - Graphify is the repo navigation layer, Obsidian is curated durable memory, and
   the file harness is live task state; see
   `docs/operations/agents/graph-memory-operating-system.md`.
+- RTK and Caveman are the approved token-discipline layer for Codex in this
+  repo: load `RTK.md` for compact shell output and `CAVEMAN.md` for compact
+  user-facing replies. Do not use Caveman context/memory compression without
+  explicit human approval.
 
 ## Useful Entry Points
 
