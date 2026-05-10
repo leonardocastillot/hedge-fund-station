@@ -7,9 +7,10 @@ agent's job easier.
 
 ## Quick Start
 
-0. Load `RTK.md` and use `rtk <command>` for shell commands by default. RTK is
-   the approved Codex token-saving layer for this repo; bypass it only for
-   interactive commands, raw-output debugging, or when RTK is unavailable.
+0. Load `RTK.md` and `CAVEMAN.md`. Use `rtk <command>` for shell commands by
+   default, and keep user-facing replies in Caveman output-only style: compact,
+   precise, no filler. Bypass RTK only for interactive commands,
+   raw-output debugging, or when RTK is unavailable.
 1. Run `rtk npm run agent:brief` for the fast orientation snapshot: harness state,
    active task, Graphify freshness, memory status, Obsidian status, and next
    reads.
@@ -51,8 +52,8 @@ Core files:
   `rtk npm run graph:update`, `rtk npm run graph:query`,
   `rtk npm run graph:explain`, and `rtk npm run graph:path`
   explicitly, preferably through `rtk`; do not install assistant hooks over this
-  curated `AGENTS.md` without human approval. The local `@RTK.md` Codex include
-  is the approved exception.
+  curated `AGENTS.md` without human approval. The local `@RTK.md` and
+  `@CAVEMAN.md` Codex includes are the approved exceptions.
 - `docs/operations/agents/graph-memory-operating-system.md` defines how
   Graphify, Obsidian, and the file harness work together without duplicating
   each other.
@@ -408,3 +409,5 @@ Default to:
 If using donor material, audit it first, adapt it, and record the source in docs.
 
 @RTK.md
+
+@CAVEMAN.md

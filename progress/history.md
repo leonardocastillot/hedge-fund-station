@@ -1080,3 +1080,29 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Memory added for the RTK operating decision. No trading
   behavior, backend strategy logic, credentials, or broker/order side effects
   changed.
+
+---
+
+## 2026-05-10 - Caveman Output-Only Agent Style
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Added `CAVEMAN.md` as an output-only instruction layer for compact
+  user-facing agent replies, included it from `AGENTS.md`, updated
+  `agent:brief` to list it, and documented that Caveman must not rewrite repo
+  memory, compress strategy docs, install MCP shrink, or add global hooks
+  without explicit human approval.
+- Evidence:
+  `CAVEMAN.md`, `AGENTS.md`, `scripts/agent_harness.py`,
+  `docs/operations/agents/harness.md`,
+  `docs/operations/agents/orientation.md`,
+  `docs/operations/agents/memory/shared-memory.md`,
+  `docs/operations/agents/memory/decisions.md`,
+  `progress/impl_caveman_output_only_agent_style.md`, and refreshed
+  `graphify-out/`.
+- Verification: `rtk npm run agent:check`, `rtk npm run agent:brief`,
+  `rtk npm run build`, `rtk npm run graph:build`, `rtk npm run graph:check`,
+  Caveman reference search, and `rtk git diff --check` passed.
+- Status: done. Memory updated by folding Caveman into the existing
+  token-discipline decision. No context/memory compression, global hooks,
+  backend strategy logic, credentials, or broker/order side effects changed.

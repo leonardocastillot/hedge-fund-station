@@ -14,15 +14,16 @@ Read these before changing anything:
 
 1. `AGENTS.md`
 2. `RTK.md`
-3. `docs/project-architecture.md`
-4. `docs/operations/hedge-fund-company-constitution.md`
-5. `docs/operations/product-objective.md`
-6. `docs/operations/agents/harness.md`
-7. `docs/operations/agents/memory/memory-policy.md`
-8. `docs/operations/agents/memory/shared-memory.md`
-9. `docs/operations/agents/memory/decisions.md`
-10. `docs/operations/agents/automation-system.md` for recurring or autonomous work
-11. the relevant skill under `skills/`
+3. `CAVEMAN.md`
+4. `docs/project-architecture.md`
+5. `docs/operations/hedge-fund-company-constitution.md`
+6. `docs/operations/product-objective.md`
+7. `docs/operations/agents/harness.md`
+8. `docs/operations/agents/memory/memory-policy.md`
+9. `docs/operations/agents/memory/shared-memory.md`
+10. `docs/operations/agents/memory/decisions.md`
+11. `docs/operations/agents/automation-system.md` for recurring or autonomous work
+12. the relevant skill under `skills/`
 
 If the mission needs broad repo orientation, memory work, Graphify, or Obsidian,
 also read `docs/operations/agents/graph-memory-operating-system.md`.
@@ -49,18 +50,19 @@ For strategy work, also read:
 
 ## Default Operating Loop
 
-1. Run `rtk npm run agent:brief`.
-2. Classify the mission.
-3. Identify the trading lifecycle stage: research, backtesting, evaluation, or
+1. Load `RTK.md` and `CAVEMAN.md`.
+2. Run `rtk npm run agent:brief`.
+3. Classify the mission.
+4. Identify the trading lifecycle stage: research, backtesting, evaluation, or
    production.
-4. Run `rtk npm run graph:status` before using Graphify; use Graphify for broad
+5. Run `rtk npm run graph:status` before using Graphify; use Graphify for broad
    repo topology only when it is fresh enough for navigation.
-5. Check curated memory only for durable decisions, lessons, and open questions.
-6. Inspect source before changing.
-7. Keep changes small and reviewable.
-8. Preserve backend-first strategy ownership.
-9. Use stable commands for milestone evidence.
-10. Leave a handoff.
+6. Check curated memory only for durable decisions, lessons, and open questions.
+7. Inspect source before changing.
+8. Keep changes small and reviewable.
+9. Preserve backend-first strategy ownership.
+10. Use stable commands for milestone evidence.
+11. Leave a handoff.
 
 ## Common Mission Classes
 

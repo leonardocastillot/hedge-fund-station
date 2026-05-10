@@ -36,8 +36,8 @@ research artifacts belong under:
 
 Use this loop for agent work:
 
-1. Load `RTK.md`; run shell commands through `rtk` by default to reduce token
-   noise unless the command needs raw output or interactive behavior.
+1. Load `RTK.md` and `CAVEMAN.md`; run shell commands through `rtk` by default
+   and keep user-facing replies concise unless the work needs fuller nuance.
 2. Run `rtk npm run agent:brief` to get the current harness, memory, Graphify,
    Obsidian, and next-read state.
 3. Read the objective and repo rules.

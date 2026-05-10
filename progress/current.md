@@ -14,6 +14,11 @@ next agent.
 
 ## Last Completed Work
 
+- `caveman_output_only_agent_style` added `CAVEMAN.md` as an output-only
+  instruction layer for compact user-facing agent replies, wired it into
+  `AGENTS.md` and `agent:brief`, and explicitly kept context/memory compression,
+  MCP shrink, and global hooks out of scope.
+- Handoff: `progress/impl_caveman_output_only_agent_style.md`
 - `rtk_repo_context_cleanup` finished active cleanup for the retired
   content-growth surface, pruned stale worktree metadata, renamed the branch to
   `codex/rtk-repo-context-cleanup`, and configured local Codex RTK instructions
@@ -62,5 +67,5 @@ next agent.
 
 ## Next Step
 
-Run one fresh Codex session and confirm it loads `RTK.md` before running
-`rtk npm run agent:brief`.
+Run one fresh Codex session and confirm it loads `RTK.md` and `CAVEMAN.md`
+before running `rtk npm run agent:brief`.

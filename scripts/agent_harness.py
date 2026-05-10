@@ -20,6 +20,7 @@ VALID_STATUSES = {"pending", "in_progress", "review", "done", "blocked"}
 REQUIRED_FILES = [
     "AGENTS.md",
     "RTK.md",
+    "CAVEMAN.md",
     "CHECKPOINTS.md",
     "agent_tasks.json",
     "progress/README.md",
@@ -444,10 +445,11 @@ def command_brief(_: argparse.Namespace) -> int:
     print("Next reads:")
     print("1. AGENTS.md")
     print("2. RTK.md")
-    print("3. progress/current.md")
-    print("4. agent_tasks.json")
-    print("5. docs/operations/agents/graph-memory-operating-system.md for memory/Graphify/Obsidian work")
-    print("6. graphify-out/GRAPH_REPORT.md or rtk npm run graph:query -- \"<question>\" when Graphify is fresh")
+    print("3. CAVEMAN.md")
+    print("4. progress/current.md")
+    print("5. agent_tasks.json")
+    print("6. docs/operations/agents/graph-memory-operating-system.md for memory/Graphify/Obsidian work")
+    print("7. graphify-out/GRAPH_REPORT.md or rtk npm run graph:query -- \"<question>\" when Graphify is fresh")
     return 0 if not failures else 1
 
 

@@ -4,7 +4,7 @@
 - Proyecto Electron + React + node-pty orientado a terminales de trabajo pesado.
 - Se priorizo estabilidad de sesiones largas con CLIs tipo `claude`, `codex`, `gemini`, `npm run dev` y procesos backend concurrentes.
 - El efecto arcoiris se mantiene como senal visual de la terminal activa/en uso.
-- Para trabajo de agente, leer `AGENTS.md` y `RTK.md`; usar `rtk <comando>` por defecto para reducir ruido de salida.
+- Para trabajo de agente, leer `AGENTS.md`, `RTK.md` y `CAVEMAN.md`; usar `rtk <comando>` por defecto y responder compacto, sin relleno.
 
 ## Optimizaciones aplicadas
 - PTY output batching en main process para reducir spam IPC.
