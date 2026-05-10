@@ -11,7 +11,7 @@ Mission: repo health audit
 Objective: identify stale or conflicting repo conventions.
 Scope: AGENTS.md, README.md, docs/, skills/, package.json, .gitignore.
 Allowed actions: read-only report or docs-only patch.
-Required checks: npm run hf:doctor; npm run build if imports or UI paths changed.
+Required checks: rtk npm run hf:doctor; rtk npm run build if imports or UI paths changed.
 Output: findings, files inspected, changes made, verification, next best step.
 Guardrails: do not move folder trees or change behavior in the same patch.
 ```
@@ -35,7 +35,7 @@ Mission: strategy research
 Objective: turn a strategy idea or donor material into an inspectable plan.
 Scope: docs/strategies/<strategy-id>.md and matching backend strategy package.
 Allowed actions: research note, donor audit, strategy spec, backend-first plan.
-Required checks: npm run hf:backtest and npm run hf:validate when implementation exists.
+Required checks: rtk npm run hf:backtest and rtk npm run hf:validate when implementation exists.
 Output: edge, regime, anti-regime, inputs, entry, invalidation, exit, risk, costs, validation plan.
 Guardrails: do not claim edge without a validation path; do not put strategy logic in React.
 ```
@@ -47,7 +47,7 @@ Mission: strategy validation audit
 Objective: decide whether evidence supports the next workflow stage.
 Scope: strategy docs, backend module, backtest reports, validation reports, paper artifacts.
 Allowed actions: report, validation thresholds, small tests, docs patch.
-Required checks: npm run hf:validate -- --strategy <strategy_id> when available.
+Required checks: rtk npm run hf:validate -- --strategy <strategy_id> when available.
 Output: blockers, missing artifacts, cost/slippage assumptions, anti-regime tests, next command.
 Guardrails: paper candidate is not live approval; promotion remains human-reviewed.
 ```
@@ -59,7 +59,7 @@ Mission: data quality audit
 Objective: find schema drift or unreliable evidence before it affects strategy conclusions.
 Scope: backend/hyperliquid_gateway/app.py, backend data artifacts, src/services/.
 Allowed actions: read-only report, schema docs, small contract fixes.
-Required checks: npm run hf:doctor; endpoint probes when services are running.
+Required checks: rtk npm run hf:doctor; endpoint probes when services are running.
 Output: missing fields, timestamp risks, null handling, fallback sources, source-of-truth notes.
 Guardrails: do not make UI fallback data look like backend truth.
 ```
@@ -71,7 +71,7 @@ Mission: UI review-speed audit
 Objective: make backend evidence faster for a human to inspect.
 Scope: src/features/, src/services/, src/components/.
 Allowed actions: UI patch after backend contracts are clear.
-Required checks: npm run build; browser or Electron smoke test when practical.
+Required checks: rtk npm run build; browser or Electron smoke test when practical.
 Output: review path improved, backend evidence surfaced, remaining blockers.
 Guardrails: UI may filter and explain; it must not invent strategy decisions.
 ```

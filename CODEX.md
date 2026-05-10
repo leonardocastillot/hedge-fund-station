@@ -4,6 +4,7 @@
 - Proyecto Electron + React + node-pty orientado a terminales de trabajo pesado.
 - Se priorizo estabilidad de sesiones largas con CLIs tipo `claude`, `codex`, `gemini`, `npm run dev` y procesos backend concurrentes.
 - El efecto arcoiris se mantiene como senal visual de la terminal activa/en uso.
+- Para trabajo de agente, leer `AGENTS.md` y `RTK.md`; usar `rtk <comando>` por defecto para reducir ruido de salida.
 
 ## Optimizaciones aplicadas
 - PTY output batching en main process para reducir spam IPC.
@@ -24,7 +25,6 @@
 
 ## Pendientes importantes
 - Limpiar errores TypeScript existentes fuera de la ruta de terminales.
-- Revisar `src/services/linkedin.ts`.
 - Revisar `src/pages/PortfolioDashboardPage.tsx` por propiedad `mode`.
 - Considerar store mas granular para terminales si escala el numero de paneles y widgets.
 - Medir renderer/main process con profiling real en sesiones largas.

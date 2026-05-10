@@ -5,10 +5,10 @@ This repository is governed by `AGENTS.md`.
 Claude Code, Codex, Gemini, external CLIs, and in-app agents should all use the
 same vendor-neutral operating map:
 
-1. Run `npm run agent:brief`.
-2. Read `AGENTS.md`.
+1. Read `AGENTS.md` and `RTK.md`.
+2. Run `rtk npm run agent:brief` when RTK is available.
 3. Read `progress/current.md` and `agent_tasks.json`.
-4. Run `npm run graph:status` before using Graphify.
+4. Run `rtk npm run graph:status` before using Graphify.
 5. Follow `docs/operations/agents/harness.md` and the mission-specific docs.
 
 Do not use older Claude-specific architecture notes as source of truth. The

@@ -103,8 +103,8 @@ export default function SettingsPage() {
       return;
     }
 
-    if (!window.electronAPI?.marketing?.saveGeminiApiKey || !window.electronAPI?.voice?.getLiveStatus) {
-      setGeminiError('Gemini settings bridge is not available in this build.');
+    if (!window.electronAPI?.ai?.saveGeminiApiKey || !window.electronAPI?.voice?.getLiveStatus) {
+      setGeminiError('AI provider settings bridge is not available in this build.');
       setGeminiMessage(null);
       return;
     }
@@ -113,7 +113,7 @@ export default function SettingsPage() {
     setGeminiError(null);
     setGeminiMessage(null);
     try {
-      await window.electronAPI.marketing.saveGeminiApiKey(trimmed);
+      await window.electronAPI.ai.saveGeminiApiKey(trimmed);
       const nextStatus = await window.electronAPI.voice.getLiveStatus();
       setGeminiStatus(nextStatus);
       setGeminiKey('');

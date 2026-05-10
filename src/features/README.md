@@ -11,7 +11,10 @@ The renderer is organized by product surface. Shared infrastructure stays in
 - `hyperliquid/` owns market intelligence and gateway data review pages.
 - `paper/` owns paper-trade and portfolio review surfaces.
 - `strategies/` owns strategy library and detail pages.
-- `memory/` owns the repo-first Obsidian strategy memory graph and vault sync surface.
+- `memory/` owns the graph-first Strategy Memory explorer and vault sync surface.
+  It visualizes backend strategy catalog rows, repo evidence artifacts,
+  Obsidian notes, and learning events, but backend/docs/artifacts remain the
+  source of truth.
 - `liquidations/` owns liquidation pressure review pages and local components.
 - `agents/` owns commander, fleet, mission, and knowledge-dock UI.
 - `settings/` owns operator configuration screens.

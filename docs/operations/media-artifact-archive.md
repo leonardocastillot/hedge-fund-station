@@ -1,6 +1,6 @@
 # Media Artifact Archive
 
-The source repo should not carry rendered marketing videos or frame captures.
+The source repo should not carry rendered product videos or frame captures.
 They are delivery artifacts, not application source, strategy evidence, or
 harness state.
 

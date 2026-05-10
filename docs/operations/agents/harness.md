@@ -36,26 +36,29 @@ research artifacts belong under:
 
 Use this loop for agent work:
 
-1. Run `npm run agent:brief` to get the current harness, memory, Graphify,
+1. Load `RTK.md`; run shell commands through `rtk` by default to reduce token
+   noise unless the command needs raw output or interactive behavior.
+2. Run `rtk npm run agent:brief` to get the current harness, memory, Graphify,
    Obsidian, and next-read state.
-2. Read the objective and repo rules.
-3. Check `memory/memory-policy.md`, `memory/shared-memory.md`,
+3. Read the objective and repo rules.
+4. Check `memory/memory-policy.md`, `memory/shared-memory.md`,
    `memory/decisions.md`, and `memory/open-questions.md`.
-4. For broad architecture, harness, or memory questions, run
-   `npm run graph:status` first. If Graphify is fresh enough, read
-   `graphify-out/GRAPH_REPORT.md` or run `npm run graph:query -- "<question>"`,
-   then verify findings against source files and canonical docs.
-5. For Graphify, Obsidian, or cross-layer memory work, follow
+5. For broad architecture, harness, or memory questions, run
+   `rtk npm run graph:status` first. If Graphify is fresh enough, read
+   `graphify-out/GRAPH_REPORT.md` or run
+   `rtk npm run graph:query -- "<question>"`, then verify findings against
+   source files and canonical docs.
+6. For Graphify, Obsidian, or cross-layer memory work, follow
    `graph-memory-operating-system.md`: file harness owns active state, Graphify
    owns repo navigation, and Obsidian owns curated durable memory.
-6. Classify the mission.
-7. Inspect before changing code or docs.
-8. Produce a plan, report, or focused patch.
-9. Run the relevant checks.
-10. Leave a handoff.
-11. Update, promote, archive, or intentionally leave memory unchanged according
+7. Classify the mission.
+8. Inspect before changing code or docs.
+9. Produce a plan, report, or focused patch.
+10. Run the relevant checks.
+11. Leave a handoff.
+12. Update, promote, archive, or intentionally leave memory unchanged according
    to `memory/memory-policy.md`.
-12. Update backlog when the work changes the improvement queue.
+13. Update backlog when the work changes the improvement queue.
 
 If a mission cannot complete a step, the handoff must say why.
 
@@ -63,11 +66,11 @@ If a mission cannot complete a step, the handoff must say why.
 
 | Mission | Purpose | Default Scope | Allowed Actions | Expected Evidence | Checks |
 | --- | --- | --- | --- | --- | --- |
-| Repo health audit | Keep the repo understandable and agent-ready. | `AGENTS.md`, `README.md`, `docs/`, `skills/`, `package.json`, `.gitignore` | read-only report or docs patch | findings, stale conventions, proposed cleanup | `npm run hf:doctor`, `npm run build` when UI/docs imports may be affected |
-| Strategy research | Turn an idea into an inspectable strategy path. | `docs/strategies/`, `backend/hyperliquid_gateway/strategies/`, latest artifacts | docs/spec patch, backend-first recommendations | strategy spec, source audit, validation plan | `npm run hf:backtest`, `npm run hf:validate` when implementation exists |
-| Strategy validation audit | Decide whether evidence is strong enough for the next stage. | strategy docs, backend module, backtests, validations, paper artifacts | report, validation thresholds, small tests | blockers, anti-regime gaps, cost/slippage notes | `npm run hf:validate`, strategy-specific tests |
-| Data quality audit | Protect research from bad or drifting data. | `backend/hyperliquid_gateway/data/`, `app.py`, `src/services/` | report, schema docs, small parser/contract fixes | schema gaps, null/timestamp issues, source-of-truth notes | `npm run hf:doctor`, endpoint probes when services are running |
-| UI review-speed audit | Make backend evidence faster for humans to inspect. | `src/features/`, `src/services/`, shared UI | UI patch after backend contract is clear | review path, missing drilldowns, stale UI assumptions | `npm run build`, browser/app smoke test when practical |
+| Repo health audit | Keep the repo understandable and agent-ready. | `AGENTS.md`, `README.md`, `docs/`, `skills/`, `package.json`, `.gitignore` | read-only report or docs patch | findings, stale conventions, proposed cleanup | `rtk npm run hf:doctor`, `rtk npm run build` when UI/docs imports may be affected |
+| Strategy research | Turn an idea into an inspectable strategy path. | `docs/strategies/`, `backend/hyperliquid_gateway/strategies/`, latest artifacts | docs/spec patch, backend-first recommendations | strategy spec, source audit, validation plan | `rtk npm run hf:backtest`, `rtk npm run hf:validate` when implementation exists |
+| Strategy validation audit | Decide whether evidence is strong enough for the next stage. | strategy docs, backend module, backtests, validations, paper artifacts | report, validation thresholds, small tests | blockers, anti-regime gaps, cost/slippage notes | `rtk npm run hf:validate`, strategy-specific tests |
+| Data quality audit | Protect research from bad or drifting data. | `backend/hyperliquid_gateway/data/`, `app.py`, `src/services/` | report, schema docs, small parser/contract fixes | schema gaps, null/timestamp issues, source-of-truth notes | `rtk npm run hf:doctor`, endpoint probes when services are running |
+| UI review-speed audit | Make backend evidence faster for humans to inspect. | `src/features/`, `src/services/`, shared UI | UI patch after backend contract is clear | review path, missing drilldowns, stale UI assumptions | `rtk npm run build`, browser/app smoke test when practical |
 | Operations/runbook audit | Make recurring work and local operations safer. | `docs/operations/`, `scripts/`, stable commands | runbook patch, command docs, report | command sequence, failure handling, handoff format | command-specific dry run or smoke check |
 | Memory update | Preserve useful context for future agents. | `docs/operations/agents/memory/` | memory add/update/promotion/archive/removal | stable facts, decisions, next actions, artifact links | link check or doc review |
 
@@ -98,29 +101,31 @@ Agents must not:
 Prefer stable commands:
 
 ```bash
-npm run hf:doctor
-npm run hf:strategy:new -- --strategy-id <strategy_id>
-npm run hf:backtest
-npm run hf:validate
-npm run hf:paper
-npm run hf:status
-npm run hf:agent:research -- --strategy <strategy_id>
-npm run hf:agent:audit -- --strategy <strategy_id>
-npm run hf:agent:status
-npm run hf:agent:runtime
-npm run backend:health
-npm run gateway:probe
-npm run build
-npm run agent:brief
-npm run graph:build
-npm run graph:update
-npm run graph:status
-npm run graph:query -- "<question>"
-npm run graph:check
+rtk npm run hf:doctor
+rtk npm run hf:strategy:new -- --strategy-id <strategy_id>
+rtk npm run hf:backtest
+rtk npm run hf:validate
+rtk npm run hf:paper
+rtk npm run hf:status
+rtk npm run hf:agent:research -- --strategy <strategy_id>
+rtk npm run hf:agent:audit -- --strategy <strategy_id>
+rtk npm run hf:agent:status
+rtk npm run hf:agent:runtime
+rtk npm run backend:health
+rtk npm run gateway:probe
+rtk npm run build
+rtk npm run agent:brief
+rtk npm run graph:build
+rtk npm run graph:update
+rtk npm run graph:status
+rtk npm run graph:query -- "<question>"
+rtk npm run graph:check
 ```
 
 Ad hoc scripts are acceptable for inspection, but milestone evidence should use
-the stable command surface whenever possible.
+the stable command surface whenever possible. If RTK hides needed diagnostic
+details, rerun with `rtk proxy <command>`, `RTK_DISABLED=1`, or the raw command
+and record why in the handoff.
 
 Graphify outputs are a navigational layer, not canonical evidence. Version
 `graphify-out/GRAPH_REPORT.md`, `graphify-out/graph.json`, and

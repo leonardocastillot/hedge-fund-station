@@ -1023,3 +1023,60 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Memory was intentionally unchanged because the backend-first
   cockpit boundary is already documented and this cleanup updates the relevant
   architecture docs directly.
+
+---
+
+## 2026-05-10 - Strategy Memory Graph Explorer
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced the dense lower `/memory` strategy/memory surface with an
+  interactive Graphify-style Strategy Evidence Graph backed by local
+  `vis-network`. The explorer defaults to actionable strategy paths, supports
+  search, strategy and learning lenses, evidence filters, Focus, Neighborhood,
+  Labels, Physics, Fit, Reset, node inspection, and an Agent Path section with
+  missing evidence, source/evidence paths, and suggested stable `hf:*` commands.
+- Evidence:
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/features/memory/components/StrategyMemoryGraphExplorer.tsx`,
+  `src/features/memory/memoryGraphTypes.ts`,
+  `electron/main/native/obsidian-manager.ts`,
+  `docs/operations/agents/graph-memory-operating-system.md`,
+  `src/features/README.md`, `graphify-out/GRAPH_REPORT.md`, and
+  `progress/impl_strategy_memory_graph_explorer.md`.
+- Verification: `npm run build`, `npm run graph:build`,
+  `npm run graph:check`, `npm run agent:check`, `git diff --check`, and
+  desktop/mobile `/memory` visual smoke passed.
+- Status: done. Memory rule promoted into
+  `docs/operations/agents/graph-memory-operating-system.md`; backend docs,
+  backend artifacts, and the file harness remain canonical truth.
+
+---
+
+## 2026-05-10 - RTK Repo Context Cleanup
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Finished active cleanup for the retired content-growth surface,
+  pruned stale local worktree metadata, renamed the current branch to
+  `codex/rtk-repo-context-cleanup`, configured local Codex RTK instructions with
+  `RTK.md` and the official `@RTK.md` include in `AGENTS.md`, and updated core
+  agent docs so future shell commands prefer `rtk <command>` with raw-output
+  escape hatches.
+- Evidence:
+  `AGENTS.md`, `RTK.md`, `docs/operations/agents/harness.md`,
+  `docs/operations/agents/file-harness.md`,
+  `docs/operations/agents/orientation.md`,
+  `docs/operations/agents/graph-memory-operating-system.md`,
+  `docs/operations/agents/memory/shared-memory.md`,
+  `docs/operations/agents/memory/decisions.md`, `scripts/agent_harness.py`,
+  `agent_tasks.json`, `progress/current.md`, and
+  `progress/impl_rtk_repo_context_cleanup.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run agent:brief`,
+  `rtk init --codex --show`, `rtk --version`, `rtk gain`,
+  active source searches for retired surface terms, `rtk npm run build`, and
+  `rtk git diff --check` passed. Filename search found only the historical
+  cleanup handoff, which was intentionally preserved.
+- Status: done. Memory added for the RTK operating decision. No trading
+  behavior, backend strategy logic, credentials, or broker/order side effects
+  changed.

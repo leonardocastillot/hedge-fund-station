@@ -89,3 +89,14 @@ needs status, date, decision, and reason.
   docs, specs, smoke artifacts, and curated examples.
 - Reason: agent runs, checkpoints, SQLite state, backtests, replay outputs, and
   logs grow too quickly for Git and should not pollute the local workspace.
+
+## RTK For Codex Shell Output
+
+- Status: accepted
+- Date: 2026-05-10
+- Decision: Codex and future repo agents should load `RTK.md` and prefer
+  `rtk <command>` for shell commands, while using raw output only for
+  interactive runs, exact diagnostic evidence, or RTK fallback.
+- Reason: RTK reduces command-output token noise without changing the
+  backend-first architecture, stable `hf:*` command surface, or handoff
+  evidence rules.

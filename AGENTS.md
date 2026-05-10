@@ -7,16 +7,19 @@ agent's job easier.
 
 ## Quick Start
 
-1. Run `npm run agent:brief` for the fast orientation snapshot: harness state,
+0. Load `RTK.md` and use `rtk <command>` for shell commands by default. RTK is
+   the approved Codex token-saving layer for this repo; bypass it only for
+   interactive commands, raw-output debugging, or when RTK is unavailable.
+1. Run `rtk npm run agent:brief` for the fast orientation snapshot: harness state,
    active task, Graphify freshness, memory status, Obsidian status, and next
    reads.
-2. Run `npm run agent:check` to verify the file-based harness is coherent.
+2. Run `rtk npm run agent:check` to verify the file-based harness is coherent.
 3. Read `progress/current.md` for the active session state.
 4. Read `agent_tasks.json` and pick one task with `status: "pending"` unless
    `progress/current.md` names an active handoff you should continue.
 5. If the task needs broad repo, architecture, harness, or memory orientation,
-   run `npm run graph:status`. Use `graphify-out/GRAPH_REPORT.md` or
-   `npm run graph:query -- "<question>"` only when Graphify is fresh enough for
+   run `rtk npm run graph:status`. Use `graphify-out/GRAPH_REPORT.md` or
+   `rtk npm run graph:query -- "<question>"` only when Graphify is fresh enough for
    navigation. Treat Graphify as a guide to inspect, not a source of truth.
 6. For work that touches agent memory, Graphify, Obsidian, or repo orientation,
    read `docs/operations/agents/graph-memory-operating-system.md` to keep the
@@ -44,10 +47,12 @@ Core files:
   explorer, implementer, and reviewer agents.
 - `graphify-out/GRAPH_REPORT.md`, when present, is the shared repo graph report
   for fast orientation across code, docs, harness, and memory. Use
-  `npm run graph:status`, `npm run graph:build`, `npm run graph:update`,
-  `npm run graph:query`, `npm run graph:explain`, and `npm run graph:path`
-  explicitly; do not install assistant hooks over this curated `AGENTS.md`
-  without human approval.
+  `rtk npm run graph:status`, `rtk npm run graph:build`,
+  `rtk npm run graph:update`, `rtk npm run graph:query`,
+  `rtk npm run graph:explain`, and `rtk npm run graph:path`
+  explicitly, preferably through `rtk`; do not install assistant hooks over this
+  curated `AGENTS.md` without human approval. The local `@RTK.md` Codex include
+  is the approved exception.
 - `docs/operations/agents/graph-memory-operating-system.md` defines how
   Graphify, Obsidian, and the file harness work together without duplicating
   each other.
@@ -85,7 +90,7 @@ Hard harness rules:
 
 Before finishing meaningful work:
 
-1. Run `npm run agent:check`.
+1. Run `rtk npm run agent:check`.
 2. Run the mission-specific verification commands from `agent_tasks.json`.
 3. Write `progress/impl_<task>.md` or another report file with changed files,
    commands, results, risks, and next action.
@@ -159,12 +164,12 @@ If this is a fresh agent session, start with
 
 Operate milestone work through the stable CLI first:
 
-- `npm run hf:doctor`
-- `npm run hf:strategy:new -- --strategy-id <strategy_id>`
-- `npm run hf:backtest`
-- `npm run hf:validate`
-- `npm run hf:paper`
-- `npm run hf:status`
+- `rtk npm run hf:doctor`
+- `rtk npm run hf:strategy:new -- --strategy-id <strategy_id>`
+- `rtk npm run hf:backtest`
+- `rtk npm run hf:validate`
+- `rtk npm run hf:paper`
+- `rtk npm run hf:status`
 
 Command implementation lives in:
 
@@ -401,3 +406,5 @@ Default to:
 - less magic in the UI
 
 If using donor material, audit it first, adapt it, and record the source in docs.
+
+@RTK.md

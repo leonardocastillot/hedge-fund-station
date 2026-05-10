@@ -187,25 +187,8 @@ export interface WorkspaceDeleteParams {
   id: string;
 }
 
-export interface MarketingListBlogPostsParams {
-  limit?: number;
-}
-
-export interface MarketingSaveGeminiApiKeyParams {
+export interface AISaveGeminiApiKeyParams {
   apiKey: string;
-}
-
-export interface MarketingGenerateIdeasParams {
-  brief?: string;
-  selectedPostSlug?: string;
-  count?: number;
-  channel?: 'linkedin' | 'website' | 'multi';
-}
-
-export interface MarketingGenerateImageParams {
-  prompt: string;
-  channel?: 'linkedin' | 'website-hero' | 'website-inline';
-  title?: string;
 }
 
 export interface VoiceTranscriptionParams {
@@ -270,6 +253,7 @@ export type ObsidianGraphNodeType =
   | 'backtest-artifact'
   | 'validation-artifact'
   | 'paper-artifact'
+  | 'audit-artifact'
   | 'learning-event'
   | 'agent-memory'
   | 'progress-handoff'

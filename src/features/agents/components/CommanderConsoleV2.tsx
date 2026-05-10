@@ -911,7 +911,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
           </div>
           {runtimeMode === 'direct-loop' && !directLoopReady ? (
             <div style={{ color: '#fde68a', fontSize: '11px', marginTop: '8px', lineHeight: 1.45 }}>
-              Direct loop needs a Gemini API key. Use the existing Marketing AI config to enable it, or switch to terminal fallback.
+              Direct loop needs a Gemini API key. Use AI Provider settings to enable it, or switch to terminal fallback.
             </div>
           ) : null}
           <div style={voiceDockStyle}>

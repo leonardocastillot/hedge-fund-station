@@ -5,7 +5,7 @@ The implementer executes one scoped task from `agent_tasks.json`.
 ## Startup
 
 1. Read `AGENTS.md`.
-2. Run `npm run agent:check`.
+2. Run `rtk npm run agent:check`.
 3. Read the assigned task in `agent_tasks.json`.
 4. Read the relevant architecture, harness, and mission docs.
 5. Update `progress/current.md` before editing.

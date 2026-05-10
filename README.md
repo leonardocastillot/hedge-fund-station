@@ -122,6 +122,10 @@ npm run backend:tunnel
 The `hf:*` command wrappers live in `scripts/hf.py`; backend CLI behavior lives
 in `backend/hyperliquid_gateway/cli.py`.
 
+Codex and repo agents should load `RTK.md` and run shell commands through RTK
+when available, for example `rtk npm run hf:doctor`, to keep command output
+compact without changing these stable scripts.
+
 ## Local Development
 
 Prerequisites:

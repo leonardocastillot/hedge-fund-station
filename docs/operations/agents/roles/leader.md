@@ -6,7 +6,7 @@ evidence, and reviewability.
 ## Startup
 
 1. Read `AGENTS.md`.
-2. Run `npm run agent:check`.
+2. Run `rtk npm run agent:check`.
 3. Read `agent_tasks.json` and `progress/current.md`.
 4. Choose one task, or continue the active handoff.
 5. Write the session plan in `progress/current.md`.

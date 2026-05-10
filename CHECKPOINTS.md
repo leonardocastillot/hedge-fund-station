@@ -12,7 +12,7 @@ Hedge Fund Station. Reviewers should use this file before approving a task.
 - [ ] `docs/operations/agents/file-harness.md` exists.
 - [ ] `docs/operations/agents/roles/` contains leader, explorer,
       implementer, and reviewer contracts.
-- [ ] `npm run agent:check` exits 0.
+- [ ] `rtk npm run agent:check` exits 0.
 
 ## C2 - Task State Is Coherent
 
@@ -39,11 +39,11 @@ Hedge Fund Station. Reviewers should use this file before approving a task.
 
 ## C4 - Verification Is Real
 
-- [ ] `npm run agent:check` passes.
+- [ ] `rtk npm run agent:check` passes.
 - [ ] Mission-specific commands from `agent_tasks.json` were run or skipped
       with an explicit reason.
 - [ ] Strategy work uses stable `hf:*` commands when applicable.
-- [ ] UI work runs `npm run build` or records why it was not practical.
+- [ ] UI work runs `rtk npm run build` or records why it was not practical.
 - [ ] No task is marked `done` based only on model confidence or chat claims.
 
 ## C5 - Handoff Is Durable

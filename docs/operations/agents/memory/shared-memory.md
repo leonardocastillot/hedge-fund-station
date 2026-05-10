@@ -23,6 +23,9 @@ canonical docs.
 - Graphify is the repo navigation layer, Obsidian is curated durable memory, and
   the file harness is live task state; see
   `docs/operations/agents/graph-memory-operating-system.md`.
+- RTK is the approved Codex shell wrapper for token-saving command output in
+  this repo; load `RTK.md` and prefer `rtk <command>` unless raw or interactive
+  output is required.
 
 ## Useful Entry Points
 

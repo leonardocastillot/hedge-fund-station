@@ -7,21 +7,22 @@ Use this when starting work in Hedge Fund Station.
 Start with the shortest machine-readable snapshot:
 
 ```bash
-npm run agent:brief
+rtk npm run agent:brief
 ```
 
 Read these before changing anything:
 
 1. `AGENTS.md`
-2. `docs/project-architecture.md`
-3. `docs/operations/hedge-fund-company-constitution.md`
-4. `docs/operations/product-objective.md`
-5. `docs/operations/agents/harness.md`
-6. `docs/operations/agents/memory/memory-policy.md`
-7. `docs/operations/agents/memory/shared-memory.md`
-8. `docs/operations/agents/memory/decisions.md`
-9. `docs/operations/agents/automation-system.md` for recurring or autonomous work
-10. the relevant skill under `skills/`
+2. `RTK.md`
+3. `docs/project-architecture.md`
+4. `docs/operations/hedge-fund-company-constitution.md`
+5. `docs/operations/product-objective.md`
+6. `docs/operations/agents/harness.md`
+7. `docs/operations/agents/memory/memory-policy.md`
+8. `docs/operations/agents/memory/shared-memory.md`
+9. `docs/operations/agents/memory/decisions.md`
+10. `docs/operations/agents/automation-system.md` for recurring or autonomous work
+11. the relevant skill under `skills/`
 
 If the mission needs broad repo orientation, memory work, Graphify, or Obsidian,
 also read `docs/operations/agents/graph-memory-operating-system.md`.
@@ -48,11 +49,11 @@ For strategy work, also read:
 
 ## Default Operating Loop
 
-1. Run `npm run agent:brief`.
+1. Run `rtk npm run agent:brief`.
 2. Classify the mission.
 3. Identify the trading lifecycle stage: research, backtesting, evaluation, or
    production.
-4. Run `npm run graph:status` before using Graphify; use Graphify for broad
+4. Run `rtk npm run graph:status` before using Graphify; use Graphify for broad
    repo topology only when it is fresh enough for navigation.
 5. Check curated memory only for durable decisions, lessons, and open questions.
 6. Inspect source before changing.
@@ -76,7 +77,8 @@ Use `harness.md` for the full mission matrix.
 
 - Prefer docs and tests before behavior changes.
 - Prefer backend artifacts over UI-only state.
-- Prefer `npm run hf:*` commands over one-off scripts.
+- Prefer stable `npm run hf:*` commands over one-off scripts, and run them
+  through `rtk` from agent shells when available.
 - Do not promote live trading, change credentials, or perform large migrations
   without explicit human instruction.
 

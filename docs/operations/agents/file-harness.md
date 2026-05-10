@@ -113,18 +113,18 @@ Agents may prepare the gate package. They may not skip it.
 Use the harness commands first:
 
 ```bash
-npm run agent:check
-npm run agent:status
+rtk npm run agent:check
+rtk npm run agent:status
 ```
 
 Then run mission-specific commands from the task:
 
 ```bash
-npm run hf:doctor
-npm run hf:backtest
-npm run hf:validate
-npm run hf:paper
-npm run build
+rtk npm run hf:doctor
+rtk npm run hf:backtest
+rtk npm run hf:validate
+rtk npm run hf:paper
+rtk npm run build
 ```
 
 The harness does not replace the stable `hf:*` command surface. It makes agent
