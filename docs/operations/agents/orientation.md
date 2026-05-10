@@ -4,6 +4,12 @@ Use this when starting work in Hedge Fund Station.
 
 ## First Read
 
+Start with the shortest machine-readable snapshot:
+
+```bash
+npm run agent:brief
+```
+
 Read these before changing anything:
 
 1. `AGENTS.md`
@@ -42,16 +48,18 @@ For strategy work, also read:
 
 ## Default Operating Loop
 
-1. Classify the mission.
-2. Identify the trading lifecycle stage: research, backtesting, evaluation, or
+1. Run `npm run agent:brief`.
+2. Classify the mission.
+3. Identify the trading lifecycle stage: research, backtesting, evaluation, or
    production.
-3. Use Graphify first for broad repo topology when artifacts exist.
-4. Check curated memory only for durable decisions, lessons, and open questions.
-5. Inspect source before changing.
-6. Keep changes small and reviewable.
-7. Preserve backend-first strategy ownership.
-8. Use stable commands for milestone evidence.
-9. Leave a handoff.
+4. Run `npm run graph:status` before using Graphify; use Graphify for broad
+   repo topology only when it is fresh enough for navigation.
+5. Check curated memory only for durable decisions, lessons, and open questions.
+6. Inspect source before changing.
+7. Keep changes small and reviewable.
+8. Preserve backend-first strategy ownership.
+9. Use stable commands for milestone evidence.
+10. Leave a handoff.
 
 ## Common Mission Classes
 

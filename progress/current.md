@@ -5,7 +5,7 @@ next agent.
 
 - Task: none
 - Status: idle
-- Last updated: 2026-05-09
+- Last updated: 2026-05-10
 - Owner: `codex`
 
 ## Active Plan
@@ -44,8 +44,14 @@ next agent.
 - `graphify_node_text_tooltips` replaced raw HTML node/edge hover text with
   clean, useful Graphify tooltip cards and improved compact labels.
 - Handoff: `progress/impl_graphify_node_text_tooltips.md`
+- `agent_memory_harness_performance` added `agent:brief` and `graph:status`,
+  refreshed agent docs and Graphify artifacts, added the Obsidian Agent
+  Navigation Index, resolved the daily plus weekly automation cadence, updated
+  the nightly Hedge Fund automation, and created a weekly read-only health
+  report automation.
+- Handoff: `progress/impl_agent_memory_harness_performance.md`
 
 ## Next Step
 
-Open Settings in the app, save a Gemini key if needed, and confirm Gemini Live
-status reports configured through the new AI provider bridge.
+Run the weekly health report once after this change lands and confirm its
+summary is concise enough for recurring use.

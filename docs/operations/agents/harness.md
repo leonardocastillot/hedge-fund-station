@@ -36,23 +36,26 @@ research artifacts belong under:
 
 Use this loop for agent work:
 
-1. Read the objective and repo rules.
-2. Check `memory/memory-policy.md`, `memory/shared-memory.md`,
+1. Run `npm run agent:brief` to get the current harness, memory, Graphify,
+   Obsidian, and next-read state.
+2. Read the objective and repo rules.
+3. Check `memory/memory-policy.md`, `memory/shared-memory.md`,
    `memory/decisions.md`, and `memory/open-questions.md`.
-3. For broad architecture, harness, or memory questions, read
-   `graphify-out/GRAPH_REPORT.md` first when it exists, then verify findings
-   against source files and canonical docs.
-4. For Graphify, Obsidian, or cross-layer memory work, follow
+4. For broad architecture, harness, or memory questions, run
+   `npm run graph:status` first. If Graphify is fresh enough, read
+   `graphify-out/GRAPH_REPORT.md` or run `npm run graph:query -- "<question>"`,
+   then verify findings against source files and canonical docs.
+5. For Graphify, Obsidian, or cross-layer memory work, follow
    `graph-memory-operating-system.md`: file harness owns active state, Graphify
    owns repo navigation, and Obsidian owns curated durable memory.
-5. Classify the mission.
-6. Inspect before changing code or docs.
-7. Produce a plan, report, or focused patch.
-8. Run the relevant checks.
-9. Leave a handoff.
-10. Update, promote, archive, or intentionally leave memory unchanged according
+6. Classify the mission.
+7. Inspect before changing code or docs.
+8. Produce a plan, report, or focused patch.
+9. Run the relevant checks.
+10. Leave a handoff.
+11. Update, promote, archive, or intentionally leave memory unchanged according
    to `memory/memory-policy.md`.
-11. Update backlog when the work changes the improvement queue.
+12. Update backlog when the work changes the improvement queue.
 
 If a mission cannot complete a step, the handoff must say why.
 
@@ -108,8 +111,10 @@ npm run hf:agent:runtime
 npm run backend:health
 npm run gateway:probe
 npm run build
+npm run agent:brief
 npm run graph:build
 npm run graph:update
+npm run graph:status
 npm run graph:query -- "<question>"
 npm run graph:check
 ```

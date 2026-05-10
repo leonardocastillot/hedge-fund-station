@@ -15,6 +15,7 @@ evidence, lessons, decisions, and open questions.
 
 ## Useful Links
 
+- [[Agent Navigation Index]]
 - [[indexes/Strategy Index|Strategy Index]]
 - [[indexes/Evidence Index|Evidence Index]]
 - [[strategies/btc_failed_impulse_reversal|BTC Failed Impulse Reversal]]
@@ -33,6 +34,8 @@ evidence, lessons, decisions, and open questions.
 
 ## How To Use This Vault
 
+- Open [[Agent Navigation Index]] when an agent needs the fastest repo-memory
+  starting point.
 - Open [[indexes/Strategy Index|Strategy Index]] to browse strategy memory.
 - Open [[indexes/Evidence Index|Evidence Index]] to inspect backend evidence.
 - Use the app's `/memory` page to sync strategy cards and captured lessons.

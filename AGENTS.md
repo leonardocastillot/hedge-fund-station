@@ -7,21 +7,24 @@ agent's job easier.
 
 ## Quick Start
 
-1. Run `npm run agent:check` to verify the file-based harness is coherent.
-2. Read `progress/current.md` for the active session state.
-3. Read `agent_tasks.json` and pick one task with `status: "pending"` unless
+1. Run `npm run agent:brief` for the fast orientation snapshot: harness state,
+   active task, Graphify freshness, memory status, Obsidian status, and next
+   reads.
+2. Run `npm run agent:check` to verify the file-based harness is coherent.
+3. Read `progress/current.md` for the active session state.
+4. Read `agent_tasks.json` and pick one task with `status: "pending"` unless
    `progress/current.md` names an active handoff you should continue.
-4. If `graphify-out/GRAPH_REPORT.md` exists and the task needs broad repo,
-   architecture, harness, or memory orientation, read it as a navigation map
-   before wide searches. Treat Graphify as a guide to inspect, not a source of
-   truth.
-5. For work that touches agent memory, Graphify, Obsidian, or repo orientation,
+5. If the task needs broad repo, architecture, harness, or memory orientation,
+   run `npm run graph:status`. Use `graphify-out/GRAPH_REPORT.md` or
+   `npm run graph:query -- "<question>"` only when Graphify is fresh enough for
+   navigation. Treat Graphify as a guide to inspect, not a source of truth.
+6. For work that touches agent memory, Graphify, Obsidian, or repo orientation,
    read `docs/operations/agents/graph-memory-operating-system.md` to keep the
    three layers in their intended roles.
-6. Read only the docs relevant to the mission class, starting from
+7. Read only the docs relevant to the mission class, starting from
    `docs/operations/agents/file-harness.md`.
-7. Before editing, write or update the active plan in `progress/current.md`.
-8. After meaningful work, write a report in `progress/` and leave a handoff.
+8. Before editing, write or update the active plan in `progress/current.md`.
+9. After meaningful work, write a report in `progress/` and leave a handoff.
 
 ## File-Based Harness
 
@@ -41,9 +44,10 @@ Core files:
   explorer, implementer, and reviewer agents.
 - `graphify-out/GRAPH_REPORT.md`, when present, is the shared repo graph report
   for fast orientation across code, docs, harness, and memory. Use
-  `npm run graph:build`, `npm run graph:update`, `npm run graph:query`,
-  `npm run graph:explain`, and `npm run graph:path` explicitly; do not install
-  assistant hooks over this curated `AGENTS.md` without human approval.
+  `npm run graph:status`, `npm run graph:build`, `npm run graph:update`,
+  `npm run graph:query`, `npm run graph:explain`, and `npm run graph:path`
+  explicitly; do not install assistant hooks over this curated `AGENTS.md`
+  without human approval.
 - `docs/operations/agents/graph-memory-operating-system.md` defines how
   Graphify, Obsidian, and the file harness work together without duplicating
   each other.

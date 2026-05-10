@@ -22,6 +22,20 @@ Every automation must know:
 If these are missing, the automation should produce a recommendation report
 instead of changing code.
 
+## Required Startup Checks
+
+Recurring Hedge Fund Station automations should start with:
+
+```bash
+npm run agent:brief
+npm run graph:status
+```
+
+Use the brief to choose the active task or safe next improvement. Use Graphify
+only when `graph:status` says the artifacts are fresh enough for navigation.
+When Graphify is dirty or stale, treat it as a hint and prefer source files,
+canonical docs, and stable command output.
+
 ## Automation Classes
 
 ### 1. Repo Health Audit
@@ -122,16 +136,36 @@ Expected output:
 
 ## Default Cadence Recommendation
 
-Use these recurring checks when automations are enabled:
+The current approved cadence for this repo is:
 
-- daily: repo health and backend status report
-- daily: strategy/paper artifact status summary
-- weekly: data quality audit
-- weekly: strategy validation gap review
-- weekly: UI review-speed audit
+- daily at 02:30: one small verified improvement, biased toward strategy and
+  validation quality.
+- weekly on Sunday at 09:00: read-only health report covering harness, memory,
+  Graphify, Obsidian, strategy status, and next recommended task.
+
+Use these recurring checks inside that cadence:
+
+- daily: harness, Graphify status, strategy/paper artifact status, and one
+  focused improvement when safe.
+- weekly: data quality, strategy validation gaps, UI review-speed gaps, memory
+  cleanup needs, and automation health.
 
 Do not auto-merge or auto-promote strategy changes. Strategy promotion requires
 human review.
+
+## Weekly Health Report Format
+
+A weekly read-only report should include:
+
+- objective reviewed
+- commands run and result
+- harness status
+- Graphify freshness and recommended command
+- Obsidian vault/index status
+- memory actions needed, if any
+- `hf:status` strategy gaps
+- blocked risks
+- single next best automation or task
 
 ## Automation Output Format
 

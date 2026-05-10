@@ -220,6 +220,34 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-10 - Agent Memory Harness Performance
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Added fast agent orientation commands, refreshed Graphify status and
+  artifacts, converted `CLAUDE.md` into a compatibility shim, added an Obsidian
+  Agent Navigation Index, resolved the recurring cadence decision, updated the
+  nightly Hedge Fund automation, and created a weekly read-only agent health
+  report automation.
+- Evidence:
+  `scripts/agent_harness.py`,
+  `scripts/graphify-status.mjs`,
+  `AGENTS.md`,
+  `CLAUDE.md`,
+  `docs/operations/agents/automation-system.md`,
+  `docs/operations/agents/memory/decisions.md`,
+  `hedge-station/Agent Navigation Index.md`,
+  `graphify-out/GRAPH_REPORT.md`,
+  `progress/impl_agent_memory_harness_performance.md`.
+- Verification: `npm run agent:check`, `npm run agent:status`,
+  `npm run agent:brief`, `npm run graph:status`, `npm run graph:check`,
+  Graphify query, focused Graphify memory tests, `npm run perf:budget`, and
+  `git diff --check` passed.
+- Status: done; no trading logic, credentials, order routing, backend API, IPC
+  contract, or live promotion behavior changed.
+
+---
+
 ## 2026-05-08 - Aggressive Cleanup Queue Closeout
 
 - Agent: Codex
