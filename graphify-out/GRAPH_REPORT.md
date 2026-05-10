@@ -1,16 +1,16 @@
 # Graph Report - codex-strategy-memory-graph-explorer  (2026-05-10)
 
 ## Corpus Check
-- 347 files · ~278,836 words
+- 347 files · ~276,543 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4394 nodes · 6983 edges · 257 communities (208 shown, 49 thin omitted)
+- 4394 nodes · 6983 edges · 262 communities (212 shown, 50 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 149 edges (avg confidence: 0.73)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `3582d473`
+- Built from commit: `cafcf656`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -242,10 +242,10 @@
 - [[_COMMUNITY_Community 224|Community 224]]
 - [[_COMMUNITY_Community 225|Community 225]]
 - [[_COMMUNITY_Community 226|Community 226]]
+- [[_COMMUNITY_Community 227|Community 227]]
 - [[_COMMUNITY_Community 228|Community 228]]
 - [[_COMMUNITY_Community 229|Community 229]]
 - [[_COMMUNITY_Community 230|Community 230]]
-- [[_COMMUNITY_Community 231|Community 231]]
 - [[_COMMUNITY_Community 232|Community 232]]
 - [[_COMMUNITY_Community 233|Community 233]]
 - [[_COMMUNITY_Community 234|Community 234]]
@@ -262,6 +262,11 @@
 - [[_COMMUNITY_Community 245|Community 245]]
 - [[_COMMUNITY_Community 246|Community 246]]
 - [[_COMMUNITY_Community 247|Community 247]]
+- [[_COMMUNITY_Community 248|Community 248]]
+- [[_COMMUNITY_Community 249|Community 249]]
+- [[_COMMUNITY_Community 250|Community 250]]
+- [[_COMMUNITY_Community 251|Community 251]]
+- [[_COMMUNITY_Community 252|Community 252]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `HyperliquidService` - 60 edges
@@ -276,18 +281,18 @@
 10. `StrategyCatalogTest` - 23 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `BacktestFeeModelTest` --uses--> `Candle`  [INFERRED]
+  tests/test_backtest_fees_and_scalper.py → backend/hyperliquid_gateway/backtesting/io.py
+- `BtcCrowdingScalperTest` --uses--> `Candle`  [INFERRED]
+  tests/test_backtest_fees_and_scalper.py → backend/hyperliquid_gateway/backtesting/io.py
 - `BtcFailedImpulseReversalTest` --uses--> `BacktestConfig`  [INFERRED]
   tests/test_btc_failed_impulse_reversal.py → backend/hyperliquid_gateway/backtesting/engine.py
 - `OiExpansionFailureFadeTest` --uses--> `BacktestConfig`  [INFERRED]
   tests/test_oi_expansion_failure_fade.py → backend/hyperliquid_gateway/backtesting/engine.py
 - `OneBitcoinStrategyTest` --uses--> `BacktestConfig`  [INFERRED]
   tests/test_one_bitcoin.py → backend/hyperliquid_gateway/backtesting/engine.py
-- `LongFlushContinuationTest` --uses--> `BacktestConfig`  [INFERRED]
-  tests/test_long_flush_continuation.py → backend/hyperliquid_gateway/backtesting/engine.py
-- `place_live_order()` --calls--> `execute_live_market_order()`  [INFERRED]
-  scripts/polymarket_btc_5m_runner.py → backend/hyperliquid_gateway/polymarket_api.py
 
-## Communities (257 total, 49 thin omitted)
+## Communities (262 total, 50 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.05
@@ -303,27 +308,27 @@ Nodes (71): approveButtonStyle, buildCodexPrompt(), chatPanelStyle, chipRowStyle
 
 ### Community 3 - "Community 3"
 Cohesion: 0.05
-Nodes (64): PATH_PREFIX, MarkdownNote, nodeRequire, TerminalRecord, UNIX_PATH_PREFIX, AgentLoopMemoryNote, AgentLoopWorkflowStep, AISaveGeminiApiKeyParams (+56 more)
+Nodes (52): activityCardStyle, activityItemStyle, agentCardStyle, AgentSupervisorBoard(), boardEyebrowStyle, boardHeaderStyle, boardStyle, boardTitleStyle (+44 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.06
-Nodes (62): booleanOrDefault(), deriveFallbackGateReasons(), deriveFallbackGateStatus(), deriveFallbackPipelineStage(), displayNameFromStrategyId(), GATE_STATUSES, HyperliquidAgentRunCreateRequest, HyperliquidAgentRunCreateResponse (+54 more)
+Cohesion: 0.04
+Nodes (50): getPtyLabel(), getRuntimeLabel(), LaunchSignalStrip(), actionsStyle, copyStyle, emptyStyle, eyebrowStyle, fieldStyle (+42 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.06
-Nodes (48): adjusted_monthly_deploy_pct(), build_latest_signal(), build_runtime_config(), build_summary(), build_synthetic_fallback_history(), cash_drag_note(), compact_variant_payload(), execute_purchase() (+40 more)
+Nodes (59): PATH_PREFIX, MarkdownNote, AgentLoopMemoryNote, AgentLoopWorkflowStep, AISaveGeminiApiKeyParams, DevServiceStatus, DevStatus, DiagnosticsCheckCommandsParams (+51 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.07
-Nodes (54): calendar_analysis(), calendar_holidays(), calendar_intelligence(), calendar_news(), calendar_refresh(), calendar_this_week(), calendar_weekly_brief(), build_calendar_fallback_events() (+46 more)
+Cohesion: 0.06
+Nodes (62): booleanOrDefault(), deriveFallbackGateReasons(), deriveFallbackGateStatus(), deriveFallbackPipelineStage(), displayNameFromStrategyId(), GATE_STATUSES, HyperliquidAgentRunCreateRequest, HyperliquidAgentRunCreateResponse (+54 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.06
-Nodes (44): AgentSupervisorBoard(), CommanderConsoleV2(), MissionChatWorkbench(), MissionConsoleLauncher(), AgentProfilesProvider(), useAgentProfilesContext(), CommanderTasksProvider(), useCommanderTasksContext() (+36 more)
+Nodes (48): adjusted_monthly_deploy_pct(), build_latest_signal(), build_runtime_config(), build_summary(), build_synthetic_fallback_history(), cash_drag_note(), compact_variant_payload(), execute_purchase() (+40 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.03
-Nodes (26): CaptureFormState, detailPath(), EvidenceItem, GRAPH_CENTER, GraphifyOpenPathMessage, jitter(), layoutGraph(), LEARNING_LENSES (+18 more)
+Cohesion: 0.07
+Nodes (54): calendar_analysis(), calendar_holidays(), calendar_intelligence(), calendar_news(), calendar_refresh(), calendar_this_week(), calendar_weekly_brief(), build_calendar_fallback_events() (+46 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.06
@@ -331,15 +336,15 @@ Nodes (49): build_latest_signal(), build_variant_leaderboard(), extract_price_to
 
 ### Community 10 - "Community 10"
 Cohesion: 0.04
-Nodes (45): actionsStyle, copyStyle, emptyStyle, eyebrowStyle, fieldStyle, formGridStyle, headerStyle, inputStyle (+37 more)
+Nodes (24): CaptureFormState, EvidenceItem, GRAPH_CENTER, GraphifyOpenPathMessage, jitter(), layoutGraph(), LEARNING_LENSES, LearningLensId (+16 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.06
-Nodes (30): errorMessage(), formatCurrency(), formatPct(), loadPolymarketSnapshot(), PolymarketPage(), PolymarketSnapshot, API_URL, blockedAuditMutation() (+22 more)
+Nodes (15): backtestRunPayload(), ensureBacktestQuery(), fetchJson(), fetchJsonFrom(), gatewayHttpError(), HyperliquidService, invalidatePaperCaches(), isAgentEndpoint() (+7 more)
 
 ### Community 12 - "Community 12"
-Cohesion: 0.04
-Nodes (44): actionButtonStyle, cardStyle, dockStyle, emptyStyle, eyebrowStyle, gridStyle, KnowledgeDock(), noteButtonStyle (+36 more)
+Cohesion: 0.06
+Nodes (30): errorMessage(), formatCurrency(), formatPct(), loadPolymarketSnapshot(), PolymarketPage(), PolymarketSnapshot, API_URL, blockedAuditMutation() (+22 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.07
@@ -358,216 +363,216 @@ Cohesion: 0.08
 Nodes (42): apply_pipeline_gate(), build_backtest_result_leaderboard(), build_paper_runtime_supervisor_status(), _clean_gate_reasons(), file_modified_at_ms(), first_present_graphify_value(), graphify_built_commit(), graphify_changed_paths_since_built() (+34 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.06
-Nodes (35): formatDoublingDays(), formatDoublingEstimate(), InventoryFilter, StrategyInventory(), actionLabel(), formatDoublingDays(), formatDoublingEstimate(), formatNumber() (+27 more)
+Cohesion: 0.07
+Nodes (34): formatDoublingDays(), formatDoublingEstimate(), InventoryFilter, StrategyInventory(), actionLabel(), formatDoublingDays(), formatDoublingEstimate(), formatNumber() (+26 more)
 
 ### Community 18 - "Community 18"
 Cohesion: 0.04
 Nodes (39): buttonRowStyle, checkboxStyle, contentStyle, controlStyle, eyebrowStyle, footerStyle, headerStyle, helperStyle (+31 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.07
-Nodes (37): activityCardStyle, activityItemStyle, agentCardStyle, boardEyebrowStyle, boardHeaderStyle, boardStyle, boardTitleStyle, emptyStyle (+29 more)
+Cohesion: 0.06
+Nodes (34): CommanderTasksContext, CommanderTasksContextValue, CommanderTasksProvider(), loadArray(), loadDrafts(), loadMessages(), loadRuns(), missionTinyButtonStyle (+26 more)
 
 ### Community 21 - "Community 21"
 Cohesion: 0.05
 Nodes (42): AgentLoopMemoryNote, AgentLoopRunSnapshot, AgentLoopStageUpdate, AgentLoopWorkflowStep, AIConfigStatus, DevServiceStatus, DevStatus, DiagnosticsCommandStatus (+34 more)
 
 ### Community 22 - "Community 22"
+Cohesion: 0.06
+Nodes (34): actionBackground(), actionColor(), ActionPill(), activeDetailHeaderStyle, activeDetailStyle, commandButtonStyle, commandListStyle, commandMetaTextStyle (+26 more)
+
+### Community 23 - "Community 23"
 Cohesion: 0.05
 Nodes (42): 2026-05-05 - File Harness Bootstrap, 2026-05-05 - OI Expansion Failure Fade Strategy, 2026-05-06 - Backtest Evidence Gateway Contract, 2026-05-06 - BTC Doubling Stability Audit, 2026-05-06 - BTC Failed Impulse Paper Baseline, 2026-05-06 - BTC Failed Impulse Paper Collection Start, 2026-05-06 - BTC Failed Impulse Paper Runtime Loop, 2026-05-06 - BTC Failed Impulse Paper Runtime Tick (+34 more)
 
-### Community 23 - "Community 23"
+### Community 24 - "Community 24"
 Cohesion: 0.07
 Nodes (20): AUTO_BLOGGER_PATH, BLOG_CONTENT_DIR, buildPostFromFile(), Frontmatter, getImageDimensions(), IMAGE_MODEL_FALLBACKS, MarketingAIConfig, MarketingAIConfigStatus (+12 more)
 
-### Community 24 - "Community 24"
-Cohesion: 0.06
-Nodes (33): actionBackground(), actionColor(), ActionPill(), activeDetailHeaderStyle, activeDetailStyle, commandButtonStyle, commandListStyle, commandMetaTextStyle (+25 more)
-
 ### Community 25 - "Community 25"
-Cohesion: 0.09
-Nodes (7): backtestRunPayload(), ensureBacktestQuery(), HyperliquidService, learningCreatePayload(), normalizeBacktestRunOptions(), invalidateRequestCache(), withRequestCache()
-
-### Community 26 - "Community 26"
 Cohesion: 0.07
 Nodes (30): CockpitState, compact(), compactFormatter, emptyState, fmt(), isLocalBackendUrl(), relativeTime(), statusTone() (+22 more)
 
-### Community 27 - "Community 27"
-Cohesion: 0.07
-Nodes (21): formatArtifactNumber(), formatArtifactPercent(), formatCurrency(), formatTradeTime(), nestedRecord(), numberAt(), PaperBaselinePanel(), parseTradeTime() (+13 more)
-
-### Community 28 - "Community 28"
+### Community 26 - "Community 26"
 Cohesion: 0.05
 Nodes (39): 1. Local Windows PC, 2. Mac mini, 3. Public Internet / External Cloud, Bad use of the Mac mini as center, Best Near-Term Topology, Better medium-term, Can The Hedge Fund Stack Live There Too?, Can Your Personal Website Also Live There? (+31 more)
 
-### Community 29 - "Community 29"
+### Community 27 - "Community 27"
 Cohesion: 0.07
 Nodes (29): BackendProbe, BackendProbeResult, BackendStatus(), ContractState, initialResults, labelFor(), probes, readinessTone() (+21 more)
 
-### Community 30 - "Community 30"
-Cohesion: 0.07
-Nodes (31): CommanderTasksContext, CommanderTasksContextValue, loadArray(), loadDrafts(), loadMessages(), loadRuns(), strategyService, CommanderTask (+23 more)
-
-### Community 31 - "Community 31"
+### Community 28 - "Community 28"
 Cohesion: 0.05
 Nodes (34): code:block1 (Week 1:  [Phase 1: Historical Replay]), Cost Model Validation, Database Enhancements, Deliverables, Deliverables, Deliverables, Deliverables, Document Version (+26 more)
 
-### Community 32 - "Community 32"
-Cohesion: 0.07
-Nodes (32): Funding Exhaustion Snap Strategy  Mean reversion strategy exploiting funding rat, calculate_funding_percentile(), calculate_momentum_score(), check_oi_stability(), evaluate_long_entry(), evaluate_short_entry(), evaluate_signal(), Funding Exhaustion Snap - Signal Logic  Entry signal evaluation with all filter (+24 more)
-
-### Community 33 - "Community 33"
+### Community 29 - "Community 29"
 Cohesion: 0.1
 Nodes (27): build_latest_signal(), build_variant_leaderboard(), extract_price_to_beat_from_payload(), find_exit(), find_fill_index(), group_by_slug(), iso_from_ms(), load_snapshots() (+19 more)
 
+### Community 30 - "Community 30"
+Cohesion: 0.11
+Nodes (25): AIConfigManager, AIConfigStatus, AISaveGeminiApiKeyParams, getConfigPath(), HedgeFundAIConfig, readAIConfig(), readLocalEnvValue(), resolveGeminiApiKey() (+17 more)
+
+### Community 31 - "Community 31"
+Cohesion: 0.07
+Nodes (24): VoiceCommandBar(), VoiceCommandBarProps, GeminiLiveConversation, GeminiLiveVoiceStatus, initialDiagnostics, LiveDiagnostics, useGeminiLiveVoice(), UseGeminiLiveVoiceOptions (+16 more)
+
+### Community 32 - "Community 32"
+Cohesion: 0.11
+Nodes (35): available_strategies(), latest_json(), add_source(), add_timeline(), agent_run_response(), artifact_generated_ms(), artifact_strategy_id(), backtest_artifact_payload() (+27 more)
+
+### Community 33 - "Community 33"
+Cohesion: 0.08
+Nodes (31): actionButtonStyle, cardStyle, dockStyle, emptyStyle, eyebrowStyle, gridStyle, KnowledgeDock(), noteButtonStyle (+23 more)
+
 ### Community 34 - "Community 34"
-Cohesion: 0.1
-Nodes (22): BacktestConfig, normalize_symbols(), Candle, StrategyDefinition, ValidationPolicy, BaseModel, AgentRunCreate, BacktestRunCreate (+14 more)
-
-### Community 35 - "Community 35"
-Cohesion: 0.12
-Nodes (34): available_strategies(), latest_json(), add_source(), add_timeline(), agent_run_response(), artifact_generated_ms(), artifact_strategy_id(), backtest_artifact_payload() (+26 more)
-
-### Community 36 - "Community 36"
 Cohesion: 0.09
 Nodes (25): compactLabel(), displayLabel(), EDGE_TONES, edgeTooltip(), escapeHtml(), LearningLensCounts, LensCounts, NETWORK_OPTIONS (+17 more)
 
-### Community 37 - "Community 37"
-Cohesion: 0.1
-Nodes (27): list_csv_files(), add_agent_ai_args(), build_paper_runtime_tick_url(), build_parser(), command_agent_audit(), command_doctor(), command_doubling_stability(), command_paper() (+19 more)
-
-### Community 38 - "Community 38"
+### Community 35 - "Community 35"
 Cohesion: 0.13
 Nodes (27): atr(), bollinger(), _bollinger_squeeze(), _bounded_float(), _bounded_int(), build_preview(), cross_markers(), deterministic_pine_indicator() (+19 more)
 
-### Community 39 - "Community 39"
+### Community 36 - "Community 36"
+Cohesion: 0.1
+Nodes (27): list_csv_files(), add_agent_ai_args(), build_paper_runtime_tick_url(), build_parser(), command_agent_audit(), command_doctor(), command_doubling_stability(), command_paper() (+19 more)
+
+### Community 37 - "Community 37"
 Cohesion: 0.06
 Nodes (32): ✅ 1. Strategy Specification, ✅ 2. Backend Implementation, ✅ 3. Validation Plan, Analytics Dashboard, code:python (ALL of these must be TRUE:), code:python (ANY of these → EXIT:), code:block3 (hedge-fund-station/), ⚠️ Critical Constraints & Rules (+24 more)
 
+### Community 38 - "Community 38"
+Cohesion: 0.1
+Nodes (19): BacktestConfig, normalize_symbols(), BaseModel, AgentRunCreate, BacktestRunCreate, build_backtest_config_from_filters(), PaperCandidateCreate, PaperSignalCreate (+11 more)
+
+### Community 39 - "Community 39"
+Cohesion: 0.06
+Nodes (27): actionButtonStyle, bodyStyle, bottomGridStyle, emptyStyle, evidenceShellStyle, heroActionsStyle, heroCopyStyle, heroEyebrowStyle (+19 more)
+
 ### Community 40 - "Community 40"
-Cohesion: 0.08
-Nodes (21): GeminiLiveConversation, GeminiLiveVoiceStatus, initialDiagnostics, LiveDiagnostics, UseGeminiLiveVoiceOptions, WorkletAudioMessage, buildGeminiOrchestratorSystemContext(), createGeminiOrchestratorTools() (+13 more)
+Cohesion: 0.09
+Nodes (21): LiquidationsProvider(), useMarketPolling(), DiagnosticsPage(), LocalCheckRow(), LocalPreflightCheck, ReadinessCheckRow(), statusTone(), HyperliquidDataPage() (+13 more)
 
 ### Community 41 - "Community 41"
-Cohesion: 0.08
-Nodes (31): append_alert(), apply_btc_failed_impulse_paper_runtime_plan(), close_paper_trade(), create_paper_signal(), create_paper_trade(), current_price_map(), db_connection(), history_span_ms() (+23 more)
-
-### Community 42 - "Community 42"
 Cohesion: 0.09
 Nodes (10): finalize_strategy_row(), make_strategy_row(), status_from_artifacts(), strategies_catalog(), strategy_catalog_card(), strategy_catalog_payload(), strategy_document_sort_key(), strategy_key() (+2 more)
 
-### Community 43 - "Community 43"
-Cohesion: 0.12
-Nodes (18): build_entry_decision(), build_paper_runtime_plan(), build_runtime_market_data(), compact_runtime_market(), evaluate_paper_runtime_exit(), iso_from_ms(), _normalize_history_entry(), paper_trade_pnl() (+10 more)
-
-### Community 44 - "Community 44"
+### Community 42 - "Community 42"
 Cohesion: 0.14
 Nodes (29): as_list(), build_parser(), collect_issues(), command_brief(), command_check(), command_init(), command_status(), git_dirty() (+21 more)
 
-### Community 45 - "Community 45"
-Cohesion: 0.08
-Nodes (15): buildDatasetInsight(), buildSummaryCards(), classifyValue(), collectDatasets(), ColumnInsight, Dataset, DatasetInsight, dedupeDatasets() (+7 more)
+### Community 43 - "Community 43"
+Cohesion: 0.07
+Nodes (24): AgentsPanel, BtcAnalysisPage, DiagnosticsPage, EconomicCalendarPage, HedgeFundStationPage, HyperliquidDataPage, HyperliquidIntelligencePage, HyperliquidPaperLabPage (+16 more)
 
-### Community 46 - "Community 46"
+### Community 44 - "Community 44"
+Cohesion: 0.09
+Nodes (30): append_alert(), apply_btc_failed_impulse_paper_runtime_plan(), close_paper_trade(), create_paper_signal(), create_paper_trade(), current_price_map(), db_connection(), history_span_ms() (+22 more)
+
+### Community 45 - "Community 45"
 Cohesion: 0.11
 Nodes (20): BacktestAction(), BacktestArtifactSelector(), formatArtifactNumber(), formatArtifactPercent(), formatCurrency(), formatOptionalCurrency(), formatOptionalPercent(), formatPercent() (+12 more)
 
-### Community 47 - "Community 47"
-Cohesion: 0.09
-Nodes (18): useMarketPolling(), DiagnosticsPage(), LocalCheckRow(), LocalPreflightCheck, ReadinessCheckRow(), statusTone(), COMMANDS, formatCompact() (+10 more)
+### Community 46 - "Community 46"
+Cohesion: 0.08
+Nodes (14): buildDatasetInsight(), buildSummaryCards(), classifyValue(), collectDatasets(), ColumnInsight, Dataset, DatasetInsight, dedupeDatasets() (+6 more)
 
-### Community 48 - "Community 48"
+### Community 47 - "Community 47"
 Cohesion: 0.18
 Nodes (27): discover_strategy_packages(), build_artifact_id(), build_btc_variant_optimizer_workflow(), build_doubling_stability_workflow(), build_paper_workflow(), build_production_candidate_assessment(), build_research_snapshot(), build_status_snapshot() (+19 more)
 
-### Community 50 - "Community 50"
-Cohesion: 0.15
-Nodes (22): run_backtest(), apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), failed_impulse_variant_params(), load_sampled_snapshots() (+14 more)
-
-### Community 51 - "Community 51"
+### Community 49 - "Community 49"
 Cohesion: 0.12
-Nodes (24): build_latest_signal(), build_market_data(), close_position(), current_pnl_pct(), deterministic_fill_price(), load_sampled_snapshots(), maybe_close_position(), pct_change() (+16 more)
+Nodes (13): AgentLoopConfig, AgentLoopManager, AgentLoopModelResponse, buildRunId(), normalizeConfidence(), normalizeDecision(), safeJsonParse(), stripCodeFence() (+5 more)
 
-### Community 52 - "Community 52"
-Cohesion: 0.14
-Nodes (17): AIConfigManager, AIConfigStatus, AISaveGeminiApiKeyParams, getConfigPath(), HedgeFundAIConfig, readAIConfig(), resolveGeminiLiveModel(), resolveGeminiTextModel() (+9 more)
-
-### Community 53 - "Community 53"
+### Community 50 - "Community 50"
 Cohesion: 0.1
 Nodes (17): CalendarEvent, calendarSourceMode(), EconomicCalendarPage(), emptyState, eventDayKey(), formatDateKey(), formatEventWindow(), formatUpdatedAt() (+9 more)
 
-### Community 54 - "Community 54"
+### Community 51 - "Community 51"
 Cohesion: 0.13
 Nodes (26): aggregate_chart_payload(), aggregate_chart_rows(), build_aggregate_snapshot(), build_liquidations_insights(), build_liquidations_stats(), cached_overview_payload(), chart_coverage_label(), ensure_column() (+18 more)
 
-### Community 55 - "Community 55"
-Cohesion: 0.13
-Nodes (12): AgentLoopConfig, AgentLoopManager, AgentLoopModelResponse, buildRunId(), normalizeConfidence(), normalizeDecision(), safeJsonParse(), stripCodeFence() (+4 more)
+### Community 52 - "Community 52"
+Cohesion: 0.12
+Nodes (23): build_latest_signal(), build_market_data(), close_position(), current_pnl_pct(), deterministic_fill_price(), maybe_close_position(), pct_change(), reference_value() (+15 more)
 
-### Community 56 - "Community 56"
-Cohesion: 0.08
-Nodes (20): AgentsPanel, BtcAnalysisPage, DiagnosticsPage, EconomicCalendarPage, HedgeFundStationPage, HyperliquidDataPage, HyperliquidIntelligencePage, HyperliquidPaperLabPage (+12 more)
-
-### Community 57 - "Community 57"
-Cohesion: 0.13
-Nodes (18): apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), current_pnl_pct(), load_sampled_snapshots(), maybe_close_position() (+10 more)
-
-### Community 58 - "Community 58"
+### Community 53 - "Community 53"
 Cohesion: 0.11
 Nodes (13): buildSnapshotTrapDecisions(), TrapAction, TrapSide, actionBackground(), ActionBadge(), actionColor(), formatTime(), formatUsd() (+5 more)
 
-### Community 59 - "Community 59"
+### Community 54 - "Community 54"
+Cohesion: 0.09
+Nodes (20): AgentVisualizerProps, connectionLineStyle, containerStyle, coreContainerStyle, coreIconStyle, coreInnerStyle, coreLabelStyle, gridBackgroundStyle (+12 more)
+
+### Community 55 - "Community 55"
 Cohesion: 0.11
 Nodes (14): DepthBar(), firstCheck(), formatCompact(), formatPct(), HyperliquidIntelligencePage(), MarketFilter, reviewReason(), riskLabelCopy() (+6 more)
 
-### Community 60 - "Community 60"
+### Community 56 - "Community 56"
 Cohesion: 0.13
 Nodes (17): apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), load_sampled_snapshots(), maybe_close_position(), pct_change() (+9 more)
 
-### Community 61 - "Community 61"
+### Community 57 - "Community 57"
+Cohesion: 0.13
+Nodes (17): apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), load_sampled_snapshots(), maybe_close_position(), pct_change() (+9 more)
+
+### Community 58 - "Community 58"
 Cohesion: 0.13
 Nodes (16): apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), current_pnl_pct(), load_sampled_snapshots(), maybe_close_position() (+8 more)
 
-### Community 62 - "Community 62"
-Cohesion: 0.13
-Nodes (17): apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), load_sampled_snapshots(), maybe_close_position(), pct_change() (+9 more)
-
-### Community 63 - "Community 63"
+### Community 59 - "Community 59"
 Cohesion: 0.16
 Nodes (8): findObsidianVaultPath(), hasPath(), normalizeObsidianVaultPath(), readPackageScripts(), slugify(), WorkspaceManager, Workspace, WorkspaceConfig
 
-### Community 64 - "Community 64"
+### Community 60 - "Community 60"
 Cohesion: 0.12
-Nodes (12): LiquidationsContext, LiquidationsContextType, LiquidationsProvider(), fetchWithTimeout(), HedgeFundInsights, LiquidationAlert, LiquidationChartData, LiquidationSnapshot (+4 more)
+Nodes (11): LiquidationsContext, LiquidationsContextType, fetchWithTimeout(), HedgeFundInsights, LiquidationAlert, LiquidationChartData, LiquidationSnapshot, LiquidationsService (+3 more)
 
-### Community 65 - "Community 65"
-Cohesion: 0.1
-Nodes (18): AgentVisualizerProps, connectionLineStyle, containerStyle, coreContainerStyle, coreIconStyle, coreInnerStyle, coreLabelStyle, gridBackgroundStyle (+10 more)
+### Community 61 - "Community 61"
+Cohesion: 0.09
+Nodes (9): formatCurrency(), formatOptionalPercent(), LegacyDetail, LegacyTrade, StrategyDetailPage(), HyperliquidBacktestTrade, HyperliquidLatestBacktestResponse, HyperliquidPaperReadinessResponse (+1 more)
 
-### Community 66 - "Community 66"
+### Community 62 - "Community 62"
 Cohesion: 0.09
 Nodes (22): Backend Connectivity Runbook, Backend Contracts, code:bash (npm run backend:tunnel:start), code:bash (gcloud compute scp --recurse \), code:bash (npm run backend:probe), code:bash (ALPHA_ENGINE_API_URL=http://127.0.0.1:18500 MACRO_CALENDAR_R), code:bash (git status --short --branch), code:bash (npm run gateway:restart) (+14 more)
 
-### Community 67 - "Community 67"
+### Community 63 - "Community 63"
 Cohesion: 0.21
 Nodes (20): build_doubling_estimate(), build_doubling_stability_audit(), build_paper_baseline(), build_paper_readiness(), _compare_metric(), _dataset_window_days(), _doubling_status(), _median() (+12 more)
 
-### Community 68 - "Community 68"
+### Community 64 - "Community 64"
+Cohesion: 0.12
+Nodes (13): formatCurrency(), PortfolioDashboardPage(), HyperliquidGateStatus, HyperliquidPaperTrade, HyperliquidPipelineStage, HyperliquidStrategyNextAction, backendDecisionLabel(), backendDirection() (+5 more)
+
+### Community 65 - "Community 65"
 Cohesion: 0.13
 Nodes (11): EMPTY_SUMMARY, formatCompact(), formatCurrency(), formatTime(), pnlTone(), StageFilter, StrategyAuditPage(), StrategyEvidencePanel() (+3 more)
 
-### Community 69 - "Community 69"
+### Community 66 - "Community 66"
 Cohesion: 0.09
 Nodes (20): Backend Mapping, Blockers, code:bash (npm run hf:backtest -- --strategy oi_expansion_failure_fade ), Costs, Entry, Evidence Counts, Evidence Links, Exit (+12 more)
 
-### Community 70 - "Community 70"
+### Community 67 - "Community 67"
 Cohesion: 0.09
 Nodes (20): Backend Mapping, Blockers, BTC Failed Impulse Reversal, code:bash (npm run hf:backtest -- --strategy btc_failed_impulse_reversa), Costs, Entry, Evidence Counts, Evidence Links (+12 more)
 
+### Community 68 - "Community 68"
+Cohesion: 0.1
+Nodes (10): get_strategy_definition(), resolve_default_dataset(), run_registered_backtest(), StrategyDefinition, ValidationPolicy, BB Squeeze ADX paper-trade helpers., Paper candidate helpers for the BTC crowding scalper., Paper candidate helpers for long flush continuation. (+2 more)
+
+### Community 69 - "Community 69"
+Cohesion: 0.1
+Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+11 more)
+
+### Community 70 - "Community 70"
+Cohesion: 0.1
+Nodes (19): Backend Mapping, Blockers, BTC Crowding Scalper, Costs, Entry, Evidence Counts, Evidence Links, Exit (+11 more)
+
 ### Community 71 - "Community 71"
-Cohesion: 0.12
-Nodes (12): formatCurrency(), PortfolioDashboardPage(), HyperliquidPaperTrade, HyperliquidPipelineStage, HyperliquidStrategyNextAction, backendDecisionLabel(), backendDirection(), DeployedStrategy (+4 more)
+Cohesion: 0.1
+Nodes (19): Backend Mapping, BB Squeeze ADX, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit (+11 more)
 
 ### Community 72 - "Community 72"
 Cohesion: 0.1
@@ -575,91 +580,91 @@ Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence L
 
 ### Community 73 - "Community 73"
 Cohesion: 0.1
-Nodes (19): Backend Mapping, Blockers, BTC Crowding Scalper, Costs, Entry, Evidence Counts, Evidence Links, Exit (+11 more)
+Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+11 more)
 
 ### Community 74 - "Community 74"
 Cohesion: 0.1
-Nodes (19): Backend Mapping, BB Squeeze ADX, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit (+11 more)
+Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+11 more)
 
 ### Community 75 - "Community 75"
 Cohesion: 0.1
-Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+11 more)
-
-### Community 76 - "Community 76"
-Cohesion: 0.1
-Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+11 more)
-
-### Community 77 - "Community 77"
-Cohesion: 0.1
-Nodes (19): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+11 more)
-
-### Community 78 - "Community 78"
-Cohesion: 0.1
 Nodes (19): Backend Mapping, Blockers, BTC Failed Impulse Balanced Fast, Costs, Entry, Evidence Counts, Evidence Links, Exit (+11 more)
 
-### Community 79 - "Community 79"
+### Community 76 - "Community 76"
+Cohesion: 0.17
+Nodes (15): apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), current_pnl_pct(), load_sampled_snapshots(), maybe_close_position() (+7 more)
+
+### Community 77 - "Community 77"
 Cohesion: 0.11
 Nodes (18): cardStyle, CheckState, copyStyle, emptyStyle, errorStyle, headerStyle, labelStyle, primaryButtonStyle (+10 more)
 
-### Community 80 - "Community 80"
+### Community 78 - "Community 78"
 Cohesion: 0.11
 Nodes (7): formatCompact(), HyperliquidPaperLabPage(), PaperView, ReplayPanel(), ReviewForm, HyperliquidHistoryPoint, HyperliquidPaperSignal
 
-### Community 81 - "Community 81"
+### Community 79 - "Community 79"
 Cohesion: 0.1
 Nodes (18): Backend Mapping, Blockers, Costs, Entry, Evidence Counts, Evidence Links, Exit, Failure Modes (+10 more)
 
-### Community 82 - "Community 82"
+### Community 80 - "Community 80"
 Cohesion: 0.1
 Nodes (19): Backend Mapping, Costs, Entry, Exit, Expected Performance, Failure Modes, Funding Exhaustion Snap, Hypothesis (+11 more)
 
-### Community 83 - "Community 83"
-Cohesion: 0.12
-Nodes (8): get_strategy_definition(), resolve_default_dataset(), run_registered_backtest(), BB Squeeze ADX paper-trade helpers., Paper candidate helpers for the BTC crowding scalper., Paper candidate helpers for long flush continuation., Paper candidate helpers for OI Expansion Failure Fade., Paper candidate helpers for short squeeze continuation.
+### Community 81 - "Community 81"
+Cohesion: 0.2
+Nodes (16): run_backtest(), apply_slippage(), build_latest_signal(), build_market_data(), close_position(), compact_market_context(), load_sampled_snapshots(), maybe_close_position() (+8 more)
 
-### Community 84 - "Community 84"
+### Community 82 - "Community 82"
 Cohesion: 0.19
 Nodes (11): ensureDir(), MissionConsoleManager, safeSlug(), stripAnsi(), uniqueEvidenceRefs(), MissionConsoleAppendSnapshotParams, MissionConsoleExportHandoffParams, MissionConsoleExportHandoffResult (+3 more)
 
-### Community 85 - "Community 85"
-Cohesion: 0.22
-Nodes (13): readLocalEnvValue(), resolveGeminiApiKey(), extensionFromMimeType(), fetchGeminiJsonWithTimeout(), GeminiGenerateContentResponse, getGeminiApiKey(), getOpenAIApiKey(), loadLocalEnv() (+5 more)
-
-### Community 86 - "Community 86"
+### Community 83 - "Community 83"
 Cohesion: 0.11
 Nodes (18): Agent Automation Contract, Artifact Policy, `backend/`, Backend/UI Contract, code:bash (npm run hf:doctor), code:env (VITE_ALPHA_ENGINE_API_URL=http://127.0.0.1:18500), `docs/`, `electron/` (+10 more)
 
-### Community 87 - "Community 87"
+### Community 84 - "Community 84"
 Cohesion: 0.11
 Nodes (18): Boundary, Bounded Verification, BTC Paper Runtime Loop, code:bash (npm run gateway:probe), code:bash (curl -fsS http://127.0.0.1:18001/api/hyperliquid/paper/readi), code:bash (npm run hf:paper:loop -- --strategy btc_failed_impulse_rever), code:bash (npm run hf:paper:loop -- --strategy btc_failed_impulse_rever), code:bash (npm run gateway:probe) (+10 more)
 
-### Community 88 - "Community 88"
+### Community 85 - "Community 85"
 Cohesion: 0.12
 Nodes (14): built, changedPaths, changedPathsSinceBuilt(), collection(), counts, current, git(), graphCounts() (+6 more)
 
-### Community 89 - "Community 89"
+### Community 86 - "Community 86"
+Cohesion: 0.12
+Nodes (11): COLORS, iconButtonStyle, iconGridStyle, ICONS, inputStyle, textareaStyle, WorkspaceModal(), WorkspaceModalProps (+3 more)
+
+### Community 87 - "Community 87"
 Cohesion: 0.11
 Nodes (17): Agentic Research OS, API, CLI, code:bash (npm install -g @openai/codex), code:bash (npm run hf:agent:research -- --strategy funding_exhaustion_s), code:bash (npm run hf:agent:runtime), code:bash (npm run hf:agent:audit -- --strategy funding_exhaustion_snap), code:bash (npm run hf:agent:research -- --strategy funding_exhaustion_s) (+9 more)
 
-### Community 90 - "Community 90"
+### Community 88 - "Community 88"
 Cohesion: 0.17
 Nodes (13): __dirname, __filename, getDefaultShell(), getShellLaunch(), hasExecuteBit(), listSpawnHelpers(), main(), NODE_PTY_DIR (+5 more)
 
-### Community 91 - "Community 91"
-Cohesion: 0.13
-Nodes (10): COLORS, iconButtonStyle, iconGridStyle, ICONS, inputStyle, textareaStyle, WorkspaceModal(), WorkspaceModalProps (+2 more)
-
-### Community 92 - "Community 92"
+### Community 89 - "Community 89"
 Cohesion: 0.15
 Nodes (7): ChartHeader(), coverageCopy(), formatUsd(), LiquidationsChart(), WINDOW_OPTIONS, LiquidationsTimeline(), useLiquidations()
 
-### Community 93 - "Community 93"
+### Community 90 - "Community 90"
+Cohesion: 0.15
+Nodes (11): COMMANDS, formatCompact(), formatCurrency(), formatTime(), HedgeFundStationPage(), MODULE_LINKS, readinessLabel(), ReadinessRow() (+3 more)
+
+### Community 91 - "Community 91"
+Cohesion: 0.21
+Nodes (12): formatArtifactNumber(), formatArtifactPercent(), formatCurrency(), formatTradeTime(), nestedRecord(), numberAt(), PaperBaselinePanel(), parseTradeTime() (+4 more)
+
+### Community 92 - "Community 92"
 Cohesion: 0.12
 Nodes (16): 1. Strategy spec, 2. Backend implementation, 3. Visualization and review, Backend: strategy and signal engine, Decision Boundary, Default Workflow For Agents, Docker / external runtime, Hedge Fund Agent Operating Model (+8 more)
 
-### Community 94 - "Community 94"
+### Community 93 - "Community 93"
 Cohesion: 0.17
 Nodes (10): clean_learning_evidence_paths(), create_strategy_learning(), filename_slug(), list_strategy_learning_events(), load_strategy_learning_event(), strategy_learning(), StrategyLearningEventCreate, utc_now_iso() (+2 more)
+
+### Community 94 - "Community 94"
+Cohesion: 0.23
+Nodes (5): base_market_data(), BtcFailedImpulseReversalTest, create_market_db(), insert_snapshot(), runtime_history()
 
 ### Community 95 - "Community 95"
 Cohesion: 0.12
@@ -678,20 +683,20 @@ Cohesion: 0.14
 Nodes (6): Paper candidate helpers for BTC Failed Impulse Balanced Fast., Risk helpers for BTC Failed Impulse Balanced Fast., Ranking helpers for BTC Failed Impulse Balanced Fast., calculate_execution_quality(), Ranking helpers for BTC Failed Impulse Reversal., score_setup()
 
 ### Community 99 - "Community 99"
-Cohesion: 0.32
-Nodes (15): formatNumber(), formatPercent(), hasStrategyEvidence(), isActionableStrategy(), isBlockedStrategy(), isDocsOnlyStrategy(), isPaperReadyStrategy(), matchesLens() (+7 more)
+Cohesion: 0.26
+Nodes (13): build_entry_decision(), build_paper_runtime_plan(), build_runtime_market_data(), compact_runtime_market(), evaluate_paper_runtime_exit(), iso_from_ms(), _normalize_history_entry(), paper_trade_pnl() (+5 more)
 
 ### Community 100 - "Community 100"
-Cohesion: 0.18
-Nodes (9): decisionTone(), formatCompact(), formatCurrency(), formatTime(), LiveTradingStationPage(), MarketRow(), MONITOR_LINKS, HyperliquidLiveStationSnapshot (+1 more)
+Cohesion: 0.32
+Nodes (15): formatNumber(), formatPercent(), hasStrategyEvidence(), isActionableStrategy(), isBlockedStrategy(), isDocsOnlyStrategy(), isPaperReadyStrategy(), matchesLens() (+7 more)
 
 ### Community 101 - "Community 101"
 Cohesion: 0.13
 Nodes (6): BtcVideo, btcVideos, intervals, TradingViewInterval, PineIndicatorGenerateResponse, PineIndicatorPreviewLine
 
 ### Community 102 - "Community 102"
-Cohesion: 0.13
-Nodes (14): Archivos clave, CODEX, Estado actual, Optimizaciones aplicadas, Pendientes importantes, Proximo enfoque recomendado, Recuperacion si algo se cae, Archivos clave (+6 more)
+Cohesion: 0.18
+Nodes (9): decisionTone(), formatCompact(), formatCurrency(), formatTime(), LiveTradingStationPage(), MarketRow(), MONITOR_LINKS, HyperliquidLiveStationSnapshot (+1 more)
 
 ### Community 103 - "Community 103"
 Cohesion: 0.13
@@ -699,402 +704,418 @@ Nodes (14): Backend Startup Runbook, Canonical Services, code:bash (npm run back
 
 ### Community 104 - "Community 104"
 Cohesion: 0.13
-Nodes (14): Agent Harness Checkpoints, C1 - File Harness Exists, C2 - Task State Is Coherent, C3 - Evidence Is Inspectable, C4 - Verification Is Real, C5 - Handoff Is Durable, C6 - Production And Live Gates Stay Explicit, Agent Harness Checkpoints (+6 more)
+Nodes (14): Archivos clave, CODEX, Estado actual, Optimizaciones aplicadas, Pendientes importantes, Proximo enfoque recomendado, Recuperacion si algo se cae, Archivos clave (+6 more)
 
 ### Community 105 - "Community 105"
+Cohesion: 0.13
+Nodes (14): Agent Harness Checkpoints, C1 - File Harness Exists, C2 - Task State Is Coherent, C3 - Evidence Is Inspectable, C4 - Verification Is Real, C5 - Handoff Is Durable, C6 - Production And Live Gates Stay Explicit, Agent Harness Checkpoints (+6 more)
+
+### Community 106 - "Community 106"
 Cohesion: 0.2
 Nodes (8): Exception, CircuitBreaker, Record a failure and potentially open the circuit., Reset the circuit breaker to CLOSED state., Get current circuit breaker status.          Returns:             Dictionary wit, Circuit breaker for protecting against cascading failures.      The circuit star, Execute a function through the circuit breaker.          Args:             func:, Execute an async function through the circuit breaker.          Args:
 
-### Community 106 - "Community 106"
+### Community 107 - "Community 107"
+Cohesion: 0.19
+Nodes (13): calculate_funding_percentile(), calculate_momentum_score(), check_oi_stability(), evaluate_long_entry(), evaluate_short_entry(), evaluate_signal(), Funding Exhaustion Snap - Signal Logic  Entry signal evaluation with all filter, Calculate funding rate percentile from 7-day rolling history.      Args: (+5 more)
+
+### Community 108 - "Community 108"
 Cohesion: 0.24
 Nodes (13): buildConfirmation(), buildEvidence(), buildOverviewTrapDecisions(), buildRisk(), buildSetupReason(), buildTrapDecision(), chooseAction(), formatCompact() (+5 more)
 
-### Community 107 - "Community 107"
+### Community 109 - "Community 109"
 Cohesion: 0.15
 Nodes (6): CloudPalette, PALETTES, sceneStyle, VoiceOrbSceneProps, UseVoiceRecorderOptions, VoiceStatus
 
-### Community 108 - "Community 108"
-Cohesion: 0.2
-Nodes (8): fetchJson(), fetchJsonFrom(), gatewayHttpError(), invalidatePaperCaches(), isAgentEndpoint(), isGraphifyEndpoint(), normalizeRequestError(), postJson()
-
-### Community 109 - "Community 109"
-Cohesion: 0.14
-Nodes (13): 📝 Archivos Modificados, code:block10 (✅ src/contexts/TerminalContext.tsx     - Persistencia + rest), code:block11 (ANTES:                          DESPUÉS:), code:json (// localStorage: "hedge-station:terminal-sessions"), ⚠️ Limitaciones, 🎯 Problema Resuelto, 🎉 Resultado, 🔌 Sistema de Persistencia de Terminales (+5 more)
-
 ### Community 110 - "Community 110"
 Cohesion: 0.14
-Nodes (13): Backend Mapping, Costs, Entry, Exit, Failure Modes, Hypothesis, Inputs, Invalidation (+5 more)
+Nodes (13): 📝 Archivos Modificados, code:block10 (✅ src/contexts/TerminalContext.tsx     - Persistencia + rest), code:block11 (ANTES:                          DESPUÉS:), code:json (// localStorage: "hedge-station:terminal-sessions"), ⚠️ Limitaciones, 🎯 Problema Resuelto, 🎉 Resultado, 🔌 Sistema de Persistencia de Terminales (+5 more)
 
 ### Community 111 - "Community 111"
 Cohesion: 0.14
-Nodes (13): Backend Mapping, code:bash (npm run hf:backtest -- --strategy one_bitcoin), Costs, Entry, Exit, Failure Modes, Hypothesis, Inputs (+5 more)
+Nodes (13): Backend Mapping, Costs, Entry, Exit, Failure Modes, Hypothesis, Inputs, Invalidation (+5 more)
 
 ### Community 112 - "Community 112"
 Cohesion: 0.14
-Nodes (13): Backend Mapping, Costs, Entry, Exit, Failure Modes, Hypothesis, Inputs, Invalidation (+5 more)
+Nodes (13): Backend Mapping, code:bash (npm run hf:backtest -- --strategy one_bitcoin), Costs, Entry, Exit, Failure Modes, Hypothesis, Inputs (+5 more)
 
 ### Community 113 - "Community 113"
 Cohesion: 0.14
-Nodes (13): Agent Role In The Company, Agent Survival Principle, Backtesting, Company Operating Loop, Default Agent Mandate, Evaluation, Hedge Fund Company Constitution, Non-Negotiables (+5 more)
+Nodes (13): Backend Mapping, Costs, Entry, Exit, Failure Modes, Hypothesis, Inputs, Invalidation (+5 more)
 
 ### Community 114 - "Community 114"
 Cohesion: 0.14
-Nodes (13): Canonical Routes, code:bash (./open-hedge-fund-station-dev.command), code:bash (npm run dev), code:bash (npm run dist:mac), code:bash (npx tsc --noEmit), Daily Development, Generated Output, How To Develop This App (+5 more)
+Nodes (13): Agent Role In The Company, Agent Survival Principle, Backtesting, Company Operating Loop, Default Agent Mandate, Evaluation, Hedge Fund Company Constitution, Non-Negotiables (+5 more)
 
 ### Community 115 - "Community 115"
 Cohesion: 0.14
+Nodes (13): Canonical Routes, code:bash (./open-hedge-fund-station-dev.command), code:bash (npm run dev), code:bash (npm run dist:mac), code:bash (npx tsc --noEmit), Daily Development, Generated Output, How To Develop This App (+5 more)
+
+### Community 116 - "Community 116"
+Cohesion: 0.14
 Nodes (13): Backtest Endpoints, code:text (/data/hedge-fund-station/hyperliquid_gateway/data), code:env (HYPERLIQUID_DATA_ROOT=/data), code:bash (export HF_HOST_DATA_ROOT=/data/hedge-fund-station/hyperliqui), code:env (VITE_HYPERLIQUID_GATEWAY_API_URL=http://<gcp-vm-or-tunnel-ho), code:env (VITE_HYPERLIQUID_GATEWAY_API_URL=http://127.0.0.1:18001), code:json ({), code:bash (sudo mkdir -p /opt/hedge-fund-station /data/hedge-fund-stati) (+5 more)
 
-### Community 117 - "Community 117"
+### Community 118 - "Community 118"
 Cohesion: 0.22
 Nodes (13): build_overview_rows(), build_risk(), build_signal(), clamp(), decision_label(), execution_quality(), invalidation_plan(), pressure_metrics() (+5 more)
 
-### Community 118 - "Community 118"
+### Community 119 - "Community 119"
 Cohesion: 0.23
 Nodes (12): Stat(), DATA_DB, DATA_DIR, DIST_ASSETS, forbiddenInitialMarkers, formatBytes(), listAssets(), main() (+4 more)
 
-### Community 119 - "Community 119"
+### Community 120 - "Community 120"
 Cohesion: 0.15
 Nodes (13): 📝 Archivos Modificados, code:block10 (✅ src/contexts/TerminalContext.tsx     - Persistencia + rest), code:block11 (ANTES:                          DESPUÉS:), code:json (// localStorage: "hedge-station:terminal-sessions"), ⚠️ Limitaciones, 🎯 Problema Resuelto, 🎉 Resultado, 🔌 Sistema de Persistencia de Terminales (+5 more)
 
-### Community 120 - "Community 120"
-Cohesion: 0.15
-Nodes (13): Agent Handoff Standard, Agent Harness Standard, Continuous Improvement Workflow, Core Repo Rule, Default If Unsure, Hedge Fund Station Agent Constitution, Mission, Official Workflow (+5 more)
-
 ### Community 121 - "Community 121"
-Cohesion: 0.15
-Nodes (13): Agent Handoff Standard, Agent Harness Standard, Continuous Improvement Workflow, Core Repo Rule, Default If Unsure, Hedge Fund Station Agent Constitution, Mission, Official Workflow (+5 more)
-
-### Community 122 - "Community 122"
 Cohesion: 0.15
 Nodes (12): 1. Market Regime Layer, 2. Setup Classifier, 3. Event Store, 4. Research Harness For Fast Strategies, 5. Candidate Fast Strategies, 6. Paper Execution Layer, Current Base, Hyperliquid Strategy Roadmap (+4 more)
 
-### Community 123 - "Community 123"
+### Community 122 - "Community 122"
 Cohesion: 0.15
 Nodes (12): Anti-Telephone Rule, code:text (done -> progress/explore_strategy_registry.md), code:text (Here is a long unstructured summary of everything I found...), code:bash (npm run agent:check), code:bash (npm run hf:doctor), Core Files, File-Based Agent Harness, Production And Live Work (+4 more)
 
+### Community 123 - "Community 123"
+Cohesion: 0.15
+Nodes (13): Agent Handoff Standard, Agent Harness Standard, Continuous Improvement Workflow, Core Repo Rule, Default If Unsure, Hedge Fund Station Agent Constitution, Mission, Official Workflow (+5 more)
+
 ### Community 124 - "Community 124"
-Cohesion: 0.26
-Nodes (8): adx(), atr(), rolling_std(), wilder_smoothing(), build_signals(), _empty_signal(), evaluate_latest_signal(), BB Squeeze ADX - deterministic signal evaluation.  Adapted from the donor reposi
+Cohesion: 0.15
+Nodes (13): Agent Handoff Standard, Agent Harness Standard, Continuous Improvement Workflow, Core Repo Rule, Default If Unsure, Hedge Fund Station Agent Constitution, Mission, Official Workflow (+5 more)
 
 ### Community 125 - "Community 125"
 Cohesion: 0.33
 Nodes (10): assess_robust_gate(), average_trade_return_pct(), build_symbol_leaderboard(), build_trade_diagnostics(), build_trade_group_summary(), dominant_exit_reason_pnl_share_pct(), largest_trade_pnl_share_pct(), max_trade_group_drawdown_pct() (+2 more)
 
 ### Community 126 - "Community 126"
+Cohesion: 0.23
+Nodes (11): calculate_execution_quality(), filter_watchlist(), get_top_opportunities(), rank_symbols(), Funding Exhaustion Snap - Scoring and Ranking  Setup scoring logic for watchlist, Score a setup for watchlist ranking.      Combines:     - Signal confidence (fro, Rank all symbols for watchlist display.      Args:         symbols_data: List of, Filter watchlist to only actionable symbols.      Args:         ranked_symbols: (+3 more)
+
+### Community 127 - "Community 127"
+Cohesion: 0.26
+Nodes (8): adx(), atr(), rolling_std(), wilder_smoothing(), build_signals(), _empty_signal(), evaluate_latest_signal(), BB Squeeze ADX - deterministic signal evaluation.  Adapted from the donor reposi
+
+### Community 128 - "Community 128"
 Cohesion: 0.21
 Nodes (11): APP_THEMES, applyAppTheme(), AppSettings, AppTheme, AppThemeId, DEFAULT_APP_SETTINGS, getAppTheme(), loadAppSettings() (+3 more)
 
-### Community 127 - "Community 127"
+### Community 129 - "Community 129"
 Cohesion: 0.17
 Nodes (11): BB Squeeze ADX, BTC Crowding Scalper, BTC Failed Impulse Balanced Fast, BTC Failed Impulse Reversal, Evidence Index, Funding Exhaustion Snap - Validation Plan, Long Flush Continuation, OI Expansion Failure Fade (+3 more)
 
-### Community 128 - "Community 128"
+### Community 130 - "Community 130"
 Cohesion: 0.17
 Nodes (11): API Contract Used By The Cockpit, Audit Guard, code:bash (npm install), code:text (~/Library/LaunchAgents/com.hedgefund.backend-tunnel.plist), code:bash (127.0.0.1:18500 -> hf-backend-01:127.0.0.1:18500), code:bash (npm run dist:mac), code:bash (./open-hedge-fund-station.command), code:bash (npm run backend:tunnel:status) (+3 more)
 
-### Community 129 - "Community 129"
+### Community 131 - "Community 131"
 Cohesion: 0.17
 Nodes (11): Build, code:bash (security find-identity -p codesigning -v), code:bash (npm run build), code:bash (npm run dist:mac:dir), code:bash (npm run mac:verify -- "release/1.0.0/mac-arm64/Hedge Fund St), code:bash (export APPLE_ID="you@example.com"), Current Distribution Boundary, macOS Distribution Runbook (+3 more)
 
-### Community 130 - "Community 130"
+### Community 132 - "Community 132"
 Cohesion: 0.17
 Nodes (11): Agent Handoff Template, Assumptions, Changes Made, code:bash (# command here), Files Changed, Findings, Memory Updated, Next Best Step (+3 more)
 
-### Community 131 - "Community 131"
+### Community 133 - "Community 133"
+Cohesion: 0.27
+Nodes (8): parse_time_to_ms(), build_snapshot_filter(), iso_from_ms(), latest_timestamp(), _iso_from_ms(), load_sampled_market_snapshots(), _normalize_snapshot_row(), load_sampled_snapshots()
+
+### Community 134 - "Community 134"
 Cohesion: 0.29
 Nodes (4): base_market_data(), create_market_db(), insert_snapshot(), OiExpansionFailureFadeTest
 
-### Community 132 - "Community 132"
+### Community 135 - "Community 135"
 Cohesion: 0.27
 Nodes (4): base_market_data(), create_market_db(), insert_snapshot(), LongFlushContinuationTest
 
-### Community 133 - "Community 133"
+### Community 136 - "Community 136"
 Cohesion: 0.18
 Nodes (10): Agent Harness Engineering, Approved Command Surface, code:bash (npm run hf:doctor), Core Rule, Harness Loop, Mission Matrix, Output Contracts, Permissions (+2 more)
 
-### Community 134 - "Community 134"
+### Community 137 - "Community 137"
 Cohesion: 0.18
 Nodes (10): Agent Decisions, Agent Harness Folder Contract, Backend-First Agent Evidence, Curated Memory Governance, File-Based Agent Harness, Graphify And Obsidian Split, Recurring Agent Cadence, Strategy Learning Memory (+2 more)
 
-### Community 135 - "Community 135"
+### Community 138 - "Community 138"
 Cohesion: 0.24
 Nodes (9): app_readiness(), app_readiness_payload(), health(), hedge_fund_station(), live_station(), readiness_check(), station_error(), summarize_strategy_blockers() (+1 more)
 
-### Community 136 - "Community 136"
-Cohesion: 0.31
-Nodes (7): parse_time_to_ms(), build_snapshot_filter(), iso_from_ms(), latest_timestamp(), _iso_from_ms(), load_sampled_market_snapshots(), _normalize_snapshot_row()
+### Community 139 - "Community 139"
+Cohesion: 0.2
+Nodes (8): Funding Exhaustion Snap Strategy  Mean reversion strategy exploiting funding rat, calculate_position_size(), check_invalidation(), check_session_killswitch(), Funding Exhaustion Snap - Risk Management  Invalidation logic, position sizing,, Calculate position size based on risk rules.      Base size: 1.5% of portfolio, Check if position should be invalidated (exited immediately).      Invalidation, Check session-level kill-switches.      Kill-switches:     - 3 consecutive losse
 
-### Community 137 - "Community 137"
+### Community 140 - "Community 140"
 Cohesion: 0.36
 Nodes (5): calculate_trade_fee(), _check_exit(), _close_position(), normalize_liquidity_role(), simulate_strategy()
 
-### Community 139 - "Community 139"
-Cohesion: 0.27
-Nodes (9): clearTelemetryEvents(), events, getTelemetryEvents(), Listener, listeners, notify(), subscribeTelemetry(), TelemetryEvent (+1 more)
-
-### Community 140 - "Community 140"
+### Community 142 - "Community 142"
 Cohesion: 0.2
 Nodes (9): code:bash (npm run build), Crisis Performance Runbook, Crisis Smoke Test, Diagnostics, Expected Degradation, Frontend Performance Contract, Goal, Operator Rule (+1 more)
 
-### Community 141 - "Community 141"
+### Community 143 - "Community 143"
 Cohesion: 0.2
 Nodes (9): Agent Change Summary Template, code:bash (# command here), Files Changed, Harness Checks, Mission Class, Next Best Step, Risks And Assumptions, Summary (+1 more)
 
-### Community 142 - "Community 142"
+### Community 144 - "Community 144"
 Cohesion: 0.28
 Nodes (5): Deterministic signal logic for BTC Failed Impulse Balanced Fast., confidence_from_filters(), evaluate_signal(), Deterministic signal logic for BTC Failed Impulse Reversal., signal_params()
 
-### Community 143 - "Community 143"
+### Community 145 - "Community 145"
+Cohesion: 0.39
+Nodes (8): Candle, canonicalize_ohlcv_csv(), dataset_metadata(), _iso_timestamp(), _normalize_name(), _parse_timestamp(), _resolve_column(), _run_bb_squeeze_adx_backtest()
+
+### Community 146 - "Community 146"
 Cohesion: 0.42
 Nodes (8): execFileAsync, main(), resolveArgs(), resolveCommand(), resolveVaultFromWorkspaceConfig(), resolveVaultPath(), shellSmokeTest(), writeDrillNote()
 
-### Community 144 - "Community 144"
-Cohesion: 0.22
-Nodes (9): 1. **TerminalContext.tsx** - Gestión de Estado Persistente, 2. **PTYManager.ts** - Tracking de Procesos, 3. **TerminalPane.tsx** - Reconexión Inteligente, 4. **IPC Handlers** - Nuevos Endpoints, 🏗️ Arquitectura, code:typescript (// Load on mount), code:typescript (terminalExists(id: string): boolean {), code:typescript (window.electronAPI.terminal.exists(id).then((exists) => {) (+1 more)
-
-### Community 145 - "Community 145"
-Cohesion: 0.22
-Nodes (9): 1. **TerminalContext.tsx** - Gestión de Estado Persistente, 2. **PTYManager.ts** - Tracking de Procesos, 3. **TerminalPane.tsx** - Reconexión Inteligente, 4. **IPC Handlers** - Nuevos Endpoints, 🏗️ Arquitectura, code:typescript (// Load on mount), code:typescript (terminalExists(id: string): boolean {), code:typescript (window.electronAPI.terminal.exists(id).then((exists) => {) (+1 more)
-
-### Community 146 - "Community 146"
-Cohesion: 0.22
-Nodes (8): Best Near-Term Strategy Candidate, Current Backend Stance, Current Conclusion, Live Validation Rule, Polymarket BTC 5m Research Note, Post-Trade Update, Tactical Ranking, What To Validate Next
-
 ### Community 147 - "Community 147"
-Cohesion: 0.22
-Nodes (8): Current Default Objective, Guardrails, North Star, Product Objective, Ranking Improvements, Trading Lifecycle, What Constant Improvement Means, What The App Is For
+Cohesion: 0.44
+Nodes (4): extensionFromMimeType(), fetchGeminiJsonWithTimeout(), normalizeMimeType(), VoiceTranscriptionManager
 
 ### Community 148 - "Community 148"
 Cohesion: 0.22
-Nodes (8): Before Finishing, code:bash (npm run agent:brief), Common Mission Classes, Default Operating Loop, First Read, New Agent Five-Minute Orientation, Repo Map, Safe Defaults
+Nodes (9): 1. **TerminalContext.tsx** - Gestión de Estado Persistente, 2. **PTYManager.ts** - Tracking de Procesos, 3. **TerminalPane.tsx** - Reconexión Inteligente, 4. **IPC Handlers** - Nuevos Endpoints, 🏗️ Arquitectura, code:typescript (// Load on mount), code:typescript (terminalExists(id: string): boolean {), code:typescript (window.electronAPI.terminal.exists(id).then((exists) => {) (+1 more)
 
 ### Community 149 - "Community 149"
 Cohesion: 0.22
-Nodes (8): Hard Limits, Memory Policy, Principle, Promotion And Cleanup, Quality Bar, Review Cadence, What Belongs In Memory, What Does Not Belong In Memory
+Nodes (9): 1. **TerminalContext.tsx** - Gestión de Estado Persistente, 2. **PTYManager.ts** - Tracking de Procesos, 3. **TerminalPane.tsx** - Reconexión Inteligente, 4. **IPC Handlers** - Nuevos Endpoints, 🏗️ Arquitectura, code:typescript (// Load on mount), code:typescript (terminalExists(id: string): boolean {), code:typescript (window.electronAPI.terminal.exists(id).then((exists) => {) (+1 more)
 
 ### Community 150 - "Community 150"
 Cohesion: 0.22
-Nodes (8): Boundaries, code:markdown (# Review - <task>), code:text (APPROVED -> progress/review_<task>.md), code:text (CHANGES_REQUESTED -> progress/review_<task>.md), Responsibilities, Role: Reviewer, Startup, Verdict Format
+Nodes (8): Best Near-Term Strategy Candidate, Current Backend Stance, Current Conclusion, Live Validation Rule, Polymarket BTC 5m Research Note, Post-Trade Update, Tactical Ranking, What To Validate Next
 
 ### Community 151 - "Community 151"
 Cohesion: 0.22
-Nodes (8): Boundaries, code:markdown (# Exploration - <topic>), code:text (done -> progress/explore_<topic>.md), code:text (blocked -> progress/explore_<topic>.md), Output Format, Responsibilities, Role: Explorer, Startup
+Nodes (8): Current Default Objective, Guardrails, North Star, Product Objective, Ranking Improvements, Trading Lifecycle, What Constant Improvement Means, What The App Is For
 
 ### Community 152 - "Community 152"
 Cohesion: 0.22
-Nodes (8): Boundaries, code:markdown (# Implementation - <task>), code:text (done -> progress/impl_<task>.md), code:text (blocked -> progress/current.md), Output Format, Responsibilities, Role: Implementer, Startup
+Nodes (8): Before Finishing, code:bash (npm run agent:brief), Common Mission Classes, Default Operating Loop, First Read, New Agent Five-Minute Orientation, Repo Map, Safe Defaults
 
 ### Community 153 - "Community 153"
 Cohesion: 0.22
-Nodes (8): Allowed Target Areas, Expected Outputs, Read First, Rules, Skill: Hedge Fund Repo Architect, Use This When, Validation, Workflow
+Nodes (8): Hard Limits, Memory Policy, Principle, Promotion And Cleanup, Quality Bar, Review Cadence, What Belongs In Memory, What Does Not Belong In Memory
 
 ### Community 154 - "Community 154"
-Cohesion: 0.43
-Nodes (7): canonicalize_ohlcv_csv(), dataset_metadata(), _iso_timestamp(), _normalize_name(), _parse_timestamp(), _resolve_column(), _run_bb_squeeze_adx_backtest()
+Cohesion: 0.22
+Nodes (8): Boundaries, code:markdown (# Review - <task>), code:text (APPROVED -> progress/review_<task>.md), code:text (CHANGES_REQUESTED -> progress/review_<task>.md), Responsibilities, Role: Reviewer, Startup, Verdict Format
 
 ### Community 155 - "Community 155"
+Cohesion: 0.22
+Nodes (8): Boundaries, code:markdown (# Exploration - <topic>), code:text (done -> progress/explore_<topic>.md), code:text (blocked -> progress/explore_<topic>.md), Output Format, Responsibilities, Role: Explorer, Startup
+
+### Community 156 - "Community 156"
+Cohesion: 0.22
+Nodes (8): Boundaries, code:markdown (# Implementation - <task>), code:text (done -> progress/impl_<task>.md), code:text (blocked -> progress/current.md), Output Format, Responsibilities, Role: Implementer, Startup
+
+### Community 157 - "Community 157"
+Cohesion: 0.22
+Nodes (8): Allowed Target Areas, Expected Outputs, Read First, Rules, Skill: Hedge Fund Repo Architect, Use This When, Validation, Workflow
+
+### Community 158 - "Community 158"
 Cohesion: 0.36
 Nodes (8): candles(), detail(), orderbook(), overview(), pine_indicator_generate(), post_info(), to_float(), trades()
 
-### Community 156 - "Community 156"
-Cohesion: 0.25
-Nodes (8): addPathNode(), inferPathNodeType(), isAbsolutePath(), nodeIdForPath(), pathLabel(), slug(), toOpenPath(), toRepoPath()
-
-### Community 157 - "Community 157"
-Cohesion: 0.29
-Nodes (3): recordTelemetry(), AppErrorBoundary, AppErrorBoundaryState
-
-### Community 158 - "Community 158"
-Cohesion: 0.29
-Nodes (3): isDynamicImportError(), isDynamicImportMessage(), RouteErrorBoundary
-
 ### Community 159 - "Community 159"
-Cohesion: 0.25
-Nodes (7): Blockers, Evidence Counts, Evidence Links, Funding Exhaustion Snap - Validation Plan, Latest Backtest, Related Indexes, Source Links
+Cohesion: 0.43
+Nodes (6): failed_impulse_variant_params(), build_variant_optimizer_report(), default_variant_grid(), _optimizer_local_validation_payload(), _variant_report_payload(), _variant_row()
 
 ### Community 160 - "Community 160"
 Cohesion: 0.25
-Nodes (7): Blockers, Evidence Counts, Evidence Links, Latest Backtest, Polymarket BTC 5m Research Note, Related Indexes, Source Links
+Nodes (8): addPathNode(), inferPathNodeType(), isAbsolutePath(), nodeIdForPath(), pathLabel(), slug(), toOpenPath(), toRepoPath()
 
 ### Community 161 - "Community 161"
-Cohesion: 0.25
-Nodes (7): code:bash (npm run graph:status), Freshness, Graph And Memory Operating System, Layer Roles, Obsidian Rules, Operating Loop, Useful Graphify Commands
+Cohesion: 0.29
+Nodes (3): isDynamicImportError(), isDynamicImportMessage(), RouteErrorBoundary
 
 ### Community 162 - "Community 162"
 Cohesion: 0.25
-Nodes (7): Continuous Improvement Backlog, How Agents Should Use This Backlog, Priority 0: Safety And Operating Clarity, Priority 1: Research And Validation Loop, Priority 2: Data Quality, Priority 3: Agent Efficiency, Priority 4: UI Review Speed
+Nodes (7): Blockers, Evidence Counts, Evidence Links, Funding Exhaustion Snap - Validation Plan, Latest Backtest, Related Indexes, Source Links
 
 ### Community 163 - "Community 163"
 Cohesion: 0.25
-Nodes (7): Allowed Target Areas, Expected Outputs, Read First, Rules, Skill: Hedge Fund Data Quality, Use This When, Workflow
+Nodes (7): Blockers, Evidence Counts, Evidence Links, Latest Backtest, Polymarket BTC 5m Research Note, Related Indexes, Source Links
 
 ### Community 164 - "Community 164"
 Cohesion: 0.25
-Nodes (7): Allowed Target Areas, Output Standard, Read First, Rules, Skill: Hedge Fund Strategy Lab, Use This When, Workflow
+Nodes (7): code:bash (npm run graph:status), Freshness, Graph And Memory Operating System, Layer Roles, Obsidian Rules, Operating Loop, Useful Graphify Commands
 
 ### Community 165 - "Community 165"
-Cohesion: 0.29
-Nodes (6): communityValues, graphPath, missing, outputDir, repoRoot, requiredFiles
+Cohesion: 0.25
+Nodes (7): Continuous Improvement Backlog, How Agents Should Use This Backlog, Priority 0: Safety And Operating Clarity, Priority 1: Research And Validation Loop, Priority 2: Data Quality, Priority 3: Agent Efficiency, Priority 4: UI Review Speed
+
+### Community 166 - "Community 166"
+Cohesion: 0.25
+Nodes (7): Allowed Target Areas, Expected Outputs, Read First, Rules, Skill: Hedge Fund Data Quality, Use This When, Workflow
 
 ### Community 167 - "Community 167"
-Cohesion: 0.29
-Nodes (4): BacktestSummaryMetrics, LibraryStrategyMetrics, StrategyQualityAssessment, StrategyReadiness
+Cohesion: 0.25
+Nodes (7): Allowed Target Areas, Output Standard, Read First, Rules, Skill: Hedge Fund Strategy Lab, Use This When, Workflow
 
 ### Community 168 - "Community 168"
 Cohesion: 0.29
-Nodes (7): code:javascript (// En DevTools Console), code:javascript (localStorage.removeItem('hedge-station:terminal-sessions')), code:javascript (// Los logs mostrarán:), 🔧 Debugging, Limpiar sesiones manualmente:, Ver sesiones guardadas:, Verificar terminales activos en Main Process:
-
-### Community 169 - "Community 169"
-Cohesion: 0.29
-Nodes (7): code:javascript (// En DevTools Console), code:javascript (localStorage.removeItem('hedge-station:terminal-sessions')), code:javascript (// Los logs mostrarán:), 🔧 Debugging, Limpiar sesiones manualmente:, Ver sesiones guardadas:, Verificar terminales activos en Main Process:
+Nodes (6): communityValues, graphPath, missing, outputDir, repoRoot, requiredFiles
 
 ### Community 170 - "Community 170"
 Cohesion: 0.29
-Nodes (7): App Integration, Backend APIs And Persistence, Backend Strategy Logic, Docs And Operations, Electron Integration, File Placement Rules, Strategy Docs
+Nodes (4): BacktestSummaryMetrics, LibraryStrategyMetrics, StrategyQualityAssessment, StrategyReadiness
 
 ### Community 171 - "Community 171"
 Cohesion: 0.29
-Nodes (7): App Integration, Backend APIs And Persistence, Backend Strategy Logic, Docs And Operations, Electron Integration, File Placement Rules, Strategy Docs
+Nodes (7): code:javascript (// En DevTools Console), code:javascript (localStorage.removeItem('hedge-station:terminal-sessions')), code:javascript (// Los logs mostrarán:), 🔧 Debugging, Limpiar sesiones manualmente:, Ver sesiones guardadas:, Verificar terminales activos en Main Process:
 
 ### Community 172 - "Community 172"
 Cohesion: 0.29
-Nodes (6): Deterministic Rules, Hypothesis, Inputs, Long Flush Continuation, Promotion State, Risk And Exit
+Nodes (7): code:javascript (// En DevTools Console), code:javascript (localStorage.removeItem('hedge-station:terminal-sessions')), code:javascript (// Los logs mostrarán:), 🔧 Debugging, Limpiar sesiones manualmente:, Ver sesiones guardadas:, Verificar terminales activos en Main Process:
 
 ### Community 173 - "Community 173"
 Cohesion: 0.29
-Nodes (6): Full Specification, Funding Exhaustion Snap - Backend Implementation, Integration, Module Structure, Required Data, Strategy Overview
+Nodes (6): Deterministic Rules, Hypothesis, Inputs, Long Flush Continuation, Promotion State, Risk And Exit
 
 ### Community 174 - "Community 174"
 Cohesion: 0.29
-Nodes (6): Backend Runtime Contract, Feature ownership, Migration standard, Rules for agents, Runtime topology, Source of truth in this repo
+Nodes (6): Full Specification, Funding Exhaustion Snap - Backend Implementation, Integration, Module Structure, Required Data, Strategy Overview
 
 ### Community 175 - "Community 175"
 Cohesion: 0.29
-Nodes (6): Agentic Workbench, Guardrails, Mission Flow, Purpose, Runtime Model, UI Ownership
+Nodes (6): Backend Runtime Contract, Feature ownership, Migration standard, Rules for agents, Runtime topology, Source of truth in this repo
 
 ### Community 176 - "Community 176"
 Cohesion: 0.29
-Nodes (6): Allowed Target Areas, Output Standard, Read First, Review Priorities, Skill: Hedge Fund Strategy Review, Use This When
+Nodes (6): Agentic Workbench, Guardrails, Mission Flow, Purpose, Runtime Model, UI Ownership
 
 ### Community 177 - "Community 177"
-Cohesion: 0.33
-Nodes (6): formatGraphCommit(), formatGraphCount(), formatGraphUpdatedAt(), formatGraphWorktree(), graphFreshnessSummary(), RepoGraphPanel()
+Cohesion: 0.29
+Nodes (6): Allowed Target Areas, Output Standard, Read First, Review Priorities, Skill: Hedge Fund Strategy Review, Use This When
 
 ### Community 178 - "Community 178"
-Cohesion: 0.33
-Nodes (6): code:typescript (setTerminals(prev => {), Escenario 1: Hot-Reload Durante Desarrollo, Escenario 2: Cierre Manual de Terminal, Escenario 3: Terminal Muere por Crash, Escenario 4: Restart Completo de la App, 🔄 Flujo de Trabajo
+Cohesion: 0.29
+Nodes (7): App Integration, Backend APIs And Persistence, Backend Strategy Logic, Docs And Operations, Electron Integration, File Placement Rules, Strategy Docs
 
 ### Community 179 - "Community 179"
-Cohesion: 0.33
-Nodes (6): code:typescript (setTerminals(prev => {), Escenario 1: Hot-Reload Durante Desarrollo, Escenario 2: Cierre Manual de Terminal, Escenario 3: Terminal Muere por Crash, Escenario 4: Restart Completo de la App, 🔄 Flujo de Trabajo
+Cohesion: 0.29
+Nodes (7): App Integration, Backend APIs And Persistence, Backend Strategy Logic, Docs And Operations, Electron Integration, File Placement Rules, Strategy Docs
 
 ### Community 180 - "Community 180"
 Cohesion: 0.33
-Nodes (5): File-Based Harness, Hedge Fund Station Agent Map, Quick Start, Required Reads By Mission, Session Close
+Nodes (5): nodeRequire, TerminalRecord, UNIX_PATH_PREFIX, TerminalSmokeTestResult, TerminalSnapshot
 
 ### Community 181 - "Community 181"
 Cohesion: 0.33
-Nodes (5): How To Use This Vault, Project Map, Purpose, Useful Links, Workspace Home
+Nodes (6): formatGraphCommit(), formatGraphCount(), formatGraphUpdatedAt(), formatGraphWorktree(), graphFreshnessSummary(), RepoGraphPanel()
 
 ### Community 182 - "Community 182"
 Cohesion: 0.33
-Nodes (5): Agent Navigation Index, Graphify, Obsidian Memory, Rule, Start Here
+Nodes (6): code:typescript (setTerminals(prev => {), Escenario 1: Hot-Reload Durante Desarrollo, Escenario 2: Cierre Manual de Terminal, Escenario 3: Terminal Muere por Crash, Escenario 4: Restart Completo de la App, 🔄 Flujo de Trabajo
 
 ### Community 183 - "Community 183"
 Cohesion: 0.33
-Nodes (5): Minimum Review Standard, Paper Trade Review Criteria, Promotion Boundary, Review Criteria, Strategy Rule Mapping
+Nodes (6): code:typescript (setTerminals(prev => {), Escenario 1: Hot-Reload Durante Desarrollo, Escenario 2: Cierre Manual de Terminal, Escenario 3: Terminal Muere por Crash, Escenario 4: Restart Completo de la App, 🔄 Flujo de Trabajo
 
 ### Community 184 - "Community 184"
 Cohesion: 0.33
-Nodes (5): Market Data Quality Checklist, Red Flags, Required Handoff Fields, Session Checks, Source Of Truth By Surface
+Nodes (5): How To Use This Vault, Project Map, Purpose, Useful Links, Workspace Home
 
 ### Community 185 - "Community 185"
 Cohesion: 0.33
-Nodes (5): code:bash (npm run agent:check), Registered Strategy Thresholds, Research-Only Or Docs-Only Items, Strategy Validation Thresholds, Update Rule
+Nodes (5): Agent Navigation Index, Graphify, Obsidian Memory, Rule, Start Here
 
 ### Community 186 - "Community 186"
 Cohesion: 0.33
-Nodes (5): Agent Operating System, Folder Contract, Simple Agent Loop, Source Of Truth, Start Here
+Nodes (5): Minimum Review Standard, Paper Trade Review Criteria, Promotion Boundary, Review Criteria, Strategy Rule Mapping
 
 ### Community 187 - "Community 187"
 Cohesion: 0.33
-Nodes (5): Output, Responsibilities, Role: Leader, Startup, What The Leader Does Not Do
+Nodes (5): Market Data Quality Checklist, Red Flags, Required Handoff Fields, Session Checks, Source Of Truth By Surface
 
 ### Community 188 - "Community 188"
+Cohesion: 0.33
+Nodes (5): code:bash (npm run agent:check), Registered Strategy Thresholds, Research-Only Or Docs-Only Items, Strategy Validation Thresholds, Update Rule
+
+### Community 189 - "Community 189"
+Cohesion: 0.33
+Nodes (5): Agent Operating System, Folder Contract, Simple Agent Loop, Source Of Truth, Start Here
+
+### Community 190 - "Community 190"
+Cohesion: 0.33
+Nodes (5): Output, Responsibilities, Role: Leader, Startup, What The Leader Does Not Do
+
+### Community 191 - "Community 191"
+Cohesion: 0.33
+Nodes (5): File-Based Harness, Hedge Fund Station Agent Map, Quick Start, Required Reads By Mission, Session Close
+
+### Community 192 - "Community 192"
+Cohesion: 0.5
+Nodes (3): confidence_from_filters(), evaluate_signal(), Deterministic signal logic for OI Expansion Failure Fade.
+
+### Community 193 - "Community 193"
 Cohesion: 0.5
 Nodes (5): AgentPathPanel(), emptyCaptureForm(), evidencePathsForAgent(), sourcePathsForAgent(), uniqueStrings()
 
-### Community 189 - "Community 189"
-Cohesion: 0.4
-Nodes (4): CenterNavigationDetail, CenterRouteChangedDetail, navigateCenterPanel(), publishCenterRouteChanged()
-
-### Community 190 - "Community 190"
-Cohesion: 0.4
-Nodes (5): 1. **Desarrollo Continuo** 💻, 2. **Robustez** 🛡️, 3. **User Experience** ✨, 4. **Performance** ⚡, 🎯 Beneficios
-
-### Community 191 - "Community 191"
-Cohesion: 0.4
-Nodes (5): 1. **Desarrollo Continuo** 💻, 2. **Robustez** 🛡️, 3. **User Experience** ✨, 4. **Performance** ⚡, 🎯 Beneficios
-
-### Community 192 - "Community 192"
-Cohesion: 0.4
-Nodes (5): File-Based Harness, Hedge Fund Station Agent Map, Quick Start, Required Reads By Mission, Session Close
-
-### Community 193 - "Community 193"
-Cohesion: 0.4
-Nodes (4): Active Plan, Current Agent Session, Last Completed Work, Next Step
-
 ### Community 194 - "Community 194"
 Cohesion: 0.4
-Nodes (4): Cleanup Decisions, Current Backtest Standard, Next Cleanup Candidates, Strategy Readiness Matrix
+Nodes (5): 1. **Desarrollo Continuo** 💻, 2. **Robustez** 🛡️, 3. **User Experience** ✨, 4. **Performance** ⚡, 🎯 Beneficios
 
 ### Community 195 - "Community 195"
 Cohesion: 0.4
-Nodes (4): Current Operating Shape, Default Priorities, Shared Agent Memory, Useful Entry Points
+Nodes (5): 1. **Desarrollo Continuo** 💻, 2. **Robustez** 🛡️, 3. **User Experience** ✨, 4. **Performance** ⚡, 🎯 Beneficios
 
 ### Community 196 - "Community 196"
 Cohesion: 0.4
-Nodes (4): Decision Rule, Likely Store Review Gaps, Mac App Store Gap Analysis, Store-Friendly Variant
+Nodes (4): Active Plan, Current Agent Session, Last Completed Work, Next Step
 
 ### Community 197 - "Community 197"
-Cohesion: 0.5
-Nodes (3): ChartConfig, PriceData, Tab
+Cohesion: 0.4
+Nodes (4): Cleanup Decisions, Current Backtest Standard, Next Cleanup Candidates, Strategy Readiness Matrix
+
+### Community 198 - "Community 198"
+Cohesion: 0.4
+Nodes (4): Current Operating Shape, Default Priorities, Shared Agent Memory, Useful Entry Points
 
 ### Community 199 - "Community 199"
-Cohesion: 0.5
-Nodes (3): code:text (done -> progress/explore_backend_boundaries.md), File Types, Progress Folder
+Cohesion: 0.4
+Nodes (4): Decision Rule, Likely Store Review Gaps, Mac App Store Gap Analysis, Store-Friendly Variant
 
 ### Community 200 - "Community 200"
-Cohesion: 0.5
-Nodes (3): Modules, OI Expansion Failure Fade - Backend Implementation, Promotion Boundary
+Cohesion: 0.4
+Nodes (5): File-Based Harness, Hedge Fund Station Agent Map, Quick Start, Required Reads By Mission, Session Close
 
 ### Community 201 - "Community 201"
 Cohesion: 0.5
+Nodes (3): ChartConfig, PriceData, Tab
+
+### Community 203 - "Community 203"
+Cohesion: 0.5
+Nodes (3): code:text (done -> progress/explore_backend_boundaries.md), File Types, Progress Folder
+
+### Community 204 - "Community 204"
+Cohesion: 0.5
+Nodes (3): Modules, OI Expansion Failure Fade - Backend Implementation, Promotion Boundary
+
+### Community 205 - "Community 205"
+Cohesion: 0.5
 Nodes (3): Agent Memory, Files, Rules
 
-### Community 202 - "Community 202"
+### Community 206 - "Community 206"
 Cohesion: 0.5
 Nodes (3): Backend Source Of Truth, Current Cleanup Boundary, Rules
 
-### Community 203 - "Community 203"
+### Community 207 - "Community 207"
 Cohesion: 0.5
 Nodes (3): Current Skills, Hedge Fund Skills, Usage Rule
 
 ## Knowledge Gaps
 - **1630 isolated node(s):** `Backend package for hedge-fund-station.`, `Hyperliquid gateway backend package.`, `Log a system metric to the database for monitoring and analysis.      Args:`, `Get system health metrics including circuit breaker status and recent metrics.`, `Centralized logging system for Polymarket trading bot.  Provides structured logg` (+1625 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **49 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **50 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `normalize()` connect `Community 36` to `Community 155`?**
-  _High betweenness centrality (0.205) - this node is a cross-community bridge._
-- **Why does `orderbook()` connect `Community 155` to `Community 16`, `Community 36`?**
-  _High betweenness centrality (0.205) - this node is a cross-community bridge._
-- **Why does `HyperliquidService` connect `Community 25` to `Community 2`, `Community 100`, `Community 68`, `Community 101`, `Community 71`, `Community 8`, `Community 27`, `Community 4`, `Community 108`, `Community 45`, `Community 47`, `Community 80`, `Community 17`, `Community 18`, `Community 24`, `Community 59`, `Community 29`, `Community 30`?**
-  _High betweenness centrality (0.058) - this node is a cross-community bridge._
+- **Why does `normalize()` connect `Community 34` to `Community 158`?**
+  _High betweenness centrality (0.194) - this node is a cross-community bridge._
+- **Why does `orderbook()` connect `Community 158` to `Community 16`, `Community 34`?**
+  _High betweenness centrality (0.194) - this node is a cross-community bridge._
+- **Why does `HyperliquidService` connect `Community 11` to `Community 64`, `Community 65`, `Community 2`, `Community 101`, `Community 102`, `Community 6`, `Community 40`, `Community 10`, `Community 78`, `Community 46`, `Community 17`, `Community 18`, `Community 20`, `Community 22`, `Community 55`, `Community 90`, `Community 27`, `Community 61`?**
+  _High betweenness centrality (0.053) - this node is a cross-community bridge._
 - **Are the 33 inferred relationships involving `BacktestConfig` (e.g. with `BacktestFeeModelTest` and `BtcCrowdingScalperTest`) actually correct?**
   _`BacktestConfig` has 33 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `Backend package for hedge-fund-station.`, `Hyperliquid gateway backend package.`, `Log a system metric to the database for monitoring and analysis.      Args:` to the rest of the system?**

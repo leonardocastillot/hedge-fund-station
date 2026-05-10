@@ -1,7 +1,7 @@
 import { dialog, ipcMain } from 'electron';
 import { PTYManager } from '../native/pty-manager';
 import { WorkspaceManager } from '../native/workspace-manager';
-import { MarketingAutomationManager } from '../native/marketing-automation';
+import { AIConfigManager } from '../native/ai-config-manager';
 import { ObsidianManager } from '../native/obsidian-manager';
 import { DiagnosticsManager } from '../native/diagnostics-manager';
 import { AgentLoopManager } from '../native/agent-loop-manager';
@@ -16,10 +16,7 @@ import type {
   WorkspaceInferParams,
   WorkspaceUpdateParams,
   WorkspaceDeleteParams,
-  MarketingListBlogPostsParams,
-  MarketingSaveGeminiApiKeyParams,
-  MarketingGenerateIdeasParams,
-  MarketingGenerateImageParams,
+  AISaveGeminiApiKeyParams,
   GeminiLiveTokenRequest,
   VoiceTranscriptionParams,
   ObsidianGetStatusParams,
@@ -185,57 +182,21 @@ export function registerWorkspaceHandlers(workspaceManager: WorkspaceManager): v
   });
 }
 
-export function registerMarketingHandlers(marketingAutomationManager: MarketingAutomationManager): void {
-  ipcMain.handle('marketing:runAutoBlogger', async () => {
+export function registerAIConfigHandlers(aiConfigManager: AIConfigManager): void {
+  ipcMain.handle('ai:getConfigStatus', async () => {
     try {
-      return await marketingAutomationManager.runAutoBlogger();
+      return aiConfigManager.getConfigStatus();
     } catch (error) {
-      console.error('Failed to run auto-blogger:', error);
+      console.error('Failed to get AI config status:', error);
       throw error;
     }
   });
 
-  ipcMain.handle('marketing:listBlogPosts', async (_event, params?: MarketingListBlogPostsParams) => {
+  ipcMain.handle('ai:saveGeminiApiKey', async (_event, params: AISaveGeminiApiKeyParams) => {
     try {
-      return marketingAutomationManager.listRecentBlogPosts(params?.limit ?? 8);
-    } catch (error) {
-      console.error('Failed to list blog posts:', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('marketing:getAIConfigStatus', async () => {
-    try {
-      return marketingAutomationManager.getAIConfigStatus();
-    } catch (error) {
-      console.error('Failed to get marketing AI config status:', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('marketing:saveGeminiApiKey', async (_event, params: MarketingSaveGeminiApiKeyParams) => {
-    try {
-      return marketingAutomationManager.saveGeminiApiKey(params.apiKey);
+      return aiConfigManager.saveGeminiApiKey(params.apiKey);
     } catch (error) {
       console.error('Failed to save Gemini API key:', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('marketing:generateIdeas', async (_event, params: MarketingGenerateIdeasParams) => {
-    try {
-      return marketingAutomationManager.generatePostIdeas(params);
-    } catch (error) {
-      console.error('Failed to generate marketing ideas:', error);
-      throw error;
-    }
-  });
-
-  ipcMain.handle('marketing:generateImage', async (_event, params: MarketingGenerateImageParams) => {
-    try {
-      return marketingAutomationManager.generateImage(params);
-    } catch (error) {
-      console.error('Failed to generate marketing image:', error);
       throw error;
     }
   });

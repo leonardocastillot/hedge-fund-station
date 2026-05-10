@@ -6,7 +6,7 @@ The Electron main process is split by responsibility:
   distribution-adjacent behavior.
 - `ipc/` owns channel registration and the preload-facing IPC boundary.
 - `native/` owns OS integrations such as terminals, workspaces, diagnostics,
-  Obsidian, voice transcription, marketing helpers, and agent loop helpers.
+  Obsidian, voice transcription, AI provider config, and agent loop helpers.
 
 Keep trading computation, replay, backtests, and paper execution out of
 Electron. The desktop shell may launch or inspect backend services, but the
