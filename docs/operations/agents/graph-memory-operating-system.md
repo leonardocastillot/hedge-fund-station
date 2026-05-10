@@ -14,27 +14,39 @@ future agents can orient quickly without trusting generated summaries as truth.
 Graphify answers "where should I look?" Obsidian answers "what did we already
 decide or learn?" The file harness answers "what is happening right now?"
 
+The `/memory` Strategy Memory explorer is the visual bridge for strategy work:
+it links backend catalog rows, repo evidence artifacts, Obsidian notes, and
+learning events into an interactive review graph. Treat it as an orientation
+and review-speed surface. It helps agents find the next strategy path, but the
+canonical truth remains in backend artifacts, strategy docs, and the file
+harness.
+
 ## Operating Loop
 
 1. Start with `AGENTS.md`, `progress/current.md`, and `agent_tasks.json`.
-2. For broad repo, architecture, harness, memory, or ownership questions, read
+2. Run `npm run agent:brief` for the current harness, memory, Graphify, and
+   Obsidian snapshot.
+3. For broad repo, architecture, harness, memory, or ownership questions, run
+   `npm run graph:status` first. If Graphify is fresh enough, read
    `graphify-out/GRAPH_REPORT.md` or run `npm run graph:query -- "<question>"`.
-3. Verify Graphify leads against source files, canonical docs, tests, and stable
+4. Verify Graphify leads against source files, canonical docs, tests, and stable
    command output before changing behavior.
-4. For strategy lessons, decisions, postmortems, and open questions, check
-   Obsidian and `docs/operations/agents/memory/` after reading the source files
-   that own the behavior.
-5. Leave work state in the file harness: update `progress/current.md`, write a
+5. For strategy lessons, decisions, postmortems, and open questions, use
+   `/memory` to find related strategy evidence and Obsidian notes, then verify
+   against the source files, backend artifacts, and memory docs that own the
+   behavior.
+6. Leave work state in the file harness: update `progress/current.md`, write a
    report under `progress/`, update `progress/history.md`, and record evidence
    paths in `agent_tasks.json`.
-6. If the work moves files, adds major modules, changes architecture, or edits
+7. If the work moves files, adds major modules, changes architecture, or edits
    agent operating docs, run `npm run graph:build` and `npm run graph:check`.
-7. If the work creates durable context, update memory only when
+8. If the work creates durable context, update memory only when
    `memory/memory-policy.md` says it is worth preserving.
 
 ## Useful Graphify Commands
 
 ```bash
+npm run graph:status
 npm run graph:build
 npm run graph:check
 npm run graph:query -- "where should a new agent start for repo architecture work?"

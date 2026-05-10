@@ -70,6 +70,16 @@ needs status, date, decision, and reason.
 - Reason: agents need fast orientation without treating generated graphs as
   canonical truth or turning memory into an artifact dump.
 
+## Recurring Agent Cadence
+
+- Status: accepted
+- Date: 2026-05-10
+- Decision: Hedge Fund Station uses a daily 02:30 small-improvement automation
+  plus a Sunday 09:00 read-only health report for harness, memory, Graphify,
+  Obsidian, and strategy status.
+- Reason: agents need compounding improvement without turning recurring work
+  into noisy broad rewrites or unsafe trading promotion.
+
 ## VM Owns Heavy Runtime Evidence
 
 - Status: accepted

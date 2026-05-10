@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TASKS_PATH = REPO_ROOT / "agent_tasks.json"
 CURRENT_PATH = REPO_ROOT / "progress" / "current.md"
+GRAPHIFY_OUT_PATH = REPO_ROOT / "graphify-out"
+OBSIDIAN_VAULT_PATH = REPO_ROOT / "hedge-station"
 VALID_STATUSES = {"pending", "in_progress", "review", "done", "blocked"}
 REQUIRED_FILES = [
     "AGENTS.md",
@@ -42,6 +45,13 @@ REQUIRED_TASK_FIELDS = {
 }
 LIVE_TERMS = ("live", "production", "prod", "execution")
 LIVE_GATE_TERMS = ("research", "backtest", "validation", "paper", "risk", "operator")
+MEMORY_FILES = [
+    "docs/operations/agents/memory/memory-policy.md",
+    "docs/operations/agents/memory/shared-memory.md",
+    "docs/operations/agents/memory/decisions.md",
+    "docs/operations/agents/memory/open-questions.md",
+    "docs/operations/agents/memory/mission-log.md",
+]
 
 
 class HarnessIssue:
@@ -75,6 +85,150 @@ def task_id(task: dict[str, Any], index: int) -> str:
 
 def as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def git_value(args: list[str], *, timeout: float = 2) -> str | None:
+    value = git_output(args, timeout=timeout)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def git_output(args: list[str], *, timeout: float = 2) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def git_dirty() -> bool | None:
+    value = git_output(["status", "--porcelain", "--untracked-files=all"])
+    if value is None:
+        return None
+    return bool(value.strip())
+
+
+def graphify_collection(payload: dict[str, Any], primary: str, fallback: str | None = None) -> list[Any]:
+    value = payload.get(primary)
+    if isinstance(value, list):
+        return value
+    if fallback:
+        fallback_value = payload.get(fallback)
+        if isinstance(fallback_value, list):
+            return fallback_value
+    nested = payload.get("graph")
+    if isinstance(nested, dict):
+        nested_value = nested.get(primary)
+        if isinstance(nested_value, list):
+            return nested_value
+        if fallback:
+            nested_fallback = nested.get(fallback)
+            if isinstance(nested_fallback, list):
+                return nested_fallback
+    return []
+
+
+def graphify_built_commit(report_path: Path) -> str | None:
+    if not report_path.exists():
+        return None
+    try:
+        for line in report_path.read_text(encoding="utf-8").splitlines():
+            if "Built from commit:" not in line:
+                continue
+            value = line.split("Built from commit:", 1)[1].strip()
+            return value.strip("`").strip() or None
+    except OSError:
+        return None
+    return None
+
+
+def graphify_counts(graph_path: Path) -> tuple[int | None, int | None, int | None]:
+    if not graph_path.exists():
+        return None, None, None
+    try:
+        payload = json.loads(graph_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, None, None
+    if not isinstance(payload, dict):
+        return None, None, None
+    nodes = graphify_collection(payload, "nodes")
+    edges = graphify_collection(payload, "edges", "links")
+    communities = payload.get("communities")
+    if isinstance(communities, list):
+        community_count = len(communities)
+    elif isinstance(communities, dict):
+        community_count = len(communities)
+    else:
+        community_values = {
+            node.get("community") or node.get("cluster") or node.get("community_id") or node.get("communityId")
+            for node in nodes
+            if isinstance(node, dict)
+        }
+        community_count = len({value for value in community_values if value not in (None, "")})
+    return len(nodes), len(edges), community_count
+
+
+def graphify_changed_paths_since_built(built_commit: str | None, current_commit: str | None) -> list[str] | None:
+    if not built_commit or not current_commit or built_commit == current_commit:
+        return []
+    value = git_value(["diff", "--name-only", f"{built_commit}..{current_commit}"])
+    if value is None:
+        return None
+    return [line.strip() for line in value.splitlines() if line.strip()]
+
+
+def graphify_only_generated_changes(paths: list[str] | None) -> bool:
+    if paths is None:
+        return False
+    return len(paths) > 0 and all(path == "graphify-out" or path.startswith("graphify-out/") for path in paths)
+
+
+def graphify_status_summary() -> dict[str, Any]:
+    required = {
+        "report": GRAPHIFY_OUT_PATH / "GRAPH_REPORT.md",
+        "graph": GRAPHIFY_OUT_PATH / "graph.json",
+        "html": GRAPHIFY_OUT_PATH / "graph.html",
+    }
+    missing = [str(path.relative_to(REPO_ROOT)) for path in required.values() if not path.exists()]
+    available = not missing
+    built_commit = graphify_built_commit(required["report"])
+    current_commit = git_value(["rev-parse", "--short=8", "HEAD"])
+    has_dirty_tree = git_dirty()
+    changed_paths = graphify_changed_paths_since_built(built_commit, current_commit)
+    if not available:
+        freshness = "missing"
+    elif has_dirty_tree:
+        freshness = "dirty"
+    elif built_commit and current_commit:
+        freshness = "fresh" if built_commit == current_commit or graphify_only_generated_changes(changed_paths) else "stale"
+    else:
+        freshness = "unknown"
+    node_count, edge_count, community_count = graphify_counts(required["graph"])
+    command = "npm run graph:build" if freshness in {"missing", "stale", "dirty"} else "npm run graph:check"
+    return {
+        "available": available,
+        "freshness": freshness,
+        "built_commit": built_commit,
+        "current_commit": current_commit,
+        "has_dirty_tree": has_dirty_tree,
+        "node_count": node_count,
+        "edge_count": edge_count,
+        "community_count": community_count,
+        "missing": missing,
+        "changed_paths_since_built": changed_paths,
+        "recommended_command": command,
+    }
 
 
 def validate_required_files() -> list[HarnessIssue]:
@@ -245,6 +399,56 @@ def command_status(_: argparse.Namespace) -> int:
     return 0 if payload["ok"] else 1
 
 
+def command_brief(_: argparse.Namespace) -> int:
+    tasks, issues = collect_issues()
+    failures = [issue for issue in issues if not issue.warning]
+    warnings = [issue for issue in issues if issue.warning]
+    counts = Counter(str(task.get("status")) for task in tasks)
+    active = [task for task in tasks if task.get("status") in {"in_progress", "review"}]
+    graph = graphify_status_summary()
+    memory_missing = [relative for relative in MEMORY_FILES if not repo_path(relative).exists()]
+    obsidian_index = OBSIDIAN_VAULT_PATH / "Agent Navigation Index.md"
+
+    print("Hedge Fund Station Agent Brief")
+    print("=" * 32)
+    print(f"Harness: {'OK' if not failures else 'NEEDS ATTENTION'} ({len(tasks)} task(s), {len(warnings)} warning(s))")
+    print(f"Task counts: {dict(sorted(counts.items()))}")
+    if active:
+        for task in active:
+            print(f"Active: {task.get('id')} ({task.get('status')}, owner={task.get('owner')})")
+    else:
+        print("Active: none")
+    print(
+        "Graphify: "
+        f"{graph['freshness']} "
+        f"({graph['node_count'] if graph['node_count'] is not None else 'unknown'} nodes, "
+        f"{graph['edge_count'] if graph['edge_count'] is not None else 'unknown'} edges, "
+        f"built={graph['built_commit'] or 'unknown'}, head={graph['current_commit'] or 'unknown'}, "
+        f"dirty={graph['has_dirty_tree']})"
+    )
+    if graph["missing"]:
+        print(f"Graphify missing: {', '.join(graph['missing'])}")
+    print(f"Graphify next: {graph['recommended_command']}")
+    print(f"Memory: {'OK' if not memory_missing else 'missing ' + ', '.join(memory_missing)}")
+    print(
+        "Obsidian: "
+        f"{'vault found' if OBSIDIAN_VAULT_PATH.exists() else 'vault missing'}; "
+        f"Agent Navigation Index {'found' if obsidian_index.exists() else 'missing'}"
+    )
+    if issues:
+        print("Issues:")
+        for issue in issues:
+            label = "WARN" if issue.warning else "FAIL"
+            print(f"- [{label}] {issue.message}")
+    print("Next reads:")
+    print("1. AGENTS.md")
+    print("2. progress/current.md")
+    print("3. agent_tasks.json")
+    print("4. docs/operations/agents/graph-memory-operating-system.md for memory/Graphify/Obsidian work")
+    print("5. graphify-out/GRAPH_REPORT.md or npm run graph:query -- \"<question>\" when Graphify is fresh")
+    return 0 if not failures else 1
+
+
 def command_init(args: argparse.Namespace) -> int:
     exit_code = command_check(args)
     if exit_code == 0:
@@ -259,6 +463,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("init", help="Check harness readiness and print next steps.").set_defaults(func=command_init)
     subparsers.add_parser("status", help="Print task status summary as JSON.").set_defaults(func=command_status)
     subparsers.add_parser("check", help="Validate harness files and task state.").set_defaults(func=command_check)
+    subparsers.add_parser("brief", help="Print a fast agent orientation brief.").set_defaults(func=command_brief)
     return parser
 
 

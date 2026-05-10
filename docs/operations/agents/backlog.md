@@ -11,7 +11,7 @@ to the product objective.
 - [x] Confirm the canonical Hyperliquid gateway port story across Docker,
   tunnel scripts, app config, and docs.
 - [x] Add a short backend startup runbook under `docs/operations/`.
-- [ ] Add a recurring health-check report format for `hf:doctor`, `hf:status`,
+- [x] Add a recurring health-check report format for `hf:doctor`, `hf:status`,
   and backend `/health`.
 - [x] Document which generated artifacts are curated examples versus local
   runtime evidence.
@@ -41,7 +41,7 @@ to the product objective.
 - [x] Add a "new agent five-minute orientation" doc.
 - [x] Consolidate agent docs under `docs/operations/agents/`.
 - [x] Add shared agent memory under `docs/operations/agents/memory/`.
-- [ ] Add a recommended recurring automation schedule once the human chooses
+- [x] Add a recommended recurring automation schedule once the human chooses
   cadence and notification style.
 - [x] Add a standard PR/change-summary template for agent work.
 

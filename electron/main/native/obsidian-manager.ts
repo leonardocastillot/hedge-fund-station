@@ -217,6 +217,7 @@ export class ObsidianManager {
     if (relative.startsWith('backend/hyperliquid_gateway/data/backtests/')) return 'backtest-artifact';
     if (relative.startsWith('backend/hyperliquid_gateway/data/validations/')) return 'validation-artifact';
     if (relative.startsWith('backend/hyperliquid_gateway/data/paper/')) return 'paper-artifact';
+    if (relative.startsWith('backend/hyperliquid_gateway/data/audits/')) return 'audit-artifact';
     if (relative.startsWith('docs/operations/agents/memory/')) return 'agent-memory';
     if (relative.startsWith('progress/')) return 'progress-handoff';
     return 'repo-path';

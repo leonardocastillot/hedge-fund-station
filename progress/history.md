@@ -220,6 +220,34 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-10 - Agent Memory Harness Performance
+
+- Agent: Codex
+- Mission class: repo health audit
+- Summary: Added fast agent orientation commands, refreshed Graphify status and
+  artifacts, converted `CLAUDE.md` into a compatibility shim, added an Obsidian
+  Agent Navigation Index, resolved the recurring cadence decision, updated the
+  nightly Hedge Fund automation, and created a weekly read-only agent health
+  report automation.
+- Evidence:
+  `scripts/agent_harness.py`,
+  `scripts/graphify-status.mjs`,
+  `AGENTS.md`,
+  `CLAUDE.md`,
+  `docs/operations/agents/automation-system.md`,
+  `docs/operations/agents/memory/decisions.md`,
+  `hedge-station/Agent Navigation Index.md`,
+  `graphify-out/GRAPH_REPORT.md`,
+  `progress/impl_agent_memory_harness_performance.md`.
+- Verification: `npm run agent:check`, `npm run agent:status`,
+  `npm run agent:brief`, `npm run graph:status`, `npm run graph:check`,
+  Graphify query, focused Graphify memory tests, `npm run perf:budget`, and
+  `git diff --check` passed.
+- Status: done; no trading logic, credentials, order routing, backend API, IPC
+  contract, or live promotion behavior changed.
+
+---
+
 ## 2026-05-08 - Aggressive Cleanup Queue Closeout
 
 - Agent: Codex
@@ -882,6 +910,99 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-08 - Graphify Interaction UX
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed the custom Graphify explorer interaction so node click
+  selection updates inspector/highlighting without rebuilding the vis-network
+  graph dataset. Added `Open Source` inspector actions, safe iframe-to-React
+  source-open messaging, and neighborhood behavior that works after search.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `tests/test_graphify_memory_status.py`, and
+  `progress/impl_graphify_interaction_ux.md`.
+- Verification: `npm run agent:check`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`,
+  `npm run gateway:restart`, `npm run gateway:probe`, direct Browser smoke on
+  `/api/hyperliquid/memory/graphify-explorer`, and `/memory` embed smoke
+  passed.
+- Status: done. Memory was intentionally unchanged because the durable Graphify
+  operating split is already documented.
+
+---
+
+## 2026-05-08 - Graphify Performance Lite Physics
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Kept Graphify opening with the full repo graph while adding adaptive
+  explorer profiles. The full 4,204 node / 6,699 edge view now uses the
+  `all-lite` profile with lightweight `barnesHut` physics, straight edges,
+  reduced detail, debounced controls, automatic long settling without requiring
+  manual resume, and visible performance HUD metrics; smaller neighborhood
+  views keep the richer look.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_graphify_memory_status.py`, and
+  `progress/impl_graphify_performance_lite_physics.md`.
+- Verification: `npm run agent:check`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`,
+  `npm run gateway:restart`, `npm run gateway:probe`, `git diff --check`,
+  direct Browser smoke on
+  `/api/hyperliquid/memory/graphify-explorer`, and `/memory` iframe smoke
+  passed.
+- Status: done. Memory was intentionally unchanged because the durable
+  Graphify, Obsidian, and file-harness split is already documented.
+
+---
+
+## 2026-05-08 - Graphify Restore Orbital Layout
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Restored the full Graphify default view to the original-style
+  `forceAtlas2Based` gravitational/orbital layout after the performance profile
+  made the final graph too dense. The explorer now uses `all-orbit` for the
+  full 4,204 node / 6,699 edge graph, with dynamic edges, shadows, hover, and no
+  full-graph pause/resume auto-freeze path, while preserving the click
+  selection, inspector, Open Source, debounce, and HUD improvements.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_graphify_memory_status.py`, and
+  `progress/impl_graphify_restore_orbital_layout.md`.
+- Verification: `npm run agent:check`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`,
+  `npm run gateway:restart`, `npm run gateway:probe`, `git diff --check`, and
+  direct Browser smoke on `/api/hyperliquid/memory/graphify-explorer` passed.
+- Status: done. Memory was intentionally unchanged because this is a local
+  Graphify UX tuning decision.
+
+---
+
+## 2026-05-08 - Graphify Node Text Tooltips
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced raw HTML node and edge hover titles with clean Graphify
+  tooltip cards. Node hover now shows kind, file, location, community, graph
+  links, source availability, and click/double-click guidance; edge hover shows
+  relation context. Compact labels now prefer readable node names and fallback
+  filenames for long path-heavy labels.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_graphify_memory_status.py`, and
+  `progress/impl_graphify_node_text_tooltips.md`.
+- Verification: `npm run agent:check`,
+  `python3 -m unittest tests.test_graphify_memory_status`, `npm run build`,
+  `npm run gateway:restart`, `npm run gateway:probe`, `git diff --check`, and
+  direct Browser smoke on `/api/hyperliquid/memory/graphify-explorer` passed.
+- Status: done. Memory was intentionally unchanged because this is local
+  Graphify UX polish.
+
+---
+
 ## 2026-05-09 - Remove Marketing Surface
 
 - Agent: Codex
@@ -902,3 +1023,30 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Memory was intentionally unchanged because the backend-first
   cockpit boundary is already documented and this cleanup updates the relevant
   architecture docs directly.
+
+---
+
+## 2026-05-10 - Strategy Memory Graph Explorer
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced the dense lower `/memory` strategy/memory surface with an
+  interactive Graphify-style Strategy Evidence Graph backed by local
+  `vis-network`. The explorer defaults to actionable strategy paths, supports
+  search, strategy and learning lenses, evidence filters, Focus, Neighborhood,
+  Labels, Physics, Fit, Reset, node inspection, and an Agent Path section with
+  missing evidence, source/evidence paths, and suggested stable `hf:*` commands.
+- Evidence:
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/features/memory/components/StrategyMemoryGraphExplorer.tsx`,
+  `src/features/memory/memoryGraphTypes.ts`,
+  `electron/main/native/obsidian-manager.ts`,
+  `docs/operations/agents/graph-memory-operating-system.md`,
+  `src/features/README.md`, `graphify-out/GRAPH_REPORT.md`, and
+  `progress/impl_strategy_memory_graph_explorer.md`.
+- Verification: `npm run build`, `npm run graph:build`,
+  `npm run graph:check`, `npm run agent:check`, `git diff --check`, and
+  desktop/mobile `/memory` visual smoke passed.
+- Status: done. Memory rule promoted into
+  `docs/operations/agents/graph-memory-operating-system.md`; backend docs,
+  backend artifacts, and the file harness remain canonical truth.

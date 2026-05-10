@@ -1828,6 +1828,20 @@ def graphify_safe_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
+def graphify_node_open_path(source_file: str) -> str | None:
+    if not source_file:
+        return None
+    path = Path(source_file)
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(REPO_ROOT.resolve())
+    except (OSError, ValueError):
+        return None
+    return str(resolved) if resolved.exists() else None
+
+
 def graphify_explorer_data(payload: dict[str, Any]) -> dict[str, Any]:
     raw_nodes = [node for node in graphify_collection(payload, "nodes") if isinstance(node, dict)]
     raw_edges = [
@@ -1898,6 +1912,7 @@ def graphify_explorer_data(payload: dict[str, Any]) -> dict[str, Any]:
                 "fileType": file_type,
                 "sourceFile": source_file,
                 "sourceLocation": source_location,
+                "openPath": graphify_node_open_path(source_file),
                 "degree": degree,
                 "value": max(5, min(46, 5 + degree)),
             }
@@ -2149,11 +2164,18 @@ def graphify_explorer_html() -> str:
       min-height: 0;
     }
 
-    #network {
+    .graph-stage {
       position: relative;
       min-width: 0;
       min-height: 0;
       overflow: hidden;
+    }
+
+    #network {
+      position: absolute;
+      inset: 0;
+      min-width: 0;
+      min-height: 0;
     }
 
     #network .vis-network {
@@ -2195,6 +2217,63 @@ def graphify_explorer_html() -> str:
       margin-top: 0.12rem;
       font-size: 1rem;
       color: var(--text);
+    }
+
+    .vis-tooltip {
+      overflow: hidden !important;
+      max-width: min(24rem, calc(100vw - 2rem)) !important;
+      border: 1px solid rgba(103, 232, 249, 0.28) !important;
+      border-radius: 8px !important;
+      background: rgba(6, 8, 13, 0.96) !important;
+      color: var(--text) !important;
+      padding: 0 !important;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42) !important;
+      backdrop-filter: blur(14px);
+    }
+
+    .graph-tooltip {
+      max-width: 23rem;
+      padding: 0.72rem 0.78rem;
+      color: var(--text);
+      font-size: 0.78rem;
+      line-height: 1.35;
+      white-space: normal;
+    }
+
+    .tooltip-title {
+      margin-bottom: 0.55rem;
+      color: #f8fafc;
+      font-size: 0.88rem;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .tooltip-row {
+      display: grid;
+      grid-template-columns: 5.8rem minmax(0, 1fr);
+      gap: 0.65rem;
+      margin-top: 0.34rem;
+    }
+
+    .tooltip-key {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 750;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .tooltip-value {
+      color: #dff8ff;
+      overflow-wrap: anywhere;
+    }
+
+    .tooltip-footer {
+      margin-top: 0.65rem;
+      padding-top: 0.58rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.72rem;
     }
 
     .inspector {
@@ -2243,6 +2322,20 @@ def graphify_explorer_html() -> str:
       background: rgba(255, 255, 255, 0.045);
       font-size: 0.72rem;
       font-weight: 700;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.8rem;
+    }
+
+    .button.inspector-action {
+      min-height: 2rem;
+      padding: 0 0.68rem;
+      font-size: 0.76rem;
+      font-weight: 750;
     }
 
     .section {
@@ -2374,12 +2467,16 @@ def graphify_explorer_html() -> str:
       </div>
     </header>
     <section class="workspace">
-      <div id="network">
-        <div class="hud" aria-hidden="true">
+      <div class="graph-stage">
+        <div id="network"></div>
+        <div class="hud" role="group" aria-label="Graph performance metrics">
           <div class="metric"><span>Visible Nodes</span><strong id="visibleNodes">0</strong></div>
           <div class="metric"><span>Visible Edges</span><strong id="visibleEdges">0</strong></div>
           <div class="metric"><span>Total Nodes</span><strong id="totalNodes">0</strong></div>
           <div class="metric"><span>Communities</span><strong id="totalCommunities">0</strong></div>
+          <div class="metric"><span>Profile</span><strong id="profileMetric">loading</strong></div>
+          <div class="metric"><span>Render</span><strong id="renderMetric">0ms</strong></div>
+          <div class="metric"><span>Physics</span><strong id="physicsMetric">running</strong></div>
         </div>
       </div>
       <aside class="inspector" aria-label="Selected node">
@@ -2446,11 +2543,104 @@ def graphify_explorer_html() -> str:
       visibleEdges: document.getElementById("visibleEdges"),
       totalNodes: document.getElementById("totalNodes"),
       totalCommunities: document.getElementById("totalCommunities"),
+      profileMetric: document.getElementById("profileMetric"),
+      renderMetric: document.getElementById("renderMetric"),
+      physicsMetric: document.getElementById("physicsMetric"),
       subtitle: document.getElementById("subtitle")
     };
 
+    const PERFORMANCE_PROFILES = {
+      "all-orbit": {
+        label: "all-orbit",
+        nodeShadow: true,
+        edgeSmooth: { type: "dynamic" },
+        hover: true,
+        edgeWidthMax: 2.4,
+        nodeValueMax: 42,
+        massScale: 18,
+        tooltipDelay: 90,
+        autoFreezeMs: null,
+        freezeOnStabilized: false,
+        physics: {
+          enabled: true,
+          solver: "forceAtlas2Based",
+          stabilization: { enabled: true, iterations: 95, fit: true },
+          forceAtlas2Based: {
+            gravitationalConstant: -58,
+            centralGravity: 0.016,
+            springLength: 92,
+            springConstant: 0.054,
+            damping: 0.43,
+            avoidOverlap: 0.34
+          },
+          maxVelocity: 38,
+          minVelocity: 0.55
+        }
+      },
+      focused: {
+        label: "focused",
+        nodeShadow: false,
+        edgeSmooth: false,
+        hover: true,
+        edgeWidthMax: 1.7,
+        nodeValueMax: 36,
+        massScale: 26,
+        tooltipDelay: 120,
+        autoFreezeMs: 5200,
+        freezeOnStabilized: true,
+        physics: {
+          enabled: true,
+          solver: "barnesHut",
+          stabilization: { enabled: true, iterations: 46, fit: true },
+          barnesHut: {
+            gravitationalConstant: -3100,
+            centralGravity: 0.18,
+            springLength: 102,
+            springConstant: 0.024,
+            damping: 0.7,
+            avoidOverlap: 0.12
+          },
+          maxVelocity: 26,
+          minVelocity: 0.85,
+          timestep: 0.5
+        }
+      },
+      neighborhood: {
+        label: "neighborhood",
+        nodeShadow: true,
+        edgeSmooth: { type: "dynamic" },
+        hover: true,
+        edgeWidthMax: 2.4,
+        nodeValueMax: 44,
+        massScale: 18,
+        tooltipDelay: 90,
+        autoFreezeMs: 6200,
+        freezeOnStabilized: true,
+        physics: {
+          enabled: true,
+          solver: "forceAtlas2Based",
+          stabilization: { enabled: true, iterations: 82, fit: true },
+          forceAtlas2Based: {
+            gravitationalConstant: -58,
+            centralGravity: 0.016,
+            springLength: 92,
+            springConstant: 0.054,
+            damping: 0.43,
+            avoidOverlap: 0.34
+          },
+          maxVelocity: 38,
+          minVelocity: 0.55
+        }
+      }
+    };
+
     let labelsEnabled = false;
-    let physicsEnabled = true;
+    let physicsRunning = true;
+    let physicsState = "running";
+    let activeProfileId = "all-orbit";
+    let lastRenderMs = 0;
+    let refreshTimer = null;
+    let autoFreezeTimer = null;
     let selectedId = null;
     let neighborhoodRoot = null;
     let currentVisibleIds = new Set();
@@ -2487,6 +2677,90 @@ def graphify_explorer_html() -> str:
       return `${text.slice(0, Math.max(1, maxLength - 1))}...`;
     }
 
+    function fileName(value) {
+      const text = String(value || "").trim();
+      if (!text) return "";
+      const parts = text.split(/[\\/]/).filter(Boolean);
+      return parts[parts.length - 1] || text;
+    }
+
+    function readableType(value) {
+      const text = String(value || "node").trim();
+      if (!text) return "Node";
+      return text
+        .replaceAll("_", " ")
+        .replaceAll("-", " ")
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    }
+
+    function nodeDisplayLabel(node) {
+      const preferred = String(node.label || "").trim();
+      if (preferred && preferred.length <= 34) return preferred;
+      const sourceName = fileName(node.sourceFile);
+      if (sourceName && sourceName.length <= 34) return sourceName;
+      return truncate(preferred || sourceName || node.id, 34);
+    }
+
+    function tooltipBlock(title, rows, footer) {
+      const root = document.createElement("div");
+      root.className = "graph-tooltip";
+
+      const titleNode = document.createElement("div");
+      titleNode.className = "tooltip-title";
+      titleNode.textContent = title || "Graphify item";
+      root.appendChild(titleNode);
+
+      for (const [key, value] of rows) {
+        if (value === null || value === undefined || value === "") continue;
+        const row = document.createElement("div");
+        row.className = "tooltip-row";
+
+        const keyNode = document.createElement("div");
+        keyNode.className = "tooltip-key";
+        keyNode.textContent = key;
+
+        const valueNode = document.createElement("div");
+        valueNode.className = "tooltip-value";
+        valueNode.textContent = String(value);
+
+        row.appendChild(keyNode);
+        row.appendChild(valueNode);
+        root.appendChild(row);
+      }
+
+      if (footer) {
+        const footerNode = document.createElement("div");
+        footerNode.className = "tooltip-footer";
+        footerNode.textContent = footer;
+        root.appendChild(footerNode);
+      }
+
+      return root;
+    }
+
+    function nodeTooltip(node) {
+      return tooltipBlock(nodeDisplayLabel(node), [
+        ["Kind", readableType(node.fileType)],
+        ["File", node.sourceFile || node.id],
+        ["Location", node.sourceLocation || ""],
+        ["Community", `community ${node.community}`],
+        ["Links", `${formatNumber(node.degree)} graph links`],
+        ["Source", node.openPath ? "Open Source available" : ""]
+      ], "Click to inspect. Double-click for neighborhood.");
+    }
+
+    function edgeTooltip(edge) {
+      const fromNode = byId.get(edge.from);
+      const toNode = byId.get(edge.to);
+      return tooltipBlock(edge.relation || "Graph relation", [
+        ["From", fromNode ? nodeDisplayLabel(fromNode) : edge.from],
+        ["To", toNode ? nodeDisplayLabel(toNode) : edge.to],
+        ["File", edge.sourceFile || ""],
+        ["Location", edge.sourceLocation || ""],
+        ["Confidence", edge.confidence || ""]
+      ], "Relation discovered by Graphify.");
+    }
+
     function colorFor(value) {
       const [border, background] = palette[hash(value) % palette.length];
       return {
@@ -2501,6 +2775,60 @@ def graphify_explorer_html() -> str:
       return relationPalette[hash(edge.relation) % relationPalette.length];
     }
 
+    function activeProfile() {
+      return PERFORMANCE_PROFILES[activeProfileId] || PERFORMANCE_PROFILES["all-orbit"];
+    }
+
+    function profileForVisible(visibleCount) {
+      if (neighborhoodRoot || visibleCount <= 120) return "neighborhood";
+      if (visibleCount > 1500) return "all-orbit";
+      return "focused";
+    }
+
+    function updatePerformanceHud() {
+      const profile = activeProfile();
+      elements.profileMetric.textContent = profile.label;
+      elements.renderMetric.textContent = `${Math.round(lastRenderMs)}ms`;
+      elements.physicsMetric.textContent = physicsState;
+      elements.physics.textContent = physicsRunning ? "Physics" : "Frozen";
+    }
+
+    function profileOptions() {
+      const profile = activeProfile();
+      return {
+        nodes: {
+          shape: "dot",
+          scaling: { min: 5, max: profile.nodeValueMax },
+          shadow: profile.nodeShadow
+            ? { enabled: true, color: "rgba(0, 0, 0, 0.34)", size: 9, x: 0, y: 3 }
+            : false
+        },
+        edges: {
+          arrows: { to: { enabled: false } },
+          selectionWidth: 1.15,
+          hoverWidth: profile.hover ? 1.2 : 0,
+          chosen: {
+            edge(values) {
+              values.width = Math.min(Number(values.width) || 1, 1.1);
+              values.color = "rgba(103, 232, 249, 0.72)";
+            }
+          },
+          smooth: profile.edgeSmooth
+        },
+        interaction: {
+          hover: profile.hover,
+          tooltipDelay: profile.tooltipDelay,
+          hideEdgesOnDrag: true,
+          multiselect: false,
+          keyboard: true
+        },
+        physics: {
+          ...profile.physics,
+          enabled: physicsRunning
+        }
+      };
+    }
+
     function nodeMatchesSearch(node, query) {
       if (!query) return true;
       return [node.label, node.normLabel, node.id, node.sourceFile, node.fileType, node.community]
@@ -2508,14 +2836,15 @@ def graphify_explorer_html() -> str:
     }
 
     function decorateNode(node) {
-      const label = labelsEnabled ? truncate(node.label, 34) : "";
+      const profile = activeProfile();
+      const label = labelsEnabled ? nodeDisplayLabel(node) : "";
       return {
         id: node.id,
         label,
-        title: `<strong>${escapeHtml(node.label)}</strong><br>${escapeHtml(node.sourceFile || node.id)}`,
+        title: nodeTooltip(node),
         group: node.community,
-        value: Math.max(5, Math.min(44, node.value || 5)),
-        mass: Math.max(1, Math.min(4.5, 1 + (node.degree || 0) / 18)),
+        value: Math.max(5, Math.min(profile.nodeValueMax, node.value || 5)),
+        mass: Math.max(1, Math.min(4.5, 1 + (node.degree || 0) / profile.massScale)),
         shape: "dot",
         borderWidth: selectedId === node.id ? 3 : 1.4,
         color: colorFor(node.community || node.fileType),
@@ -2530,22 +2859,18 @@ def graphify_explorer_html() -> str:
     }
 
     function decorateEdge(edge) {
-      const title = [
-        edge.relation,
-        edge.sourceFile ? `${edge.sourceFile}${edge.sourceLocation ? ` ${edge.sourceLocation}` : ""}` : "",
-        edge.confidence ? `confidence: ${edge.confidence}` : ""
-      ].filter(Boolean).map(escapeHtml).join("<br>");
+      const profile = activeProfile();
       return {
         from: edge.from,
         to: edge.to,
-        title,
-        width: Math.max(0.45, Math.min(2.4, Number(edge.weight) || 1)),
+        title: edgeTooltip(edge),
+        width: Math.max(0.4, Math.min(profile.edgeWidthMax, Number(edge.weight) || 1)),
         color: {
           color: edgeColor(edge),
           highlight: "#67e8f9",
           hover: "#86efac"
         },
-        smooth: { type: "dynamic" }
+        smooth: profile.edgeSmooth
       };
     }
 
@@ -2559,7 +2884,10 @@ def graphify_explorer_html() -> str:
       }
       const visible = new Set();
       for (const node of RAW_NODES) {
-        if (allowedByNeighborhood && !allowedByNeighborhood.has(node.id)) continue;
+        if (allowedByNeighborhood) {
+          if (allowedByNeighborhood.has(node.id)) visible.add(node.id);
+          continue;
+        }
         if (community !== "all" && node.community !== community) continue;
         if ((node.degree || 0) < minDegree) continue;
         if (!nodeMatchesSearch(node, query)) continue;
@@ -2572,52 +2900,105 @@ def graphify_explorer_html() -> str:
     const edges = new vis.DataSet();
     const options = {
       autoResize: true,
-      nodes: {
-        shape: "dot",
-        scaling: { min: 5, max: 42 },
-        shadow: { enabled: true, color: "rgba(0, 0, 0, 0.34)", size: 9, x: 0, y: 3 }
-      },
-      edges: {
-        arrows: { to: { enabled: false } },
-        selectionWidth: 1.25,
-        hoverWidth: 1.25,
-        chosen: {
-          edge(values) {
-            values.width = Math.min(Number(values.width) || 1, 1.1);
-            values.color = "rgba(103, 232, 249, 0.72)";
-          }
-        }
-      },
-      interaction: {
-        hover: true,
-        tooltipDelay: 90,
-        hideEdgesOnDrag: true,
-        multiselect: false,
-        keyboard: true
-      },
-      physics: {
-        enabled: true,
-        solver: "forceAtlas2Based",
-        stabilization: { enabled: true, iterations: 95, fit: true },
-        forceAtlas2Based: {
-          gravitationalConstant: -58,
-          centralGravity: 0.016,
-          springLength: 92,
-          springConstant: 0.054,
-          damping: 0.43,
-          avoidOverlap: 0.34
-        },
-        maxVelocity: 38,
-        minVelocity: 0.55
-      }
+      ...profileOptions()
     };
 
     let network = null;
 
+    function runningPhysicsState() {
+      return "running";
+    }
+
+    function clearPhysicsTimers() {
+      if (autoFreezeTimer) {
+        window.clearTimeout(autoFreezeTimer);
+        autoFreezeTimer = null;
+      }
+    }
+
+    function applyProfileOptions() {
+      if (network) network.setOptions(profileOptions());
+      updatePerformanceHud();
+    }
+
+    function freezePhysics(state = "frozen") {
+      if (!network) return;
+      if (!physicsRunning && physicsState === state) return;
+      clearPhysicsTimers();
+      physicsRunning = false;
+      physicsState = state;
+      network.setOptions({ physics: { enabled: false } });
+      updatePerformanceHud();
+    }
+
+    function startPhysics() {
+      if (!network) return;
+      clearPhysicsTimers();
+      physicsRunning = true;
+      physicsState = runningPhysicsState();
+      applyProfileOptions();
+      if (typeof network.startSimulation === "function") {
+        network.startSimulation();
+      }
+      const freezeMs = activeProfile().autoFreezeMs;
+      if (freezeMs) {
+        autoFreezeTimer = window.setTimeout(() => freezePhysics("settled"), freezeMs);
+      }
+      updatePerformanceHud();
+    }
+
+    function handlePhysicsStabilized() {
+      if (!physicsRunning) return;
+      if (activeProfile().freezeOnStabilized === false) {
+        physicsState = "stabilized";
+        updatePerformanceHud();
+        return;
+      }
+      freezePhysics("settled");
+    }
+
+    function scheduleRefresh(options = {}, delay = 90) {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = null;
+        refreshGraph(options);
+      }, delay);
+    }
+
+    function updateNodeDecoration(nodeId) {
+      if (!nodeId || !currentVisibleIds.has(nodeId) || !nodes.get(nodeId)) return;
+      const node = byId.get(nodeId);
+      if (node) nodes.update(decorateNode(node));
+    }
+
+    function selectNode(nodeId, { syncNetwork = false } = {}) {
+      const nextId = nodeId && byId.has(nodeId) && currentVisibleIds.has(nodeId) ? nodeId : null;
+      const previousId = selectedId;
+      selectedId = nextId;
+      if (previousId !== selectedId) {
+        updateNodeDecoration(previousId);
+        updateNodeDecoration(selectedId);
+      }
+      renderInspector(selectedId ? byId.get(selectedId) : null);
+      if (syncNetwork && network) {
+        if (selectedId) network.selectNodes([selectedId], false);
+        else network.unselectAll();
+      }
+    }
+
+    function clearSelection({ syncNetwork = false } = {}) {
+      selectNode(null, { syncNetwork });
+    }
+
     function refreshGraph({ fit = false } = {}) {
+      const renderStart = performance.now();
       currentVisibleIds = visibleNodeSet();
       const visibleNodes = RAW_NODES.filter((node) => currentVisibleIds.has(node.id));
       const visibleEdges = RAW_EDGES.filter((edge) => currentVisibleIds.has(edge.from) && currentVisibleIds.has(edge.to));
+      activeProfileId = profileForVisible(visibleNodes.length);
+      physicsRunning = true;
+      physicsState = runningPhysicsState();
+      applyProfileOptions();
 
       nodes.clear();
       edges.clear();
@@ -2629,15 +3010,24 @@ def graphify_explorer_html() -> str:
       elements.totalNodes.textContent = formatNumber(STATS.nodeCount);
       elements.totalCommunities.textContent = formatNumber(STATS.communityCount);
       elements.subtitle.textContent = `${formatNumber(visibleNodes.length)} of ${formatNumber(STATS.nodeCount)} nodes visible`;
+      lastRenderMs = performance.now() - renderStart;
 
       if (selectedId && !currentVisibleIds.has(selectedId)) {
         selectedId = null;
+        if (network) network.unselectAll();
       }
       renderInspector(selectedId ? byId.get(selectedId) : null);
+      if (network && selectedId) {
+        network.selectNodes([selectedId], false);
+      }
 
       if (network && fit) {
         network.fit({ animation: { duration: 620, easingFunction: "easeInOutQuad" } });
       }
+      if (network) {
+        startPhysics();
+      }
+      updatePerformanceHud();
     }
 
     function sortedNeighbors(nodeId) {
@@ -2670,6 +3060,12 @@ def graphify_explorer_html() -> str:
             <span>${escapeHtml(relations || neighbor.fileType || neighbor.community)}</span>
           </button>`;
       }).join("");
+      const sourceAction = node.openPath ? `
+        <div class="actions">
+          <button class="button inspector-action primary" type="button" data-open-source-path="${escapeHtml(node.openPath)}" data-open-source-label="${escapeHtml(node.label)}">
+            Open Source
+          </button>
+        </div>` : "";
 
       elements.inspector.innerHTML = `
         <h1 class="panel-title">${escapeHtml(node.label)}</h1>
@@ -2679,6 +3075,7 @@ def graphify_explorer_html() -> str:
           <span class="chip">community ${escapeHtml(node.community)}</span>
           <span class="chip">${formatNumber(node.degree)} links</span>
         </div>
+        ${sourceAction}
         <div class="section">
           <h2>Node</h2>
           <dl class="kv">
@@ -2702,17 +3099,27 @@ def graphify_explorer_html() -> str:
 
     function focusNode(nodeId, { neighborhood = false } = {}) {
       if (!nodeId || !byId.has(nodeId)) return;
-      selectedId = nodeId;
+      const hiddenByFilters = !currentVisibleIds.has(nodeId);
+      if (hiddenByFilters && !neighborhood) {
+        elements.search.value = "";
+        elements.community.value = "all";
+        elements.degree.value = "0";
+        elements.degreeValue.textContent = "0+";
+        neighborhoodRoot = null;
+      }
       if (neighborhood) {
         neighborhoodRoot = nodeId;
       }
-      refreshGraph({ fit: neighborhood });
-      network.selectNodes([nodeId]);
-      network.focus(nodeId, {
+      const needsRefresh = neighborhood || hiddenByFilters;
+      if (needsRefresh) {
+        selectedId = nodeId;
+        refreshGraph({ fit: neighborhood });
+      }
+      selectNode(nodeId, { syncNetwork: true });
+      if (network) network.focus(nodeId, {
         scale: 1.25,
         animation: { duration: 700, easingFunction: "easeInOutQuad" }
       });
-      renderInspector(byId.get(nodeId));
     }
 
     function bestSearchMatch() {
@@ -2734,7 +3141,7 @@ def graphify_explorer_html() -> str:
       elements.degree.value = "0";
       elements.degreeValue.textContent = "0+";
       neighborhoodRoot = null;
-      selectedId = null;
+      clearSelection({ syncNetwork: true });
       refreshGraph({ fit: true });
     }
 
@@ -2770,27 +3177,30 @@ def graphify_explorer_html() -> str:
       refreshGraph({ fit: true });
 
       network.on("selectNode", (event) => {
-        selectedId = event.nodes[0] || null;
-        renderInspector(selectedId ? byId.get(selectedId) : null);
-        refreshGraph();
+        selectNode(event.nodes[0] || null);
       });
       network.on("deselectNode", () => {
-        selectedId = null;
-        renderInspector(null);
-        refreshGraph();
+        clearSelection();
       });
       network.on("doubleClick", (event) => {
         const nodeId = event.nodes && event.nodes[0];
         if (nodeId) focusNode(nodeId, { neighborhood: true });
       });
+      network.on("stabilizationIterationsDone", handlePhysicsStabilized);
+      network.on("stabilized", handlePhysicsStabilized);
 
       elements.search.addEventListener("input", () => {
         neighborhoodRoot = null;
-        refreshGraph({ fit: false });
+        scheduleRefresh({ fit: false }, 120);
       });
       elements.search.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
+          if (refreshTimer) {
+            window.clearTimeout(refreshTimer);
+            refreshTimer = null;
+            refreshGraph({ fit: false });
+          }
           const match = bestSearchMatch();
           if (match) focusNode(match.id);
         }
@@ -2801,7 +3211,7 @@ def graphify_explorer_html() -> str:
       });
       elements.degree.addEventListener("input", () => {
         elements.degreeValue.textContent = `${elements.degree.value}+`;
-        refreshGraph();
+        scheduleRefresh({ fit: false }, 90);
       });
       elements.focus.addEventListener("click", () => {
         const match = bestSearchMatch();
@@ -2821,15 +3231,28 @@ def graphify_explorer_html() -> str:
         refreshGraph();
       });
       elements.physics.addEventListener("click", () => {
-        physicsEnabled = !physicsEnabled;
-        network.setOptions({ physics: { enabled: physicsEnabled } });
-        elements.physics.textContent = physicsEnabled ? "Physics" : "Frozen";
+        if (physicsRunning) {
+          freezePhysics("frozen");
+        } else {
+          startPhysics();
+        }
       });
       elements.fit.addEventListener("click", () => network.fit({ animation: { duration: 620, easingFunction: "easeInOutQuad" } }));
       elements.reset.addEventListener("click", resetView);
       elements.inspector.addEventListener("click", (event) => {
         const button = event.target instanceof Element ? event.target.closest("[data-node-id]") : null;
-        if (button) focusNode(button.getAttribute("data-node-id"));
+        if (button) {
+          focusNode(button.getAttribute("data-node-id"));
+          return;
+        }
+        const sourceButton = event.target instanceof Element ? event.target.closest("[data-open-source-path]") : null;
+        if (sourceButton) {
+          window.parent.postMessage({
+            type: "graphify:open-path",
+            path: sourceButton.getAttribute("data-open-source-path"),
+            label: sourceButton.getAttribute("data-open-source-label") || "Graphify source"
+          }, "*");
+        }
       });
     }
 
