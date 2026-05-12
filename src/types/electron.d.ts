@@ -161,6 +161,36 @@ export interface DiagnosticsMissionDrillResult {
   errors: string[];
 }
 
+export interface DiagnosticsDataFootprintResult {
+  dataRoot: string;
+  dbPath: string;
+  dataDirBytes: number | null;
+  dbBytes: number | null;
+  warningThresholdBytes: number;
+  isHeavy: boolean;
+  detail: string;
+}
+
+export interface DiagnosticsProcessMetric {
+  pid: number;
+  type: string;
+  serviceName?: string;
+  cpuPercent: number;
+  idleWakeupsPerSecond: number;
+  workingSetBytes: number;
+}
+
+export interface DiagnosticsPerformanceSnapshotResult {
+  capturedAt: string;
+  processes: DiagnosticsProcessMetric[];
+  totals: {
+    cpuPercent: number;
+    workingSetBytes: number;
+    rendererCount: number;
+    gpuCount: number;
+  };
+}
+
 export interface DevServiceStatus {
   ok: boolean;
   url: string;
@@ -414,6 +444,8 @@ export interface ElectronAPI {
     checkCommands: (commands: string[], options?: { cwd?: string; shell?: string }) => Promise<DiagnosticsCommandStatus[]>;
     shellSmokeTest: (cwd: string, shell?: string) => Promise<DiagnosticsShellSmokeTestResult>;
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) => Promise<DiagnosticsMissionDrillResult>;
+    getDataFootprint: (workspacePath: string) => Promise<DiagnosticsDataFootprintResult>;
+    getPerformanceSnapshot: () => Promise<DiagnosticsPerformanceSnapshotResult>;
     launchCodexLogin: () => Promise<{ success: boolean; command: string; error?: string }>;
   };
     agentLoop: {

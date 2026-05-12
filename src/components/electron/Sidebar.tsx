@@ -26,6 +26,7 @@ import {
 import { hyperliquidService, type HyperliquidMarketRow } from '../../services/hyperliquidService';
 import { buildOverviewTrapDecisions, type TrapAction, type TrapDecision, type TrapSide } from '@/features/liquidations/trapDecisions';
 import { useMarketPolling } from '@/hooks/useMarketPolling';
+import { usePerformanceProfile } from '@/hooks/usePerformanceProfile';
 import { TRADING_STATIONS, isStationRoute, type StationDefinition } from '@/features/stations/stationRegistry';
 
 const ICONS: Record<string, string> = {
@@ -45,6 +46,7 @@ function isPrimaryHedgeFundDesk(workspace: Workspace): boolean {
 }
 
 export const Sidebar: React.FC = () => {
+  const performanceProfile = usePerformanceProfile();
   const {
     workspaces,
     activeWorkspace,
@@ -66,7 +68,7 @@ export const Sidebar: React.FC = () => {
   const [hasLiquidationSnapshot, setHasLiquidationSnapshot] = useState(false);
   const [isLiquidationsCollapsed, setIsLiquidationsCollapsed] = usePersistedBoolean(
     'hedge-station:sidebar:liquidation-traps-collapsed',
-    false
+    performanceProfile !== 'full'
   );
   const [areLaunchProfilesCollapsed, setAreLaunchProfilesCollapsed] = usePersistedBoolean(
     'hedge-station:sidebar:launch-profiles-collapsed',
@@ -94,7 +96,7 @@ export const Sidebar: React.FC = () => {
         updatedAt: overview.updatedAt
       };
     },
-    { intervalMs: 30_000, staleAfterMs: 90_000 }
+    { intervalMs: 30_000, staleAfterMs: 90_000, enabled: !isLiquidationsCollapsed }
   );
 
   useEffect(() => {

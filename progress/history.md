@@ -1026,6 +1026,67 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-11 - BTC YouTube Stream Focus Fix
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced `/btc` YouTube embed streams with focused first-party watch
+  webviews to avoid error `152-4`, injected CSS/JS to hide YouTube page chrome
+  and make the player fill the panel, kept mute reinforcement, and switched
+  external-open links to watch URLs.
+- Evidence:
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx`,
+  `progress/impl_btc_youtube_stream_focus_fix.md`, `agent_tasks.json`, and
+  `progress/current.md`.
+- Verification: `rtk npm run build`, `rtk git diff --check`, and
+  `rtk npm run agent:check` passed. Source search confirms `/btc` no longer
+  uses a YouTube embed path. `rtk npx tsc --noEmit` still fails on existing
+  non-BTC errors and reports no BTC page errors.
+- Status: done. Backend Pine endpoint, strategy logic, paper runtime,
+  credentials, and order routing were not changed.
+
+---
+
+## 2026-05-11 - BTC Layout Flexibility Polish
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Refined `/btc` so the workbench feels more moldable: the layout now
+  uses a v2 24-column grid with smaller row height, tighter margins,
+  video/TV/mosaic presets, edit-mode +/- controls per panel, and larger visible
+  resize handles for corner, right-edge, and bottom-edge resizing.
+- Evidence:
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx`,
+  `progress/impl_btc_layout_flexibility_polish.md`, `agent_tasks.json`, and
+  `progress/current.md`.
+- Verification: `rtk npm run build`, `rtk git diff --check`, and
+  `rtk npm run agent:check` passed. `rtk npx tsc --noEmit` still fails on
+  existing non-BTC errors and reports no BTC page errors.
+- Status: done. YouTube error 152-4 was intentionally left out of scope.
+
+---
+
+## 2026-05-10 - BTC Flexible Workbench
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Rebuilt `/btc` as a configurable workbench with persisted
+  drag/resize layout, edit/lock and reset controls, video visibility toggles,
+  muted clean YouTube embeds, and Pine AI Lab as a hidden drawer that can be
+  pinned into the board.
+- Evidence:
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx`, `package.json`,
+  `package-lock.json`, `agent_tasks.json`, `progress/current.md`, and
+  `progress/impl_btc_flexible_workbench.md`.
+- Verification: `rtk npm run build`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and a `/btc` renderer shell probe passed.
+  `rtk npx tsc --noEmit` still fails on existing non-BTC errors. Full visual
+  smoke remains manual because Browser/Playwright automation was unavailable.
+- Status: done. UI-only change; backend Pine endpoint, strategy logic, paper
+  runtime, credentials, and order routing were not changed.
+
+---
+
 ## 2026-05-10 - Strategy Memory Graph Explorer
 
 - Agent: Codex
@@ -1106,3 +1167,269 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Memory updated by folding Caveman into the existing
   token-discipline decision. No context/memory compression, global hooks,
   backend strategy logic, credentials, or broker/order side effects changed.
+
+---
+
+## 2026-05-11 - Calendar Compact Desk Redesign
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Rebuilt `/calendar` as a compact macro review desk with a sticky top
+  strip, week/hour concentration map, dense event table, Focus/All/impact,
+  currency, search, and time-bucket filters, compact alert chips, and right rail
+  tabs for Brief, Checklist, News, and Holidays.
+- Evidence:
+  `src/features/cockpit/pages/EconomicCalendarPage.tsx`,
+  `progress/impl_calendar_compact_desk_redesign.md`, and
+  `progress/current.md`.
+- Verification: `rtk npm run build` and `rtk git diff --check` passed. Desktop
+  Electron smoke on `/calendar` passed for layout, cell filtering, and Low
+  filter behavior. Narrow headless smoke was partial because Chrome captured the
+  app shell spinner before route content loaded.
+- Status: done. UI-only change; backend API contracts, strategy logic, paper
+  runtime, credentials, and order routing were not changed.
+
+---
+
+## 2026-05-11 - Calendar Local Timezone Display
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added a persisted `Time` selector to `/calendar` so the operator can
+  review macro events in their local timezone. Default is the browser/system
+  timezone with `America/Santiago` fallback; the map, table, Today/Tomorrow
+  counts, search text, and stand-aside fallback rows now derive from the selected
+  timezone.
+- Evidence:
+  `src/features/cockpit/pages/EconomicCalendarPage.tsx`,
+  `progress/impl_calendar_local_timezone_display.md`, and
+  `progress/current.md`.
+- Verification: `rtk npm run build` passed. Electron `/calendar` smoke showed
+  `Time: Chile`, local event times, and the existing compact map/table layout.
+  Raw `curl` was used once to inspect exact calendar `date_time` payloads
+  because RTK compresses JSON values.
+- Status: done. UI-only change; backend API contracts, strategy logic, paper
+  runtime, credentials, IPC, and order routing were not changed.
+
+---
+
+## 2026-05-11 - Calendar Warning Density Polish
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Compressed `/calendar` warning presentation so useful calendar data
+  appears sooner. Large raw notices were replaced with compact status pills,
+  technical warning text was filtered out of the primary summary, and warning,
+  critical-day, and stand-aside details moved into the right rail.
+- Evidence:
+  `src/features/cockpit/pages/EconomicCalendarPage.tsx`,
+  `progress/impl_calendar_warning_density_polish.md`, and
+  `progress/current.md`.
+- Verification: `rtk npm run build` passed. Electron `/calendar` smoke showed
+  compact top-strip status pills and the week/hour map immediately below the
+  top strip.
+- Status: done. UI-only change; backend API contracts, strategy logic, paper
+  runtime, credentials, IPC, and order routing were not changed.
+
+---
+
+## 2026-05-11 - Memory Route Split
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Split the Strategy Memory and Graphify surfaces so `/memory` loads
+  only strategy catalog, learning events, and Obsidian graph data, while the
+  new `/repo-graph` route owns Graphify status, artifact actions, and iframe
+  mounting.
+- Evidence:
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/features/memory/pages/RepoGraphPage.tsx`,
+  `src/features/cockpit/WidgetPanel.tsx`, `src/pages/index.ts`,
+  `src/features/README.md`,
+  `docs/operations/agents/graph-memory-operating-system.md`,
+  `graphify-out/`, `progress/impl_memory_route_split.md`, and harness updates.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, and
+  `rtk git diff --check` passed. `rtk npm run graph:build` regenerated
+  Graphify to 4298 nodes, 6867 edges, and 249 communities; `rtk npm run
+  graph:check` passed. Chrome headless smoke confirmed `/memory` made no
+  Graphify requests and mounted 0 Graphify iframes, while `/repo-graph`
+  requested Graphify status/explorer and mounted 1 iframe.
+- Status: done. UI/docs/harness change only; backend Graphify endpoints,
+  readiness route to `/memory`, strategy logic, paper runtime, credentials,
+  IPC contracts, and order routing were not changed.
+
+---
+
+## 2026-05-11 - Graphify Full Graph Fluency
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Optimized `/repo-graph` full-graph rendering without dropping the
+  gravity/orbital feel. The complete graph now uses deterministic
+  community/globe-seeded `world-orbit`, longer bounded `forceAtlas2Based`
+  settling, restored old-style central gravity/spring/damping behavior, an
+  expanded orbital seed shell, explicit complete stabilization, final
+  auto-framing with post-fit scale-out, polished visuals after settle, a light
+  ambient orbital flow, and in-place label toggles instead of full dataset
+  rebuilds. The control is `Reflow`, not a pause/resume toggle.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_graphify_memory_status.py`,
+  `progress/impl_graphify_full_graph_fluency.md`, and `progress/current.md`.
+- Verification: `rtk npm run agent:check`, targeted Graphify unittest,
+  `rtk npm run build`, `rtk npm run gateway:restart`, `rtk npm run
+  gateway:probe`, and `rtk git diff --check` passed. Browser smoke confirmed
+  4,298 nodes, 6,867 edges, profile `world-orbit`, canvas present, ambient
+  flow overlay present, initial `settling`, final `flowing`, button `Reflow`,
+  no Frozen/Resume UI, no console errors, and working Search, Focus,
+  Neighborhood, Labels, Fit, Reset, and Open Source visibility.
+- Status: done. `graphify-out/` was intentionally unchanged; backend Graphify
+  status contracts, renderer service types, strategy logic, paper runtime,
+  credentials, IPC contracts, and order routing were not changed.
+
+---
+
+## 2026-05-12 - Compact Vertical Navigation
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced the crowded horizontal route tabs with a fixed 52px left
+  rail, moved route metadata into a lightweight shared module, moved
+  `BrowserRouter` up to the app shell, kept the existing workspace sidebar as a
+  separate collapsible panel, preserved route lifecycle telemetry, and
+  compressed the `Hedge Fund Station` header into a 34px status strip.
+- Evidence:
+  `src/components/electron/AppNavRail.tsx`,
+  `src/features/cockpit/navigation.ts`,
+  `src/components/electron/ElectronLayout.tsx`,
+  `src/features/cockpit/WidgetPanel.tsx`, `src/App.tsx`, and
+  `progress/impl_compact_vertical_navigation.md`.
+- Verification: `rtk npm run build`, `rtk npm run perf:budget`,
+  `rtk npm run agent:check`, and `rtk git diff --check` passed. Browser smoke
+  at `http://localhost:5173` confirmed 18 route buttons plus brand link, no
+  horizontal content tabs, default route with 0 webviews, `/btc` with 4 webviews
+  and the `3 videos` control, working workspace collapse/expand, and working
+  route click to `/settings`.
+- Status: done. `/btc` still preserves TradingView plus all three streams by
+  default. Backend trading logic, strategy logic, paper runtime, credentials,
+  IPC trading contracts, and order routing were not changed.
+
+---
+
+## 2026-05-12 - Graphify Full Graph Fluency Continuation
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Continued the interrupted `/repo-graph` performance/gravity task and
+  confirmed the restored `world-orbit` gravity animation was already complete.
+  No code changes were required; only the handoff/current/history evidence was
+  refreshed with today's verification.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_graphify_memory_status.py`,
+  `progress/impl_graphify_full_graph_fluency.md`, and `progress/current.md`.
+- Verification: `rtk npm run agent:brief`, `rtk npm run agent:check`,
+  targeted Graphify unittest, `rtk npm run build`, `rtk npm run
+  gateway:restart`, `rtk npm run gateway:probe`, and browser smoke passed.
+  Browser smoke confirmed 4,298 nodes, 6,867 edges, profile `world-orbit`,
+  `settling` to `flowing`, no Frozen/Resume UI, no console errors, and working
+  Search, Focus, Neighborhood, Labels, Fit, Reset, and Open Source visibility.
+- Status: done. `graphify-out/` was intentionally unchanged; backend Graphify
+  status contracts, renderer service types, strategy logic, paper runtime,
+  credentials, IPC contracts, and order routing were not changed.
+
+---
+
+## 2026-05-12 - BTC Daily Performance Automation
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Optimized `/btc` while preserving the operator's preferred default:
+  TradingView plus all three YouTube streams visible. Added `Focus` mode to load
+  only TradingView plus one selected stream, split Pine AI Lab and
+  `lightweight-charts` into a lazy chunk, removed the permanent YouTube mute
+  interval, added best-effort webview cleanup, and extended local telemetry with
+  `webview` and `fps` events.
+- Evidence:
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx`,
+  `src/features/cockpit/pages/BtcPineLabPanel.tsx`,
+  `src/services/performanceTelemetry.ts`,
+  `progress/impl_btc_daily_performance_automation.md`, and
+  `progress/current.md`.
+- Verification: `rtk npm run build`, `rtk npm run perf:budget`,
+  `rtk npm run agent:check`, and `rtk git diff --check` passed. Browser smoke
+  on `/btc` confirmed default reload mounts 4 webviews, Focus mode mounts 2,
+  and restoring all videos mounts 4. BTC route chunk improved from baseline
+  `435.25 KB` to `188.29 KB`; Pine Lab is now a separate `256.59 KB` lazy
+  chunk.
+- Status: done. UI performance behavior only; no backend APIs, strategy logic,
+  paper runtime, credentials, IPC contracts, or order routing changed.
+
+---
+
+## 2026-05-12 - Daily Light Performance Optimization
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added a default `daily-light` performance profile, profile-aware
+  polling, collapsed-sidebar polling suppression, diagnostics data-footprint
+  warnings, and stricter performance budget guards. After operator correction,
+  `/btc` now preserves the required trading default of TradingView plus all
+  three YouTube streams visible, with `Focus` kept as a manual low-load fallback.
+  Hidden/minimized webviews suspend to `about:blank` without rewriting the saved
+  three-video layout, the frame guard now waits for warmup plus sustained severe
+  pressure before reducing media, route changes clean up media guests, and
+  terminal voice input is opt-in so Gemini voice does not load on normal
+  terminal navigation.
+- Evidence:
+  `src/utils/appSettings.ts`, `src/hooks/usePerformanceProfile.ts`,
+  `src/hooks/useMarketPolling.ts`, `src/features/cockpit/pages/BtcAnalysisPage.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/features/diagnostics/pages/DiagnosticsPage.tsx`,
+  `electron/main/native/diagnostics-manager.ts`,
+  `scripts/perf-budget.mjs`, and
+  `progress/impl_daily_light_performance_optimization.md`.
+- Verification: `rtk npm run build`, `rtk npm run perf:budget`,
+  `rtk npm run agent:check`, and `rtk git diff --check` passed. Budget reported
+  the initial renderer chunk at `472.15 KB`, no heavy initial markers, BTC
+  three-video default guard, hidden webview suspension guard, Gemini voice
+  opt-in guard, data dir `723.81 MB`, and `hyperliquid.db` `714.67 MB`. Live
+  Electron smoke confirmed `/btc` shows `3 videos · 3 mounted`; navigating away
+  from `/btc` removed extra media renderers and dropped GPU CPU to `0.0%` in the
+  process sample.
+- Status: done. Backend trading logic, strategy logic, paper runtime,
+  credentials, IPC trading contracts, and order routing were not changed.
+
+---
+
+## 2026-05-12 - Deep Daily Performance Optimization
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Continued performance work without removing trading information.
+  `/btc` still defaults to TradingView plus all three videos. Electron now uses
+  a single media request-blocking pipeline for `persist:youtube` and
+  `persist:tradingview`, combining local ad/tracker rules with the Ghostery
+  engine in the same callback so Electron `webRequest` listeners do not
+  overwrite each other. BTC videos now get profile-aware YouTube playback
+  quality hints instead of being hidden, Diagnostics exposes Electron process
+  CPU/RSS via `app.getAppMetrics()`, and `perf:budget` guards the new blockers
+  and quality control.
+- Evidence:
+  `electron/main/index.ts`,
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx`,
+  `electron/main/native/diagnostics-manager.ts`,
+  `src/features/diagnostics/pages/DiagnosticsPage.tsx`,
+  `scripts/perf-budget.mjs`, and
+  `progress/impl_deep_daily_performance_optimization.md`.
+- Verification: `rtk npm run build`, `rtk npm run perf:budget`,
+  `rtk npm run agent:check`, and `rtk git diff --check` passed. Budget reported
+  initial renderer `472.15 KB`, no forbidden heavy markers, BTC three-video
+  default guard, hidden webview suspension guard, Gemini voice opt-in guard,
+  media request blocker guard, and YouTube quality control guard. `rtk npx tsc
+  --noEmit` still fails on existing unrelated repo errors; the new diagnostics
+  CPU type error found during this pass was fixed. Dev app was started at
+  `http://localhost:5173`; idle startup process sample showed Electron main,
+  GPU, network utility, and renderer at `0.0%` CPU.
+- Status: done. Backend trading logic, strategy logic, paper runtime,
+  credentials, IPC trading contracts, and order routing were not changed.

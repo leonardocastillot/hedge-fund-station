@@ -5,6 +5,7 @@ import {
   type ServiceResult
 } from '@/services/requestCache';
 import { recordTelemetry } from '@/services/performanceTelemetry';
+import { getHiddenPollingDelay, scalePollingInterval, usePerformanceProfile } from '@/hooks/usePerformanceProfile';
 
 interface UseMarketPollingOptions {
   enabled?: boolean;
@@ -43,6 +44,7 @@ export function useMarketPolling<T>(
   const [result, setResult] = useState<ServiceResult<T>>(() => createServiceResult<T>(null, 'idle'));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [failureCount, setFailureCount] = useState(0);
+  const performanceProfile = usePerformanceProfile();
   const fetcherRef = useRef(fetcher);
   const resultRef = useRef(result);
   const mountedRef = useRef(true);
@@ -127,16 +129,18 @@ export function useMarketPolling<T>(
     }
 
     let timeoutId: number | null = null;
+    const visibleIntervalMs = scalePollingInterval(intervalMs, performanceProfile);
+    const hiddenDelayMs = getHiddenPollingDelay(intervalMs, performanceProfile);
 
     const schedule = () => {
       if (!mountedRef.current || !enabled) {
         return;
       }
       if (document.hidden) {
-        timeoutId = window.setTimeout(schedule, Math.max(intervalMs, 60_000));
+        timeoutId = window.setTimeout(schedule, hiddenDelayMs);
         return;
       }
-      const delay = backoffDelay(intervalMs, failureCount);
+      const delay = backoffDelay(visibleIntervalMs, failureCount);
       timeoutId = window.setTimeout(async () => {
         await refresh();
         schedule();
@@ -155,7 +159,7 @@ export function useMarketPolling<T>(
         window.clearTimeout(timeoutId);
       }
     };
-  }, [enabled, failureCount, intervalMs, refresh, runImmediately]);
+  }, [enabled, failureCount, intervalMs, performanceProfile, refresh, runImmediately]);
 
   useEffect(() => {
     if (!result.fetchedAt || result.status !== 'ready') {

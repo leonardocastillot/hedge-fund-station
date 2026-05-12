@@ -111,6 +111,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('diagnostics:shellSmokeTest', { cwd, shell }),
     runMissionDrill: (workspaceName: string, workspacePath: string, commands: string[], vaultPath?: string, shell?: string) =>
       ipcRenderer.invoke('diagnostics:runMissionDrill', { workspaceName, workspacePath, commands, vaultPath, shell }),
+    getDataFootprint: (workspacePath: string) =>
+      ipcRenderer.invoke('diagnostics:getDataFootprint', { workspacePath }),
+    getPerformanceSnapshot: () =>
+      ipcRenderer.invoke('diagnostics:getPerformanceSnapshot'),
     launchCodexLogin: () =>
       ipcRenderer.invoke('diagnostics:launchCodexLogin')
   },

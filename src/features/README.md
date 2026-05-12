@@ -11,10 +11,11 @@ The renderer is organized by product surface. Shared infrastructure stays in
 - `hyperliquid/` owns market intelligence and gateway data review pages.
 - `paper/` owns paper-trade and portfolio review surfaces.
 - `strategies/` owns strategy library and detail pages.
-- `memory/` owns the graph-first Strategy Memory explorer and vault sync surface.
-  It visualizes backend strategy catalog rows, repo evidence artifacts,
-  Obsidian notes, and learning events, but backend/docs/artifacts remain the
-  source of truth.
+- `memory/` owns the Strategy Memory explorer, vault sync surface, and the
+  separate Repo Graph route. `/memory` visualizes backend strategy catalog rows,
+  repo evidence artifacts, Obsidian notes, and learning events.
+  `/repo-graph` loads the heavier Graphify repository map only when needed.
+  Backend/docs/artifacts remain the source of truth.
 - `liquidations/` owns liquidation pressure review pages and local components.
 - `agents/` owns commander, fleet, mission, and knowledge-dock UI.
 - `settings/` owns operator configuration screens.
@@ -24,7 +25,7 @@ replay, persistence, validation, or paper execution, implement it in the
 backend and expose inspectable outputs to the renderer.
 
 The visible cockpit navigation is intentionally narrow: Cockpit, BTC,
-Hyperliquid, Strategies, Memory, Paper, Liquidations, Portfolio, Data,
+Hyperliquid, Strategies, Memory, Repo Graph, Paper, Liquidations, Portfolio, Data,
 Workbench, and Settings. Fixed trading stations sit above that module set.
 Routes without one of those roles should be deleted or documented as temporary
 internal review surfaces before they accumulate UI logic.

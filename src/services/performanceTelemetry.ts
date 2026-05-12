@@ -1,4 +1,4 @@
-export type TelemetryEventType = 'route' | 'api' | 'polling' | 'stale' | 'error';
+export type TelemetryEventType = 'route' | 'api' | 'polling' | 'stale' | 'error' | 'webview' | 'fps';
 
 export interface TelemetryEvent {
   id: string;

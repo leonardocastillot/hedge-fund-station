@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState, type CSSProperties } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { TerminalProvider, useTerminalContext } from './contexts/TerminalContext';
 import { WorkspaceProvider, useWorkspaceContext } from './contexts/WorkspaceContext';
 import { ContextProvider } from './contexts/ContextContext';
@@ -6,9 +7,8 @@ import { DeskHistoryProvider } from './contexts/DeskHistoryContext';
 import { AgentProfilesProvider } from './contexts/AgentProfilesContext';
 import { CommanderTasksProvider } from './contexts/CommanderTasksContext';
 import { ElectronLayout } from './components/electron/ElectronLayout';
+import { AppNavRail } from './components/electron/AppNavRail';
 import { UpdateNotification } from './components/electron/UpdateNotification';
-import { BackendStatus } from './components/electron/BackendStatus';
-import { CommandPalette } from './components/electron/CommandPalette';
 import { PreloadApiNotice } from './components/electron/PreloadApiNotice';
 import { AppErrorBoundary } from './components/ui/AppErrorBoundary';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -18,7 +18,9 @@ import {
   loadAppSettings,
   type AppSettings
 } from './utils/appSettings';
-import lcLogo from './assets/logo-lc.jpeg';
+
+const BackendStatus = lazy(() => import('./components/electron/BackendStatus').then((module) => ({ default: module.BackendStatus })));
+const CommandPalette = lazy(() => import('./components/electron/CommandPalette').then((module) => ({ default: module.CommandPalette })));
 
 function AppWithShortcuts() {
   const { createTerminal, closeTerminal, activeTerminalId } = useTerminalContext();
@@ -69,13 +71,17 @@ function AppWithShortcuts() {
   ]);
 
   return (
-    <>
-      <ElectronLayout />
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-      />
-    </>
+    <BrowserRouter>
+      <ElectronLayout navigationRail={<AppNavRail />} />
+      {isCommandPaletteOpen ? (
+        <Suspense fallback={null}>
+          <CommandPalette
+            isOpen={isCommandPaletteOpen}
+            onClose={() => setIsCommandPaletteOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+    </BrowserRouter>
   );
 }
 
@@ -123,73 +129,15 @@ function App() {
                       overflow: 'hidden'
                     }}
                   >
-                    <div
-                      style={{
-                        padding: '8px 20px',
-                        background: 'rgba(6, 10, 20, 0.4)',
-                        backdropFilter: 'blur(32px) saturate(1.3)',
-                        WebkitBackdropFilter: 'blur(32px) saturate(1.3)',
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03)',
-                        position: 'relative',
-                        zIndex: 10
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div
-                          style={{
-                            width: '38px',
-                            height: '28px',
-                            borderRadius: '6px',
-                            overflow: 'hidden',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)'
-                          }}
-                        >
-                          <img
-                            src={lcLogo}
-                            alt="LC"
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              display: 'block',
-                              opacity: 0.9
-                            }}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-                          <div
-                            style={{
-                              color: 'var(--app-text)',
-                              fontSize: '13px',
-                              fontWeight: 700,
-                              letterSpacing: '0.1em',
-                              textTransform: 'uppercase'
-                            }}
-                          >
-                            Hedge Fund Station
-                          </div>
-                          <div
-                            style={{
-                              color: 'var(--app-subtle)',
-                              fontSize: '9px',
-                              letterSpacing: '0.14em',
-                              textTransform: 'uppercase',
-                              fontFamily: "'JetBrains Mono', monospace"
-                            }}
-                          >
-                            Trading Operating System
-                          </div>
-                        </div>
-                        <BackendStatus />
+                    <div style={statusStripStyle}>
+                      <div style={statusStripLeftStyle}>
+                        <div style={compactTitleStyle}>Hedge Fund Station</div>
+                        <Suspense fallback={<BackendStatusFallback />}>
+                          <BackendStatus />
+                        </Suspense>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div style={shortcutListStyle}>
                         {[
                           { key: '⌘K', label: 'Palette' },
                           { key: '⌘T', label: 'New Term' },
@@ -201,10 +149,10 @@ function App() {
                             style={{
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '5px',
+                              gap: '4px',
                               fontSize: '9px',
                               color: 'var(--app-muted)',
-                              padding: '3px 7px',
+                              padding: '2px 6px',
                               background: 'rgba(255, 255, 255, 0.02)',
                               borderRadius: '5px',
                               border: '1px solid rgba(255, 255, 255, 0.04)',
@@ -225,7 +173,7 @@ function App() {
                             }}
                           >
                             <span style={{ color: 'var(--app-accent)', fontWeight: '600', fontSize: '10px' }}>{shortcut.key}</span>
-                            <span style={{ color: 'var(--app-subtle)' }}>{shortcut.label}</span>
+                            <span className="hidden sm:inline" style={{ color: 'var(--app-subtle)' }}>{shortcut.label}</span>
                           </div>
                         ))}
                       </div>
@@ -249,3 +197,68 @@ function App() {
 }
 
 export default App;
+
+const statusStripStyle: CSSProperties = {
+  height: '34px',
+  flex: '0 0 34px',
+  padding: '3px 12px',
+  background: 'rgba(6, 10, 20, 0.52)',
+  backdropFilter: 'blur(24px) saturate(1.2)',
+  WebkitBackdropFilter: 'blur(24px) saturate(1.2)',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.045)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '10px',
+  boxShadow: '0 2px 14px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.025)',
+  position: 'relative',
+  zIndex: 10
+};
+
+const statusStripLeftStyle: CSSProperties = {
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '9px'
+};
+
+const compactTitleStyle: CSSProperties = {
+  color: 'var(--app-subtle)',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  whiteSpace: 'nowrap'
+};
+
+const shortcutListStyle: CSSProperties = {
+  minWidth: 0,
+  display: 'flex',
+  gap: '5px',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  overflow: 'hidden'
+};
+
+function BackendStatusFallback() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '7px',
+        padding: '2px 8px',
+        borderRadius: '5px',
+        border: '1px solid rgba(148, 163, 184, 0.18)',
+        background: 'rgba(100, 116, 139, 0.1)',
+        color: '#94a3b8',
+        fontSize: '9px',
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.5px'
+      }}
+    >
+      Status
+    </div>
+  );
+}

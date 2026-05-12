@@ -5,6 +5,8 @@ export type AppThemeId =
   | 'terminal-emerald'
   | 'violet-night';
 
+export type PerformanceProfile = 'daily-light' | 'full' | 'ultra-light';
+
 export interface AppTheme {
   id: AppThemeId;
   name: string;
@@ -15,6 +17,7 @@ export interface AppTheme {
 
 export interface AppSettings {
   theme: AppThemeId;
+  performanceProfile: PerformanceProfile;
   fontSize: number;
   defaultShell: string;
   apiUrl: string;
@@ -186,6 +189,7 @@ export const APP_THEMES: AppTheme[] = [
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'obsidian-red',
+  performanceProfile: 'daily-light',
   fontSize: 14,
   defaultShell: 'powershell.exe',
   apiUrl: 'http://127.0.0.1:18001',
@@ -198,6 +202,10 @@ export function getAppTheme(themeId: AppSettings['theme']): AppTheme {
   return APP_THEMES.find((theme) => theme.id === themeId) ?? APP_THEMES[0];
 }
 
+export function normalizePerformanceProfile(value: unknown): PerformanceProfile {
+  return value === 'full' || value === 'ultra-light' ? value : 'daily-light';
+}
+
 export function normalizeAppSettings(settings: Partial<AppSettings>): AppSettings {
   const legacyTheme = settings.theme as string | undefined;
   const theme = APP_THEMES.some((item) => item.id === legacyTheme)
@@ -207,7 +215,8 @@ export function normalizeAppSettings(settings: Partial<AppSettings>): AppSetting
   return {
     ...DEFAULT_APP_SETTINGS,
     ...settings,
-    theme
+    theme,
+    performanceProfile: normalizePerformanceProfile(settings.performanceProfile)
   };
 }
 

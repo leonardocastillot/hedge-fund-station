@@ -1,10 +1,15 @@
 import { execFile, spawn } from 'child_process';
+import { app } from 'electron';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ObsidianManager } from './obsidian-manager';
 import type {
   DiagnosticsCheckCommandsParams,
   DiagnosticsCommandStatus,
+  DiagnosticsDataFootprintParams,
+  DiagnosticsDataFootprintResult,
+  DiagnosticsPerformanceSnapshotResult,
   DiagnosticsShellSmokeTestParams,
   DiagnosticsShellSmokeTestResult,
   DiagnosticsMissionDrillParams,
@@ -19,6 +24,7 @@ const PATH_PREFIX = [
   '/usr/sbin',
   '/sbin'
 ];
+const DATA_FOOTPRINT_WARNING_BYTES = 512 * 1024 * 1024;
 
 function buildEnv(): NodeJS.ProcessEnv {
   const existing = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
@@ -46,6 +52,25 @@ function shellQuote(value: string): string {
 
 function getExecutable(command: string): string {
   return command.trim().split(/\s+/)[0] || command.trim();
+}
+
+function pathSize(targetPath: string): number | null {
+  try {
+    const info = fs.statSync(targetPath);
+    if (info.isFile()) {
+      return info.size;
+    }
+    if (!info.isDirectory()) {
+      return 0;
+    }
+
+    return fs.readdirSync(targetPath, { withFileTypes: true }).reduce((total, entry) => {
+      const childSize = pathSize(path.join(targetPath, entry.name));
+      return total + (childSize ?? 0);
+    }, 0);
+  } catch {
+    return null;
+  }
 }
 
 export class DiagnosticsManager {
@@ -195,6 +220,49 @@ export class DiagnosticsManager {
       shell,
       notePath,
       errors
+    };
+  }
+
+  getDataFootprint(params: DiagnosticsDataFootprintParams): DiagnosticsDataFootprintResult {
+    const dataRoot = path.join(params.workspacePath, 'backend', 'hyperliquid_gateway', 'data');
+    const dbPath = path.join(dataRoot, 'hyperliquid.db');
+    const dataDirBytes = pathSize(dataRoot);
+    const dbBytes = pathSize(dbPath);
+    const heavyBytes = Math.max(dataDirBytes ?? 0, dbBytes ?? 0);
+    const isHeavy = heavyBytes >= DATA_FOOTPRINT_WARNING_BYTES;
+
+    return {
+      dataRoot,
+      dbPath,
+      dataDirBytes,
+      dbBytes,
+      warningThresholdBytes: DATA_FOOTPRINT_WARNING_BYTES,
+      isHeavy,
+      detail: isHeavy
+        ? 'Local backend data is heavy. Verify the VM /data mirror before manually archiving or removing local SQLite/runtime artifacts.'
+        : 'Local backend data footprint is below the daily-use warning threshold.'
+    };
+  }
+
+  getPerformanceSnapshot(): DiagnosticsPerformanceSnapshotResult {
+    const processes = app.getAppMetrics().map((metric) => ({
+      pid: metric.pid,
+      type: metric.type,
+      serviceName: metric.serviceName,
+      cpuPercent: Number(metric.cpu.percentCPUUsage.toFixed(1)),
+      idleWakeupsPerSecond: Number(metric.cpu.idleWakeupsPerSecond.toFixed(1)),
+      workingSetBytes: Math.round((metric.memory.workingSetSize || 0) * 1024)
+    })).sort((a, b) => b.cpuPercent - a.cpuPercent || b.workingSetBytes - a.workingSetBytes);
+
+    return {
+      capturedAt: new Date().toISOString(),
+      processes,
+      totals: {
+        cpuPercent: Number(processes.reduce((total, item) => total + item.cpuPercent, 0).toFixed(1)),
+        workingSetBytes: processes.reduce((total, item) => total + item.workingSetBytes, 0),
+        rendererCount: processes.filter((item) => item.type === 'Tab').length,
+        gpuCount: processes.filter((item) => item.type === 'GPU').length
+      }
     };
   }
 

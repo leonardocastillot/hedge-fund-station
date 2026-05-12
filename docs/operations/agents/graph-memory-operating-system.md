@@ -16,10 +16,11 @@ decide or learn?" The file harness answers "what is happening right now?"
 
 The `/memory` Strategy Memory explorer is the visual bridge for strategy work:
 it links backend catalog rows, repo evidence artifacts, Obsidian notes, and
-learning events into an interactive review graph. Treat it as an orientation
-and review-speed surface. It helps agents find the next strategy path, but the
-canonical truth remains in backend artifacts, strategy docs, and the file
-harness.
+learning events into an interactive review graph. The heavier Graphify
+repository map lives separately at `/repo-graph` so strategy memory can load
+without mounting both graphs. Treat both routes as orientation and review-speed
+surfaces; canonical truth remains in backend artifacts, strategy docs, and the
+file harness.
 
 ## Operating Loop
 
@@ -29,7 +30,8 @@ harness.
 3. For broad repo, architecture, harness, memory, or ownership questions, run
    `rtk npm run graph:status` first. If Graphify is fresh enough, read
    `graphify-out/GRAPH_REPORT.md` or run
-   `rtk npm run graph:query -- "<question>"`.
+   `rtk npm run graph:query -- "<question>"`, or open `/repo-graph` for the
+   interactive map.
 4. Verify Graphify leads against source files, canonical docs, tests, and stable
    command output before changing behavior.
 5. For strategy lessons, decisions, postmortems, and open questions, use
@@ -53,7 +55,7 @@ rtk npm run graph:build
 rtk npm run graph:check
 rtk npm run graph:query -- "where should a new agent start for repo architecture work?"
 rtk npm run graph:explain -- "backend/hyperliquid_gateway/app.py"
-rtk npm run graph:path -- "MemoryGraphPage" "graphify_status_payload"
+rtk npm run graph:path -- "RepoGraphPage" "graphify_status_payload"
 ```
 
 Use `graph:build` after structural changes. Use `graph:query` before wide

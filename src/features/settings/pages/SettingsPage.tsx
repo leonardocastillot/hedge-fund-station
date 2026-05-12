@@ -4,6 +4,7 @@ import {
   Bell,
   Bot,
   Check,
+  Gauge,
   KeyRound,
   Palette,
   PlugZap,
@@ -21,6 +22,28 @@ import {
 } from '@/utils/appSettings';
 import { alphaEngineApi, type AiStatus, type AiTestResult } from '@/services/alphaEngineApi';
 import { hyperliquidService, type HyperliquidAgentRuntimeStatus } from '@/services/hyperliquidService';
+
+const PERFORMANCE_PROFILE_OPTIONS: Array<{
+  id: AppSettings['performanceProfile'];
+  label: string;
+  detail: string;
+}> = [
+  {
+    id: 'daily-light',
+    label: 'Daily Light',
+    detail: 'Default for daily use: fewer background polls and lighter media.'
+  },
+  {
+    id: 'full',
+    label: 'Full Visual',
+    detail: 'Keeps richer visuals and normal refresh cadence for active review.'
+  },
+  {
+    id: 'ultra-light',
+    label: 'Ultra Light',
+    detail: 'Maximum restraint for weak batteries, heat, or long sessions.'
+  }
+];
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
@@ -206,6 +229,41 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
+            </div>
+          </section>
+
+          <section style={sectionStyle}>
+            <SectionTitle icon={<Gauge size={18} />} title="Performance Profile" />
+            <div style={themeGridStyle}>
+              {PERFORMANCE_PROFILE_OPTIONS.map((profile) => {
+                const active = settings.performanceProfile === profile.id;
+
+                return (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onClick={() => updateSettings({ ...settings, performanceProfile: profile.id })}
+                    style={{
+                      ...themeCardStyle,
+                      minHeight: '112px',
+                      borderColor: active ? 'var(--app-accent)' : 'var(--app-border)',
+                      background: active
+                        ? 'linear-gradient(135deg, var(--app-accent-soft), rgba(255,255,255,0.035))'
+                        : 'rgba(255,255,255,0.025)',
+                      boxShadow: active ? '0 18px 42px var(--app-glow)' : 'none'
+                    }}
+                  >
+                    <span style={themeNameRowStyle}>
+                      <span style={themeNameStyle}>{profile.label}</span>
+                      {active ? <Check size={16} color="var(--app-accent)" /> : null}
+                    </span>
+                    <span style={themeDescriptionStyle}>{profile.detail}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={helperStyle}>
+              Daily Light is the default: it slows automatic polling, reduces background media work, and keeps heavy visuals opt-in.
             </div>
           </section>
 

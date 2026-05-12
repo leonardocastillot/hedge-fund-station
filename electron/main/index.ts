@@ -33,7 +33,7 @@ let legacyBackendProcess: ChildProcessWithoutNullStreams | null = null;
 let backendStartTimer: NodeJS.Timeout | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-let youtubeAdBlockerReady: Promise<void> | null = null;
+let mediaAdBlockerReady: Promise<ElectronBlocker | null> | null = null;
 const nativeDevBaselineMtime = Date.now();
 
 type DevServiceStatus = {
@@ -659,33 +659,84 @@ function registerYoutubeEmbedHeaders(): void {
   });
 }
 
-function enableYoutubeAdBlocker(): Promise<void> {
-  if (youtubeAdBlockerReady) {
-    return youtubeAdBlockerReady;
+type MediaBlockRule = {
+  hosts: string[];
+  pathIncludes?: string[];
+};
+
+const sharedMediaBlockRules: MediaBlockRule[] = [
+  { hosts: ['doubleclick.net', 'googlesyndication.com', 'googletagservices.com', 'googleadservices.com', 'adservice.google.com'] },
+  { hosts: ['google-analytics.com', 'googletagmanager.com', 'scorecardresearch.com', 'hotjar.com', 'clarity.ms'] },
+  { hosts: ['taboola.com', 'outbrain.com', 'criteo.com', 'adsrvr.org', 'rubiconproject.com'] }
+];
+
+const youtubeBlockRules: MediaBlockRule[] = [
+  ...sharedMediaBlockRules,
+  { hosts: ['youtube.com', 'www.youtube.com'], pathIncludes: ['/api/stats/ads', '/pagead/', '/ptracking'] }
+];
+
+const tradingViewBlockRules: MediaBlockRule[] = [
+  ...sharedMediaBlockRules,
+  { hosts: ['tradingview.com', 'www.tradingview.com'], pathIncludes: ['/ads/', '/advertising/', '/tracking/'] }
+];
+
+function hostnameMatches(hostname: string, host: string): boolean {
+  return hostname === host || hostname.endsWith(`.${host}`);
+}
+
+function shouldBlockMediaRequest(urlValue: string, rules: MediaBlockRule[]): boolean {
+  try {
+    const url = new URL(urlValue);
+    return rules.some((rule) => (
+      rule.hosts.some((host) => hostnameMatches(url.hostname, host))
+      && (!rule.pathIncludes || rule.pathIncludes.some((pathPart) => url.pathname.includes(pathPart)))
+    ));
+  } catch {
+    return false;
+  }
+}
+
+function registerMediaRequestBlocker(partition: string, label: string, rules: MediaBlockRule[], blocker: ElectronBlocker | null): void {
+  const mediaSession = session.fromPartition(partition);
+  mediaSession.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+    if (shouldBlockMediaRequest(details.url, rules)) {
+      callback({ cancel: true });
+      return;
+    }
+
+    if (blocker) {
+      blocker.onBeforeRequest(details, callback);
+      return;
+    }
+
+    callback({});
+  });
+  console.log(`${label} request blocker registered for ${partition}`);
+}
+
+function loadMediaAdBlocker(): Promise<ElectronBlocker | null> {
+  if (mediaAdBlockerReady) {
+    return mediaAdBlockerReady;
   }
 
-  const youtubeSession = session.fromPartition('persist:youtube');
-  if (!('registerPreloadScript' in youtubeSession)) {
-    youtubeAdBlockerReady = Promise.resolve();
-    console.log('YouTube ad blocker skipped: current Electron session API does not support registerPreloadScript');
-    return youtubeAdBlockerReady;
-  }
-
-  youtubeAdBlockerReady = ElectronBlocker.fromPrebuiltAdsAndTracking(fetch)
+  mediaAdBlockerReady = ElectronBlocker.fromPrebuiltAdsAndTracking(fetch)
     .then((blocker) => {
-      blocker.enableBlockingInSession(youtubeSession);
-      console.log('YouTube ad blocker enabled for persist:youtube session');
+      console.log('Media ad blocker engine loaded for YouTube and TradingView sessions');
+      return blocker;
     })
     .catch((error) => {
-      console.warn('YouTube ad blocker could not be enabled:', error);
+      console.warn('Media ad blocker could not be enabled:', error);
+      return null;
     });
 
-  return youtubeAdBlockerReady;
+  return mediaAdBlockerReady;
 }
 
 async function configureYoutubeSession(): Promise<void> {
   registerYoutubeEmbedHeaders();
-  await enableYoutubeAdBlocker();
+  const blocker = await loadMediaAdBlocker();
+  registerMediaRequestBlocker('persist:youtube', 'YouTube media', youtubeBlockRules, blocker);
+  registerMediaRequestBlocker('persist:tradingview', 'TradingView media', tradingViewBlockRules, blocker);
 }
 
 function createWindow(): void {

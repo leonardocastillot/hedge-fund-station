@@ -2171,9 +2171,62 @@ def graphify_explorer_html() -> str:
       overflow: hidden;
     }
 
+    .ambient-flow {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.22;
+      transition: opacity 420ms ease;
+    }
+
+    .graph-stage[data-flow="settling"] .ambient-flow {
+      opacity: 0.36;
+    }
+
+    .graph-stage[data-flow="flowing"] .ambient-flow {
+      opacity: 0.28;
+    }
+
+    .ambient-flow::before,
+    .ambient-flow::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(88vw, 88vh);
+      aspect-ratio: 1;
+      border: 1px solid rgba(103, 232, 249, 0.12);
+      border-radius: 50%;
+      box-shadow: 0 0 70px rgba(103, 232, 249, 0.09), inset 0 0 54px rgba(134, 239, 172, 0.045);
+      transform: translate(-50%, -50%) rotate(0deg);
+      animation: graphOrbitFlow 34s linear infinite;
+    }
+
+    .ambient-flow::after {
+      width: min(62vw, 62vh);
+      border-color: rgba(240, 171, 252, 0.11);
+      box-shadow: 0 0 58px rgba(240, 171, 252, 0.075), inset 0 0 42px rgba(103, 232, 249, 0.04);
+      animation-duration: 48s;
+      animation-direction: reverse;
+    }
+
+    @keyframes graphOrbitFlow {
+      from {
+        transform: translate(-50%, -50%) rotate(0deg) scale(0.98);
+      }
+      50% {
+        transform: translate(-50%, -50%) rotate(180deg) scale(1.02);
+      }
+      to {
+        transform: translate(-50%, -50%) rotate(360deg) scale(0.98);
+      }
+    }
+
     #network {
       position: absolute;
       inset: 0;
+      z-index: 2;
       min-width: 0;
       min-height: 0;
     }
@@ -2461,13 +2514,14 @@ def graphify_explorer_html() -> str:
         <button class="button primary" id="focusButton" type="button">Focus</button>
         <button class="button" id="neighborhoodButton" type="button">Neighborhood</button>
         <button class="button" id="labelsButton" type="button">Labels</button>
-        <button class="button" id="physicsButton" type="button">Physics</button>
+        <button class="button" id="physicsButton" type="button">Reflow</button>
         <button class="button" id="fitButton" type="button">Fit</button>
         <button class="button" id="resetButton" type="button">Reset</button>
       </div>
     </header>
     <section class="workspace">
       <div class="graph-stage">
+        <div class="ambient-flow" aria-hidden="true"></div>
         <div id="network"></div>
         <div class="hud" role="group" aria-label="Graph performance metrics">
           <div class="metric"><span>Visible Nodes</span><strong id="visibleNodes">0</strong></div>
@@ -2476,7 +2530,7 @@ def graphify_explorer_html() -> str:
           <div class="metric"><span>Communities</span><strong id="totalCommunities">0</strong></div>
           <div class="metric"><span>Profile</span><strong id="profileMetric">loading</strong></div>
           <div class="metric"><span>Render</span><strong id="renderMetric">0ms</strong></div>
-          <div class="metric"><span>Physics</span><strong id="physicsMetric">running</strong></div>
+          <div class="metric"><span>Motion</span><strong id="physicsMetric">settling</strong></div>
         </div>
       </div>
       <aside class="inspector" aria-label="Selected node">
@@ -2512,6 +2566,22 @@ def graphify_explorer_html() -> str:
     const byId = new Map(RAW_NODES.map((node) => [node.id, node]));
     const neighbors = new Map(RAW_NODES.map((node) => [node.id, new Set()]));
     const edgeLookup = new Map();
+    RAW_EDGES.forEach((edge, index) => {
+      edge.id = edge.id || `edge-${index}`;
+    });
+
+    const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+    const communityRank = new Map((STATS.communities || []).map((community, index) => [String(community.id), index]));
+    const communitySize = new Map((STATS.communities || []).map((community) => [String(community.id), Number(community.count || 1)]));
+    const nodeCommunityIndex = new Map();
+    const seenInCommunity = new Map();
+    for (const node of RAW_NODES) {
+      const communityKey = String(node.community || "unclustered");
+      const index = seenInCommunity.get(communityKey) || 0;
+      seenInCommunity.set(communityKey, index + 1);
+      nodeCommunityIndex.set(node.id, index);
+    }
+
     for (const edge of RAW_EDGES) {
       if (!neighbors.has(edge.from)) neighbors.set(edge.from, new Set());
       if (!neighbors.has(edge.to)) neighbors.set(edge.to, new Set());
@@ -2526,6 +2596,7 @@ def graphify_explorer_html() -> str:
     }
 
     const elements = {
+      stage: document.querySelector(".graph-stage"),
       network: document.getElementById("network"),
       inspector: document.getElementById("inspector"),
       search: document.getElementById("searchInput"),
@@ -2550,31 +2621,43 @@ def graphify_explorer_html() -> str:
     };
 
     const PERFORMANCE_PROFILES = {
-      "all-orbit": {
-        label: "all-orbit",
+      "world-orbit": {
+        label: "world-orbit",
         nodeShadow: true,
-        edgeSmooth: { type: "dynamic" },
+        settlingNodeShadow: false,
+        edgeSmooth: { type: "continuous", roundness: 0.22 },
+        settlingEdgeSmooth: false,
         hover: true,
-        edgeWidthMax: 2.4,
-        nodeValueMax: 42,
-        massScale: 18,
+        settlingHover: false,
+        disableTooltipsWhileSettling: true,
+        edgeWidthMax: 1.8,
+        nodeValueMax: 34,
+        massScale: 30,
         tooltipDelay: 90,
         autoFreezeMs: null,
-        freezeOnStabilized: false,
+        settleSafetyMs: null,
+        stabilizeAfterMs: 11500,
+        gravityWarmupMs: 11500,
+        freezeOnStabilized: true,
+        seedLayout: true,
+        seedShellScale: 1.34,
+        settledScale: 0.9,
+        layout: { improvedLayout: false },
         physics: {
           enabled: true,
           solver: "forceAtlas2Based",
-          stabilization: { enabled: true, iterations: 95, fit: true },
+          stabilization: { enabled: false, iterations: 260, fit: true, updateInterval: 20 },
           forceAtlas2Based: {
             gravitationalConstant: -58,
             centralGravity: 0.016,
-            springLength: 92,
+            springLength: 118,
             springConstant: 0.054,
             damping: 0.43,
-            avoidOverlap: 0.34
+            avoidOverlap: 0.42
           },
           maxVelocity: 38,
-          minVelocity: 0.55
+          minVelocity: 0.55,
+          timestep: 0.52
         }
       },
       focused: {
@@ -2636,11 +2719,19 @@ def graphify_explorer_html() -> str:
 
     let labelsEnabled = false;
     let physicsRunning = true;
-    let physicsState = "running";
-    let activeProfileId = "all-orbit";
+    let physicsState = "settling";
+    let activeProfileId = "world-orbit";
     let lastRenderMs = 0;
+    let lastFrameMs = 0;
+    let lastFrameAt = 0;
+    let lastHudPaintAt = 0;
     let refreshTimer = null;
     let autoFreezeTimer = null;
+    let settleWatchTimer = null;
+    let settleStartedAt = 0;
+    let lastSettleSample = null;
+    let stableSettleSamples = 0;
+    let fullGraphStabilizeRequested = false;
     let selectedId = null;
     let neighborhoodRoot = null;
     let currentVisibleIds = new Set();
@@ -2776,47 +2867,63 @@ def graphify_explorer_html() -> str:
     }
 
     function activeProfile() {
-      return PERFORMANCE_PROFILES[activeProfileId] || PERFORMANCE_PROFILES["all-orbit"];
+      return PERFORMANCE_PROFILES[activeProfileId] || PERFORMANCE_PROFILES["world-orbit"];
+    }
+
+    function isFullGraphProfile(profile = activeProfile()) {
+      return profile.label === "world-orbit";
+    }
+
+    function isSettlingFullGraph() {
+      return isFullGraphProfile() && physicsRunning && physicsState === "settling";
     }
 
     function profileForVisible(visibleCount) {
       if (neighborhoodRoot || visibleCount <= 120) return "neighborhood";
-      if (visibleCount > 1500) return "all-orbit";
+      if (visibleCount > 1500) return "world-orbit";
       return "focused";
     }
 
     function updatePerformanceHud() {
       const profile = activeProfile();
       elements.profileMetric.textContent = profile.label;
-      elements.renderMetric.textContent = `${Math.round(lastRenderMs)}ms`;
+      const frameMetric = physicsRunning ? `${Math.round(lastFrameMs)}ms` : "idle";
+      elements.renderMetric.textContent = `${Math.round(lastRenderMs)}ms / ${frameMetric}`;
       elements.physicsMetric.textContent = physicsState;
-      elements.physics.textContent = physicsRunning ? "Physics" : "Frozen";
+      elements.physics.textContent = "Reflow";
+      if (elements.stage) {
+        elements.stage.dataset.flow = physicsRunning ? "settling" : physicsState;
+      }
     }
 
     function profileOptions() {
       const profile = activeProfile();
+      const settling = isSettlingFullGraph();
+      const hover = settling && profile.settlingHover !== undefined ? profile.settlingHover : profile.hover;
+      const edgeSmooth = settling && profile.settlingEdgeSmooth !== undefined ? profile.settlingEdgeSmooth : profile.edgeSmooth;
+      const nodeShadow = settling && profile.settlingNodeShadow !== undefined ? profile.settlingNodeShadow : profile.nodeShadow;
       return {
         nodes: {
           shape: "dot",
           scaling: { min: 5, max: profile.nodeValueMax },
-          shadow: profile.nodeShadow
+          shadow: nodeShadow
             ? { enabled: true, color: "rgba(0, 0, 0, 0.34)", size: 9, x: 0, y: 3 }
             : false
         },
         edges: {
           arrows: { to: { enabled: false } },
           selectionWidth: 1.15,
-          hoverWidth: profile.hover ? 1.2 : 0,
+          hoverWidth: hover ? 1.2 : 0,
           chosen: {
             edge(values) {
               values.width = Math.min(Number(values.width) || 1, 1.1);
               values.color = "rgba(103, 232, 249, 0.72)";
             }
           },
-          smooth: profile.edgeSmooth
+          smooth: edgeSmooth
         },
         interaction: {
-          hover: profile.hover,
+          hover,
           tooltipDelay: profile.tooltipDelay,
           hideEdgesOnDrag: true,
           multiselect: false,
@@ -2825,7 +2932,8 @@ def graphify_explorer_html() -> str:
         physics: {
           ...profile.physics,
           enabled: physicsRunning
-        }
+        },
+        layout: profile.layout || {}
       };
     }
 
@@ -2835,13 +2943,52 @@ def graphify_explorer_html() -> str:
         .some((value) => normalize(value).includes(query));
     }
 
-    function decorateNode(node) {
+    function communityAnchor(communityKey) {
+      const rank = communityRank.has(communityKey)
+        ? communityRank.get(communityKey)
+        : hash(communityKey) % Math.max(1, Number(STATS.communityCount || 1));
+      const total = Math.max(1, Number(STATS.communityCount || communityRank.size || 1));
+      const normalized = total === 1 ? 0.5 : (rank + 0.5) / total;
+      const y = 1 - 2 * normalized;
+      const radius = Math.sqrt(Math.max(0, 1 - y * y));
+      const theta = rank * GOLDEN_ANGLE + (hash(communityKey) % 360) * (Math.PI / 1800);
+      const z = Math.sin(theta) * radius;
+      const x = Math.cos(theta) * radius;
+      const worldRadius = 5400 + Math.sqrt(Number(STATS.nodeCount || RAW_NODES.length || 1)) * 20;
+      return {
+        x: x * worldRadius * (1 + z * 0.08),
+        y: y * worldRadius * 0.76 + z * worldRadius * 0.12,
+        z
+      };
+    }
+
+    function seedPosition(node) {
+      const communityKey = String(node.community || "unclustered");
+      const clusterCount = Math.max(1, Number(communitySize.get(communityKey) || 1));
+      const localIndex = Number(nodeCommunityIndex.get(node.id) || 0);
+      const anchor = communityAnchor(communityKey);
+      const spiralAngle = localIndex * GOLDEN_ANGLE + (hash(node.id) % 360) * (Math.PI / 1800);
+      const localRadius = (24 + Math.sqrt(localIndex + 0.5) * 31) * (0.9 + Math.min(0.38, Math.sqrt(clusterCount) / 72));
+      const depthScale = 1 + anchor.z * 0.08;
+      const seedScale = Number(activeProfile().seedShellScale || 1);
+      return {
+        x: anchor.x * seedScale + Math.cos(spiralAngle) * localRadius * depthScale * seedScale,
+        y: anchor.y * seedScale + Math.sin(spiralAngle) * localRadius * 0.82 * seedScale
+      };
+    }
+
+    function shouldSeedLayout() {
+      return Boolean(activeProfile().seedLayout && currentVisibleIds.size > 1500);
+    }
+
+    function decorateNode(node, { seed = false } = {}) {
       const profile = activeProfile();
       const label = labelsEnabled ? nodeDisplayLabel(node) : "";
-      return {
+      const tooltipEnabled = !(isSettlingFullGraph() && profile.disableTooltipsWhileSettling);
+      const decoration = {
         id: node.id,
         label,
-        title: nodeTooltip(node),
+        title: tooltipEnabled ? nodeTooltip(node) : "",
         group: node.community,
         value: Math.max(5, Math.min(profile.nodeValueMax, node.value || 5)),
         mass: Math.max(1, Math.min(4.5, 1 + (node.degree || 0) / profile.massScale)),
@@ -2856,21 +3003,30 @@ def graphify_explorer_html() -> str:
           strokeColor: "#06070b"
         }
       };
+      if (seed) {
+        const seeded = seedPosition(node);
+        decoration.x = seeded.x;
+        decoration.y = seeded.y;
+      }
+      return decoration;
     }
 
     function decorateEdge(edge) {
       const profile = activeProfile();
+      const tooltipEnabled = !(isSettlingFullGraph() && profile.disableTooltipsWhileSettling);
+      const edgeSmooth = isSettlingFullGraph() && profile.settlingEdgeSmooth !== undefined ? profile.settlingEdgeSmooth : profile.edgeSmooth;
       return {
+        id: edge.id,
         from: edge.from,
         to: edge.to,
-        title: edgeTooltip(edge),
+        title: tooltipEnabled ? edgeTooltip(edge) : "",
         width: Math.max(0.4, Math.min(profile.edgeWidthMax, Number(edge.weight) || 1)),
         color: {
           color: edgeColor(edge),
           highlight: "#67e8f9",
           hover: "#86efac"
         },
-        smooth: profile.edgeSmooth
+        smooth: edgeSmooth
       };
     }
 
@@ -2906,13 +3062,17 @@ def graphify_explorer_html() -> str:
     let network = null;
 
     function runningPhysicsState() {
-      return "running";
+      return activeProfile().freezeOnStabilized ? "settling" : "running";
     }
 
     function clearPhysicsTimers() {
       if (autoFreezeTimer) {
         window.clearTimeout(autoFreezeTimer);
         autoFreezeTimer = null;
+      }
+      if (settleWatchTimer) {
+        window.clearTimeout(settleWatchTimer);
+        settleWatchTimer = null;
       }
     }
 
@@ -2921,13 +3081,110 @@ def graphify_explorer_html() -> str:
       updatePerformanceHud();
     }
 
-    function freezePhysics(state = "frozen") {
+    function updateVisibleNodeDecorations() {
+      const updates = [];
+      for (const nodeId of currentVisibleIds) {
+        if (!nodes.get(nodeId)) continue;
+        const node = byId.get(nodeId);
+        if (node) updates.push(decorateNode(node));
+      }
+      if (updates.length) nodes.update(updates);
+    }
+
+    function updateVisibleEdgeDecorations() {
+      const updates = RAW_EDGES
+        .filter((edge) => currentVisibleIds.has(edge.from) && currentVisibleIds.has(edge.to) && edges.get(edge.id))
+        .map(decorateEdge);
+      if (updates.length) edges.update(updates);
+    }
+
+    function restorePolishedVisibleGraph() {
+      applyProfileOptions();
+      updateVisibleNodeDecorations();
+      updateVisibleEdgeDecorations();
+      updatePerformanceHud();
+    }
+
+    function frameFullGraphAfterSettle() {
+      if (!network || !isFullGraphProfile()) return;
+      window.setTimeout(() => {
+        if (!network || physicsRunning || !isFullGraphProfile()) return;
+        network.fit({ animation: { duration: 760, easingFunction: "easeInOutQuad" } });
+        window.setTimeout(() => {
+          if (!network || physicsRunning || !isFullGraphProfile() || typeof network.getScale !== "function" || typeof network.moveTo !== "function") return;
+          const nextScale = network.getScale() * Number(activeProfile().settledScale || 1);
+          network.moveTo({ scale: nextScale, animation: { duration: 420, easingFunction: "easeInOutQuad" } });
+        }, 820);
+      }, 80);
+    }
+
+    function settleSampleIds() {
+      return RAW_NODES
+        .filter((node) => currentVisibleIds.has(node.id))
+        .slice(0, 640)
+        .map((node) => node.id);
+    }
+
+    function readSettleMotion() {
+      if (!network) return null;
+      const ids = settleSampleIds();
+      if (ids.length === 0) return null;
+      const positions = network.getPositions(ids);
+      if (!lastSettleSample) {
+        lastSettleSample = positions;
+        return null;
+      }
+      const distances = [];
+      for (const id of ids) {
+        const previous = lastSettleSample[id];
+        const current = positions[id];
+        if (!previous || !current) continue;
+        const dx = current.x - previous.x;
+        const dy = current.y - previous.y;
+        distances.push(Math.sqrt(dx * dx + dy * dy));
+      }
+      lastSettleSample = positions;
+      if (distances.length === 0) return null;
+      distances.sort((a, b) => a - b);
+      const total = distances.reduce((sum, value) => sum + value, 0);
+      const p90 = distances[Math.min(distances.length - 1, Math.floor(distances.length * 0.9))];
+      return {
+        average: total / distances.length,
+        p90
+      };
+    }
+
+    function startSettleMonitor() {
+      if (!network || !isFullGraphProfile()) return;
+      settleStartedAt = performance.now();
+      lastSettleSample = null;
+      stableSettleSamples = 0;
+      const tick = () => {
+        if (!physicsRunning || !isFullGraphProfile()) return;
+        const elapsed = performance.now() - settleStartedAt;
+        const motion = readSettleMotion();
+        if (motion && elapsed > 6500 && motion.average < 1.05 && motion.p90 < 3.8) {
+          stableSettleSamples += 1;
+        } else if (motion) {
+          stableSettleSamples = 0;
+        }
+        if (stableSettleSamples >= 3) {
+          completePhysics("flowing");
+          return;
+        }
+        settleWatchTimer = window.setTimeout(tick, 900);
+      };
+      settleWatchTimer = window.setTimeout(tick, 900);
+    }
+
+    function completePhysics(state = "flowing") {
       if (!network) return;
       if (!physicsRunning && physicsState === state) return;
       clearPhysicsTimers();
       physicsRunning = false;
       physicsState = state;
-      network.setOptions({ physics: { enabled: false } });
+      restorePolishedVisibleGraph();
+      frameFullGraphAfterSettle();
       updatePerformanceHud();
     }
 
@@ -2936,25 +3193,54 @@ def graphify_explorer_html() -> str:
       clearPhysicsTimers();
       physicsRunning = true;
       physicsState = runningPhysicsState();
+      lastFrameAt = performance.now();
+      settleStartedAt = performance.now();
+      lastSettleSample = null;
+      stableSettleSamples = 0;
+      fullGraphStabilizeRequested = false;
       applyProfileOptions();
       if (typeof network.startSimulation === "function") {
         network.startSimulation();
       }
-      const freezeMs = activeProfile().autoFreezeMs;
-      if (freezeMs) {
-        autoFreezeTimer = window.setTimeout(() => freezePhysics("settled"), freezeMs);
+      const profile = activeProfile();
+      if (isFullGraphProfile() && typeof network.stabilize === "function") {
+        const warmupMs = profile.gravityWarmupMs || profile.stabilizeAfterMs || 0;
+        autoFreezeTimer = window.setTimeout(() => {
+          if (!physicsRunning || !isFullGraphProfile()) return;
+          fullGraphStabilizeRequested = true;
+          network.stabilize(profile.physics.stabilization.iterations || 220);
+        }, warmupMs);
+      } else if (profile.autoFreezeMs) {
+        const freezeMs = profile.autoFreezeMs;
+        autoFreezeTimer = window.setTimeout(() => completePhysics("settled"), freezeMs);
+      } else if (profile.settleSafetyMs) {
+        autoFreezeTimer = window.setTimeout(() => completePhysics("settled"), profile.settleSafetyMs);
+      } else if (isFullGraphProfile()) {
+        startSettleMonitor();
       }
       updatePerformanceHud();
     }
 
     function handlePhysicsStabilized() {
       if (!physicsRunning) return;
+      if (isFullGraphProfile()) {
+        if (!fullGraphStabilizeRequested) {
+          physicsState = "settling";
+          updatePerformanceHud();
+          window.setTimeout(() => {
+            if (network && physicsRunning && isFullGraphProfile() && !fullGraphStabilizeRequested && typeof network.startSimulation === "function") {
+              network.startSimulation();
+            }
+          }, 120);
+          return;
+        }
+      }
       if (activeProfile().freezeOnStabilized === false) {
         physicsState = "stabilized";
         updatePerformanceHud();
         return;
       }
-      freezePhysics("settled");
+      completePhysics(isFullGraphProfile() ? "flowing" : "settled");
     }
 
     function scheduleRefresh(options = {}, delay = 90) {
@@ -3002,7 +3288,8 @@ def graphify_explorer_html() -> str:
 
       nodes.clear();
       edges.clear();
-      nodes.add(visibleNodes.map(decorateNode));
+      const seedLayout = shouldSeedLayout();
+      nodes.add(visibleNodes.map((node) => decorateNode(node, { seed: seedLayout })));
       edges.add(visibleEdges.map(decorateEdge));
 
       elements.visibleNodes.textContent = formatNumber(visibleNodes.length);
@@ -3028,6 +3315,18 @@ def graphify_explorer_html() -> str:
         startPhysics();
       }
       updatePerformanceHud();
+    }
+
+    function updateFrameTiming() {
+      const now = performance.now();
+      if (lastFrameAt > 0) {
+        lastFrameMs = now - lastFrameAt;
+      }
+      lastFrameAt = now;
+      if (now - lastHudPaintAt > 600) {
+        lastHudPaintAt = now;
+        updatePerformanceHud();
+      }
     }
 
     function sortedNeighbors(nodeId) {
@@ -3174,8 +3473,6 @@ def graphify_explorer_html() -> str:
 
       populateControls();
       network = new vis.Network(elements.network, { nodes, edges }, options);
-      refreshGraph({ fit: true });
-
       network.on("selectNode", (event) => {
         selectNode(event.nodes[0] || null);
       });
@@ -3186,8 +3483,10 @@ def graphify_explorer_html() -> str:
         const nodeId = event.nodes && event.nodes[0];
         if (nodeId) focusNode(nodeId, { neighborhood: true });
       });
+      network.on("afterDrawing", updateFrameTiming);
       network.on("stabilizationIterationsDone", handlePhysicsStabilized);
       network.on("stabilized", handlePhysicsStabilized);
+      refreshGraph({ fit: true });
 
       elements.search.addEventListener("input", () => {
         neighborhoodRoot = null;
@@ -3228,14 +3527,11 @@ def graphify_explorer_html() -> str:
       elements.labels.addEventListener("click", () => {
         labelsEnabled = !labelsEnabled;
         elements.labels.textContent = labelsEnabled ? "Hide Labels" : "Labels";
-        refreshGraph();
+        updateVisibleNodeDecorations();
+        updatePerformanceHud();
       });
       elements.physics.addEventListener("click", () => {
-        if (physicsRunning) {
-          freezePhysics("frozen");
-        } else {
-          startPhysics();
-        }
+        startPhysics();
       });
       elements.fit.addEventListener("click", () => network.fit({ animation: { duration: 620, easingFunction: "easeInOutQuad" } }));
       elements.reset.addEventListener("click", resetView);

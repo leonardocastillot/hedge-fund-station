@@ -8,9 +8,9 @@ import {
   PanelRightClose,
   PanelRightOpen
 } from 'lucide-react';
-import { Sidebar } from './Sidebar';
 import { WidgetPanel } from '@/features/cockpit/WidgetPanel';
 
+const Sidebar = React.lazy(() => import('./Sidebar').then((module) => ({ default: module.Sidebar })));
 const MissionChatWorkbench = React.lazy(() => import('@/features/agents/components/MissionChatWorkbench').then((module) => ({ default: module.MissionChatWorkbench })));
 const VOICE_PANEL_COLLAPSED_KEY = 'hedge-station:layout:voice-panel-collapsed';
 
@@ -22,7 +22,11 @@ function loadVoicePanelCollapsedDefault(): boolean {
   return stored === null ? true : stored === '1';
 }
 
-export const ElectronLayout: React.FC = () => {
+type ElectronLayoutProps = {
+  navigationRail?: React.ReactNode;
+};
+
+export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isVoicePanelCollapsed, setIsVoicePanelCollapsedState] = useState(loadVoicePanelCollapsedDefault);
   const setVoicePanelCollapsed = useCallback((collapsed: boolean) => {
@@ -39,93 +43,120 @@ export const ElectronLayout: React.FC = () => {
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        <PanelGroup key={`${isSidebarCollapsed}-${isVoicePanelCollapsed}`} direction="horizontal">
-          {isSidebarCollapsed ? (
-            <Panel
-              defaultSize={4}
-              minSize={4}
-              maxSize={4}
-              id="sidebar-rail"
-              order={1}
-            >
-              <CollapsedRail
-                side="left"
-                title="Open workspace panel"
-                icon={<Monitor size={17} />}
-                actionIcon={<PanelLeftOpen size={15} />}
-                onExpand={() => setIsSidebarCollapsed(false)}
-              />
-            </Panel>
-          ) : (
-            <>
+      <div style={layoutBodyStyle}>
+        {navigationRail ? <div style={navigationRailHostStyle}>{navigationRail}</div> : null}
+        <div style={panelHostStyle}>
+          <PanelGroup key={`${isSidebarCollapsed}-${isVoicePanelCollapsed}`} direction="horizontal">
+            {isSidebarCollapsed ? (
               <Panel
-                defaultSize={18}
-                minSize={14}
-                maxSize={26}
-                id="sidebar"
+                defaultSize={4}
+                minSize={4}
+                maxSize={4}
+                id="sidebar-rail"
                 order={1}
               >
-                <Sidebar />
+                <CollapsedRail
+                  side="left"
+                  title="Open workspace panel"
+                  icon={<Monitor size={17} />}
+                  actionIcon={<PanelLeftOpen size={15} />}
+                  onExpand={() => setIsSidebarCollapsed(false)}
+                />
               </Panel>
+            ) : (
+              <>
+                <Panel
+                  defaultSize={18}
+                  minSize={14}
+                  maxSize={26}
+                  id="sidebar"
+                  order={1}
+                >
+                  <Suspense fallback={<DockLoading />}>
+                    <Sidebar />
+                  </Suspense>
+                </Panel>
 
-              <ResizeHandle
-                title="Collapse workspace panel"
-                onCollapse={() => setIsSidebarCollapsed(true)}
-                icon={<PanelLeftClose size={14} />}
-              />
-            </>
-          )}
+                <ResizeHandle
+                  title="Collapse workspace panel"
+                  onCollapse={() => setIsSidebarCollapsed(true)}
+                  icon={<PanelLeftClose size={14} />}
+                />
+              </>
+            )}
 
-          <Panel
-            defaultSize={centerDefaultSize}
-            minSize={!isSidebarCollapsed || !isVoicePanelCollapsed ? 42 : 70}
-            id="center-panel"
-            order={2}
-          >
-            <WidgetPanel />
-          </Panel>
-
-          {isVoicePanelCollapsed ? (
             <Panel
-              defaultSize={4}
-              minSize={4}
-              maxSize={4}
-              id="voice-rail"
-              order={3}
+              defaultSize={centerDefaultSize}
+              minSize={!isSidebarCollapsed || !isVoicePanelCollapsed ? 42 : 70}
+              id="center-panel"
+              order={2}
             >
-              <CollapsedRail
-                side="right"
-                title="Open voice mission source"
-                icon={<Bot size={17} />}
-                actionIcon={<PanelRightOpen size={15} />}
-                onExpand={() => setVoicePanelCollapsed(false)}
-              />
+              <WidgetPanel />
             </Panel>
-          ) : (
-            <>
-              <ResizeHandle
-                title="Collapse voice mission source"
-                onCollapse={() => setVoicePanelCollapsed(true)}
-                icon={<PanelRightClose size={14} />}
-              />
 
+            {isVoicePanelCollapsed ? (
               <Panel
-                defaultSize={30}
-                minSize={22}
-                id="voice-mission-source"
+                defaultSize={4}
+                minSize={4}
+                maxSize={4}
+                id="voice-rail"
                 order={3}
               >
-                <Suspense fallback={<DockLoading />}>
-                  <MissionChatWorkbench variant="dock" />
-                </Suspense>
+                <CollapsedRail
+                  side="right"
+                  title="Open voice mission source"
+                  icon={<Bot size={17} />}
+                  actionIcon={<PanelRightOpen size={15} />}
+                  onExpand={() => setVoicePanelCollapsed(false)}
+                />
               </Panel>
-            </>
-          )}
-        </PanelGroup>
+            ) : (
+              <>
+                <ResizeHandle
+                  title="Collapse voice mission source"
+                  onCollapse={() => setVoicePanelCollapsed(true)}
+                  icon={<PanelRightClose size={14} />}
+                />
+
+                <Panel
+                  defaultSize={30}
+                  minSize={22}
+                  id="voice-mission-source"
+                  order={3}
+                >
+                  <Suspense fallback={<DockLoading />}>
+                    <MissionChatWorkbench variant="dock" />
+                  </Suspense>
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
+        </div>
       </div>
     </div>
   );
+};
+
+const layoutBodyStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflow: 'hidden',
+  position: 'relative',
+  display: 'flex'
+};
+
+const navigationRailHostStyle: React.CSSProperties = {
+  width: '52px',
+  flex: '0 0 52px',
+  minHeight: 0
+};
+
+const panelHostStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  minHeight: 0,
+  overflow: 'hidden',
+  position: 'relative'
 };
 
 const DockLoading: React.FC = () => (

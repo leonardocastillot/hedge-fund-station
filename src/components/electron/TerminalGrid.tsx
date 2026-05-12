@@ -1,6 +1,5 @@
 import React from 'react';
 import { TerminalPane } from './TerminalPane';
-import { VoiceCommandBar } from './VoiceCommandBar';
 import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useCommanderTasksContext } from '../../contexts/CommanderTasksContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
@@ -9,6 +8,7 @@ import type { TaskStatus } from '../../types/tasks';
 import type { TerminalSession } from '../../contexts/TerminalContext';
 
 const MAX_TERMINALS = 6;
+const VoiceCommandBar = React.lazy(() => import('./VoiceCommandBar').then((module) => ({ default: module.VoiceCommandBar })));
 
 export const TerminalGrid: React.FC = () => {
   const {
@@ -30,6 +30,7 @@ export const TerminalGrid: React.FC = () => {
   const { activeWorkspace } = useWorkspaceContext();
   const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>('grid');
   const [handoffNotice, setHandoffNotice] = React.useState<string | null>(null);
+  const [isVoiceBarOpen, setIsVoiceBarOpen] = React.useState(false);
   const missionTerminals = React.useMemo(
     () => terminals.filter((terminal) => Boolean(terminal.missionTitle || terminal.terminalPurpose === 'mission-console')),
     [terminals]
@@ -424,7 +425,32 @@ export const TerminalGrid: React.FC = () => {
             </button>
           </div>
 
-          <VoiceCommandBar activeTerminalId={activeTerminalId} />
+          {isVoiceBarOpen ? (
+            <React.Suspense fallback={<VoiceBarFallback />}>
+              <VoiceCommandBar activeTerminalId={activeTerminalId} />
+            </React.Suspense>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsVoiceBarOpen(true)}
+              title="Load voice terminal input"
+              style={{
+                height: '28px',
+                padding: '3px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--app-border-strong)',
+                background: 'var(--app-panel-muted)',
+                color: 'var(--app-subtle)',
+                fontSize: '10px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase'
+              }}
+            >
+              Voice
+            </button>
+          )}
         </div>
 
         <button
@@ -652,6 +678,24 @@ function deriveRunState(
 
   return null;
 }
+
+const VoiceBarFallback: React.FC = () => (
+  <div style={{
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '3px 10px',
+    borderRadius: '6px',
+    border: '1px solid var(--app-border)',
+    color: 'var(--app-muted)',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase'
+  }}>
+    Loading voice...
+  </div>
+);
 
 function deriveTaskStatus(
   task: { mission?: { executionMode?: string; workflow?: Array<{ role: string }> } },

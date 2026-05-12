@@ -30,6 +30,7 @@ import type {
   ObsidianOpenPathParams,
   ObsidianOpenVaultParams,
   DiagnosticsCheckCommandsParams,
+  DiagnosticsDataFootprintParams,
   DiagnosticsShellSmokeTestParams,
   DiagnosticsMissionDrillParams,
   AgentLoopStartParams,
@@ -287,6 +288,14 @@ export function registerDiagnosticsHandlers(diagnosticsManager: DiagnosticsManag
 
   ipcMain.handle('diagnostics:runMissionDrill', async (_event, params: DiagnosticsMissionDrillParams) => {
     return diagnosticsManager.runMissionDrill(params);
+  });
+
+  ipcMain.handle('diagnostics:getDataFootprint', async (_event, params: DiagnosticsDataFootprintParams) => {
+    return diagnosticsManager.getDataFootprint(params);
+  });
+
+  ipcMain.handle('diagnostics:getPerformanceSnapshot', async () => {
+    return diagnosticsManager.getPerformanceSnapshot();
   });
 
   ipcMain.handle('diagnostics:launchCodexLogin', async () => {

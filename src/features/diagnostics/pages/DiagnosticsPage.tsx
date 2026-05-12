@@ -9,10 +9,24 @@ import {
 import { hyperliquidService, type HyperliquidReadinessCheck } from '@/services/hyperliquidService';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import { useMarketPolling } from '@/hooks/useMarketPolling';
-import type { DevServiceStatus, DevStatus } from '@/types/electron';
+import type { DevServiceStatus, DevStatus, DiagnosticsDataFootprintResult, DiagnosticsPerformanceSnapshotResult } from '@/types/electron';
 
 function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function formatBytes(bytes: number | null) {
+  if (bytes === null) {
+    return 'missing';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 type LocalPreflightCheck = {
@@ -31,6 +45,8 @@ export default function DiagnosticsPage() {
   const [localChecks, setLocalChecks] = useState<LocalPreflightCheck[]>([]);
   const [localCheckError, setLocalCheckError] = useState<string | null>(null);
   const [localCheckLoading, setLocalCheckLoading] = useState(false);
+  const [dataFootprint, setDataFootprint] = useState<DiagnosticsDataFootprintResult | null>(null);
+  const [performanceSnapshot, setPerformanceSnapshot] = useState<DiagnosticsPerformanceSnapshotResult | null>(null);
   const isDevBuild = import.meta.env.DEV;
 
   useEffect(() => subscribeTelemetry(setEvents), []);
@@ -57,6 +73,8 @@ export default function DiagnosticsPage() {
 
   const refreshLocalPreflight = async () => {
     if (!activeWorkspace) {
+      setDataFootprint(null);
+      setPerformanceSnapshot(null);
       setLocalChecks([{
         id: 'workspace',
         label: 'Workspace',
@@ -128,6 +146,32 @@ export default function DiagnosticsPage() {
           status: obsidian.isAvailable && Boolean(obsidian.vaultPath) ? 'ready' : 'attention',
           detail: obsidian.vaultPath ? `Vault: ${obsidian.vaultPath}` : 'No curated vault is available yet.'
         });
+      }
+
+      if (window.electronAPI?.diagnostics?.getDataFootprint) {
+        const footprint = await window.electronAPI.diagnostics.getDataFootprint(activeWorkspace.path);
+        setDataFootprint(footprint);
+        nextChecks.push({
+          id: 'data_footprint',
+          label: 'Local data footprint',
+          status: footprint.isHeavy ? 'attention' : 'ready',
+          detail: `data ${formatBytes(footprint.dataDirBytes)} · db ${formatBytes(footprint.dbBytes)}`
+        });
+      } else {
+        setDataFootprint(null);
+      }
+
+      if (window.electronAPI?.diagnostics?.getPerformanceSnapshot) {
+        const snapshot = await window.electronAPI.diagnostics.getPerformanceSnapshot();
+        setPerformanceSnapshot(snapshot);
+        nextChecks.push({
+          id: 'electron_processes',
+          label: 'Electron processes',
+          status: snapshot.totals.rendererCount > 6 ? 'attention' : 'ready',
+          detail: `${snapshot.processes.length} processes · ${snapshot.totals.rendererCount} renderers · ${snapshot.totals.cpuPercent.toFixed(1)}% CPU sample`
+        });
+      } else {
+        setPerformanceSnapshot(null);
       }
 
       nextChecks.push({
@@ -256,6 +300,8 @@ export default function DiagnosticsPage() {
               {localCheckLoading ? (
                 <div className="rounded-[8px] border border-cyan-400/20 bg-cyan-400/10 p-3 text-sm text-cyan-100">Running local smoke checks...</div>
               ) : null}
+              {dataFootprint ? <DataFootprintCard footprint={dataFootprint} /> : null}
+              {performanceSnapshot ? <PerformanceSnapshotCard snapshot={performanceSnapshot} /> : null}
               <div className="rounded-[8px] border border-white/10 bg-white/[0.03] p-3">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Daily commands</div>
                 <div className="mt-2 grid gap-1 font-mono text-xs text-white/70">
@@ -460,6 +506,51 @@ function LocalCheckRow({ check }: { check: LocalPreflightCheck }) {
           <div className="text-sm font-semibold text-white">{check.label}</div>
           <div className="mt-1 break-words text-xs leading-5 text-white/65">{check.detail}</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DataFootprintCard({ footprint }: { footprint: DiagnosticsDataFootprintResult }) {
+  const tone = footprint.isHeavy
+    ? 'border-amber-400/25 bg-amber-400/10 text-amber-100'
+    : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100';
+
+  return (
+    <div className={`rounded-[8px] border p-3 ${tone}`}>
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">Backend data footprint</div>
+      <div className="mt-2 grid gap-1 text-xs leading-5">
+        <div>Data dir: {formatBytes(footprint.dataDirBytes)}</div>
+        <div>SQLite: {formatBytes(footprint.dbBytes)}</div>
+        <div className="text-white/60">{footprint.detail}</div>
+      </div>
+      {footprint.isHeavy ? (
+        <div className="mt-2 rounded-md border border-white/10 bg-black/20 px-2 py-1 font-mono text-[11px] text-white/70">
+          Verify /data mirror, then clean manually if local evidence is no longer needed.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PerformanceSnapshotCard({ snapshot }: { snapshot: DiagnosticsPerformanceSnapshotResult }) {
+  const topProcesses = snapshot.processes.slice(0, 5);
+
+  return (
+    <div className="rounded-[8px] border border-cyan-400/20 bg-cyan-400/10 p-3 text-cyan-100">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] opacity-70">Electron process load</div>
+      <div className="mt-2 grid gap-1 text-xs leading-5">
+        <div>Total CPU sample: {snapshot.totals.cpuPercent.toFixed(1)}%</div>
+        <div>Working set: {formatBytes(snapshot.totals.workingSetBytes)}</div>
+        <div>Renderers: {snapshot.totals.rendererCount} · GPU: {snapshot.totals.gpuCount}</div>
+      </div>
+      <div className="mt-2 grid gap-1 font-mono text-[11px] text-white/70">
+        {topProcesses.map((process) => (
+          <div key={`${process.pid}-${process.type}`} className="flex justify-between gap-3">
+            <span className="truncate">{process.type}{process.serviceName ? `:${process.serviceName}` : ''} #{process.pid}</span>
+            <span>{process.cpuPercent.toFixed(1)}% · {formatBytes(process.workingSetBytes)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

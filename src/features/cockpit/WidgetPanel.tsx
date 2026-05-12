@@ -1,22 +1,5 @@
 import React, { Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import {
-  Activity,
-  BarChart3,
-  Bitcoin,
-  Bot,
-  CalendarDays,
-  CandlestickChart,
-  Database,
-  Droplets,
-  FlaskConical,
-  Network,
-  ShieldCheck,
-  RadioTower,
-  Settings,
-  Terminal,
-  Wallet
-} from 'lucide-react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { LiquidationsProvider } from '@/contexts/LiquidationsContext';
 import { recordTelemetry } from '@/services/performanceTelemetry';
@@ -32,6 +15,7 @@ const StrategyLibraryPage = React.lazy(() => import('@/features/strategies/pages
 const StrategyDetailPage = React.lazy(() => import('@/features/strategies/pages/StrategyDetailPage'));
 const StrategyAuditPage = React.lazy(() => import('@/features/strategies/pages/StrategyAuditPage'));
 const MemoryGraphPage = React.lazy(() => import('@/features/memory/pages/MemoryGraphPage'));
+const RepoGraphPage = React.lazy(() => import('@/features/memory/pages/RepoGraphPage'));
 const HyperliquidDataPage = React.lazy(() => import('@/features/hyperliquid/pages/HyperliquidDataPage'));
 const HyperliquidIntelligencePage = React.lazy(() => import('@/features/hyperliquid/pages/HyperliquidIntelligencePage'));
 const HyperliquidPaperLabPage = React.lazy(() => import('@/features/paper/pages/HyperliquidPaperLabPage'));
@@ -42,34 +26,15 @@ const SettingsPage = React.lazy(() => import('@/features/settings/pages/Settings
 const DiagnosticsPage = React.lazy(() => import('@/features/diagnostics/pages/DiagnosticsPage'));
 const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid').then((module) => ({ default: module.TerminalGrid })));
 
-const navItems = [
-  { path: '/station/hedge-fund', label: 'Hedge Fund', icon: ShieldCheck },
-  { path: '/station/live', label: 'Live', icon: Activity },
-  { path: '/cockpit', label: 'Cockpit', icon: RadioTower },
-  { path: '/btc', label: 'BTC', icon: Bitcoin },
-  { path: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { path: '/hyperliquid', label: 'Hyperliquid', icon: CandlestickChart },
-  { path: '/strategies', label: 'Pipeline', icon: FlaskConical },
-  { path: '/strategy-audit', label: 'Audit Focus', icon: ShieldCheck },
-  { path: '/memory', label: 'Memory', icon: Network },
-  { path: '/paper', label: 'Paper', icon: BarChart3 },
-  { path: '/liquidations', label: 'Liquidations', icon: Droplets },
-  { path: '/portfolio', label: 'Portfolio', icon: Wallet },
-  { path: '/data', label: 'Data', icon: Database },
-  { path: '/terminals', label: 'Terminales / CLI', icon: Terminal },
-  { path: '/workbench', label: 'Workbench', icon: Bot },
-  { path: '/diagnostics', label: 'Diagnostics', icon: Activity },
-  { path: '/settings', label: 'Settings', icon: Settings }
-];
-
 const LiquidationsRoute: React.FC = () => (
   <LiquidationsProvider>
     <LiquidationsPage />
   </LiquidationsProvider>
 );
 
-const Navigation: React.FC = () => {
+const RouteLifecycleTelemetry: React.FC = () => {
   const location = useLocation();
+
   useEffect(() => {
     publishCenterRouteChanged(location.pathname);
     const startedAt = performance.now();
@@ -83,58 +48,7 @@ const Navigation: React.FC = () => {
     };
   }, [location.pathname]);
 
-  return (
-    <nav
-      style={{
-        display: 'flex',
-        gap: '3px',
-        padding: '8px 12px',
-        background: 'rgba(4, 8, 16, 0.4)',
-        backdropFilter: 'blur(28px) saturate(1.2)',
-        WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-        overflowX: 'auto',
-        boxShadow: 'inset 0 -1px 0 rgba(0, 0, 0, 0.3)'
-      }}
-    >
-      {navItems.map((item) => {
-        const isActive =
-          item.path === '/'
-            ? location.pathname === '/'
-            : location.pathname === item.path ||
-              location.pathname.startsWith(`${item.path}/`) ||
-              (item.path === '/strategies' && location.pathname.startsWith('/strategy/'));
-
-        return (
-          <Link
-            key={item.path}
-            to={item.path}
-            title={item.label}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              background: isActive ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
-              color: isActive ? 'var(--app-text)' : 'var(--app-subtle)',
-              textDecoration: 'none',
-              fontSize: '12px',
-              fontWeight: isActive ? 600 : 400,
-              border: isActive ? '1px solid rgba(255, 255, 255, 0.06)' : '1px solid transparent',
-              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-              whiteSpace: 'nowrap',
-              letterSpacing: '0.02em',
-              boxShadow: isActive ? '0 0 12px var(--app-glow)' : 'none'
-            }}
-          >
-            <item.icon size={13} />
-            <span>{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  return null;
 };
 
 class RouteErrorBoundary extends React.Component<
@@ -226,8 +140,9 @@ const CenterNavigationBridge: React.FC = () => {
 
 export const WidgetPanel: React.FC = () => {
   return (
-    <BrowserRouter>
+    <>
       <CenterNavigationBridge />
+      <RouteLifecycleTelemetry />
       <div
         style={{
           width: '100%',
@@ -238,8 +153,6 @@ export const WidgetPanel: React.FC = () => {
           overflow: 'hidden'
         }}
       >
-        <Navigation />
-
         <div
           style={{
             flex: 1,
@@ -267,6 +180,7 @@ export const WidgetPanel: React.FC = () => {
                   <Route path="/strategy/:strategyName/:timeframe" element={<StrategyDetailPage />} />
                   <Route path="/strategy-audit" element={<StrategyAuditPage />} />
                   <Route path="/memory" element={<MemoryGraphPage />} />
+                  <Route path="/repo-graph" element={<RepoGraphPage />} />
                   <Route path="/hyperliquid" element={<HyperliquidIntelligencePage />} />
                   <Route path="/paper" element={<HyperliquidPaperLabPage />} />
                   <Route path="/polymarket" element={<PolymarketPage />} />
@@ -284,7 +198,7 @@ export const WidgetPanel: React.FC = () => {
           </div>
         </div>
       </div>
-    </BrowserRouter>
+    </>
   );
 };
 

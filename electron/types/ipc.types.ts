@@ -442,6 +442,40 @@ export interface DiagnosticsMissionDrillResult {
   errors: string[];
 }
 
+export interface DiagnosticsDataFootprintParams {
+  workspacePath: string;
+}
+
+export interface DiagnosticsDataFootprintResult {
+  dataRoot: string;
+  dbPath: string;
+  dataDirBytes: number | null;
+  dbBytes: number | null;
+  warningThresholdBytes: number;
+  isHeavy: boolean;
+  detail: string;
+}
+
+export interface DiagnosticsProcessMetric {
+  pid: number;
+  type: string;
+  serviceName?: string;
+  cpuPercent: number;
+  idleWakeupsPerSecond: number;
+  workingSetBytes: number;
+}
+
+export interface DiagnosticsPerformanceSnapshotResult {
+  capturedAt: string;
+  processes: DiagnosticsProcessMetric[];
+  totals: {
+    cpuPercent: number;
+    workingSetBytes: number;
+    rendererCount: number;
+    gpuCount: number;
+  };
+}
+
 export interface DevServiceStatus {
   ok: boolean;
   url: string;
