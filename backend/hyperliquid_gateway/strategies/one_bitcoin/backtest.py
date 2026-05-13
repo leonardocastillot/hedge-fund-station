@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import csv
-import json
-import os
-import urllib.parse
-import urllib.request
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 try:
-    from ...backtesting.engine import BacktestConfig, parse_time_to_ms
+    from ...backtesting.btc_daily_history import load_btc_daily_history as load_shared_btc_daily_history
+    from ...backtesting.engine import BacktestConfig
 except ImportError:
-    from backtesting.engine import BacktestConfig, parse_time_to_ms
+    from backtesting.btc_daily_history import load_btc_daily_history as load_shared_btc_daily_history
+    from backtesting.engine import BacktestConfig
 from .logic import (
     GOAL_BTC,
     STRATEGY_ID,
@@ -28,9 +25,6 @@ from .logic import (
 from .risk import build_risk_plan, clamp_purchase_amount
 from .scoring import rank_variants
 
-COINGECKO_RANGE_URL = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range"
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
-DEFAULT_HISTORY_START = "2014-01-01"
 PRIMARY_SELECTION_MODE = "max_btc_balance"
 
 
@@ -92,7 +86,7 @@ def run_backtest(dataset_path: Path, config: BacktestConfig) -> dict[str, Any]:
             "BTC-only spot accumulation research; no leverage, no shorting, and no order routing.",
             "DCA is the baseline; the primary variant is selected by ending BTC balance, not fixed by name.",
             "Research-only sell/rebuy variants may trim overheated BTC in the backtest, but no order routing is enabled.",
-            "CoinGecko daily BTC/USD history is cached under the backend data artifact layer when the default dataset is missing.",
+            "Yahoo Finance BTC-USD daily history is cached under the backend data artifact layer when the default dataset is missing; Binance daily candles are a fallback.",
             "Validation intentionally blocks execution promotion for this strategy.",
         ],
     }
@@ -106,230 +100,8 @@ def build_runtime_config(config: BacktestConfig | None = None, overrides: dict[s
 
 
 def load_btc_daily_history(dataset_path: Path, config: BacktestConfig | None = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    path = Path(dataset_path).expanduser()
-    source = "local"
-    generated_at = None
-    source_url = None
-    if path.exists():
-        rows, metadata = read_history_file(path)
-        source = metadata.get("source", "local")
-        generated_at = metadata.get("generated_at")
-        source_url = metadata.get("source_url")
-    else:
-        rows, metadata = fetch_and_cache_coingecko_history(path)
-        source = metadata["source"]
-        generated_at = metadata.get("generated_at")
-        source_url = metadata.get("source_url")
-
-    filtered = filter_rows(rows, config)
-    return filtered, {
-        "path": str(path),
-        "type": "btc_usd_daily",
-        "source": source,
-        "source_url": source_url,
-        "generated_at": generated_at,
-        "coin_id": "bitcoin",
-        "vs_currency": "usd",
-    }
-
-
-def read_history_file(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    if path.suffix.lower() == ".csv":
-        with path.open(newline="", encoding="utf-8") as handle:
-            rows = [
-                normalize_price_row({"date": item.get("date") or item.get("timestamp"), "close": item.get("close") or item.get("price")})
-                for item in csv.DictReader(handle)
-            ]
-        return normalize_history_rows(rows), {"source": "csv"}
-
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(payload, dict) and isinstance(payload.get("prices"), list):
-        prices = payload["prices"]
-        if prices and isinstance(prices[0], list):
-            rows = rows_from_coingecko_prices(prices)
-        else:
-            rows = [normalize_price_row(item) for item in prices]
-        return normalize_history_rows(rows), {
-            "source": payload.get("source", "json"),
-            "generated_at": payload.get("generated_at"),
-            "source_url": payload.get("source_url"),
-        }
-    if isinstance(payload, list):
-        return normalize_history_rows([normalize_price_row(item) for item in payload]), {"source": "json"}
-    raise ValueError(f"Unsupported One Bitcoin dataset format: {path}")
-
-
-def fetch_and_cache_coingecko_history(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    start_date = os.getenv("ONE_BITCOIN_HISTORY_START", DEFAULT_HISTORY_START)
-    end_date = os.getenv("ONE_BITCOIN_HISTORY_END", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
-    query = {
-        "vs_currency": "usd",
-        "from": str(to_unix_seconds(start_date)),
-        "to": str(to_unix_seconds(end_date)),
-    }
-    url = f"{COINGECKO_RANGE_URL}?{urllib.parse.urlencode(query)}"
-    headers = {"User-Agent": "hedge-fund-station/one-bitcoin"}
-    if os.getenv("COINGECKO_API_KEY"):
-        headers["x-cg-pro-api-key"] = str(os.getenv("COINGECKO_API_KEY"))
-    if os.getenv("COINGECKO_DEMO_API_KEY"):
-        headers["x-cg-demo-api-key"] = str(os.getenv("COINGECKO_DEMO_API_KEY"))
-    request = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        rows = normalize_history_rows(rows_from_coingecko_prices(payload.get("prices", [])))
-        if not rows:
-            raise ValueError("CoinGecko returned no BTC price rows.")
-        cache_payload = {
-            "source": "coingecko",
-            "source_url": COINGECKO_RANGE_URL,
-            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "coin_id": "bitcoin",
-            "vs_currency": "usd",
-            "prices": rows,
-        }
-    except Exception as exc:
-        cache_payload = fetch_fallback_history(start_date=start_date, end_date=end_date, coingecko_error=str(exc))
-        rows = cache_payload["prices"]
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache_payload, indent=2), encoding="utf-8")
-    return rows, cache_payload
-
-
-def fetch_fallback_history(*, start_date: str, end_date: str, coingecko_error: str) -> dict[str, Any]:
-    try:
-        rows = fetch_binance_daily_history(start_date=start_date, end_date=end_date)
-        return {
-            "source": "binance_public_klines_after_coingecko_error",
-            "source_url": BINANCE_KLINES_URL,
-            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "coin_id": "bitcoin",
-            "vs_currency": "usd",
-            "coingecko_error": coingecko_error,
-            "prices": rows,
-        }
-    except Exception as exc:
-        rows = build_synthetic_fallback_history()
-        return {
-            "source": "synthetic_fallback_after_market_data_errors",
-            "source_url": COINGECKO_RANGE_URL,
-            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "coin_id": "bitcoin",
-            "vs_currency": "usd",
-            "coingecko_error": coingecko_error,
-            "fallback_error": str(exc),
-            "prices": rows,
-        }
-
-
-def fetch_binance_daily_history(*, start_date: str, end_date: str) -> list[dict[str, Any]]:
-    start_ms = to_unix_seconds(start_date) * 1000
-    end_ms = to_unix_seconds(end_date) * 1000
-    rows: list[dict[str, Any]] = []
-    cursor = start_ms
-    one_day_ms = 24 * 60 * 60 * 1000
-    while cursor <= end_ms:
-        query = {
-            "symbol": "BTCUSDT",
-            "interval": "1d",
-            "startTime": str(cursor),
-            "endTime": str(end_ms),
-            "limit": "1000",
-        }
-        url = f"{BINANCE_KLINES_URL}?{urllib.parse.urlencode(query)}"
-        request = urllib.request.Request(url, headers={"User-Agent": "hedge-fund-station/one-bitcoin"})
-        with urllib.request.urlopen(request, timeout=30) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        if not payload:
-            break
-        for item in payload:
-            open_time_ms = int(item[0])
-            close = float(item[4])
-            rows.append(
-                {
-                    "date": datetime.fromtimestamp(open_time_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d"),
-                    "close": close,
-                }
-            )
-        next_cursor = int(payload[-1][0]) + one_day_ms
-        if next_cursor <= cursor:
-            break
-        cursor = next_cursor
-    normalized = normalize_history_rows(rows)
-    if not normalized:
-        raise ValueError("Binance returned no BTCUSDT daily rows.")
-    return normalized
-
-
-def rows_from_coingecko_prices(prices: list[Any]) -> list[dict[str, Any]]:
-    by_day: dict[str, float] = {}
-    for item in prices:
-        if not isinstance(item, list) or len(item) < 2:
-            continue
-        timestamp_ms = int(float(item[0]))
-        price = float(item[1])
-        day = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-        by_day[day] = price
-    return [{"date": day, "close": close} for day, close in sorted(by_day.items())]
-
-
-def normalize_price_row(row: dict[str, Any]) -> dict[str, Any]:
-    day = normalize_day(row.get("date") or row.get("timestamp"))
-    close = float(row.get("close") or row.get("price") or 0.0)
-    if close <= 0:
-        raise ValueError(f"BTC close must be positive for {day}")
-    return {"date": day, "close": close}
-
-
-def normalize_history_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    deduped: dict[str, float] = {}
-    for row in rows:
-        normalized = normalize_price_row(row)
-        deduped[normalized["date"]] = float(normalized["close"])
-    return [{"date": day, "close": deduped[day]} for day in sorted(deduped.keys())]
-
-
-def normalize_day(value: Any) -> str:
-    if isinstance(value, (int, float)):
-        numeric = int(value)
-        seconds = numeric / 1000 if numeric > 10_000_000_000 else numeric
-        return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%d")
-    text = str(value or "").strip()
-    if not text:
-        raise ValueError("Missing BTC history date.")
-    if text.isdigit():
-        return normalize_day(int(text))
-    return datetime.fromisoformat(text.replace("Z", "+00:00")).date().isoformat()
-
-
-def to_unix_seconds(day: str) -> int:
-    parsed = datetime.fromisoformat(day).replace(tzinfo=timezone.utc)
-    return int(parsed.timestamp())
-
-
-def filter_rows(rows: list[dict[str, Any]], config: BacktestConfig | None) -> list[dict[str, Any]]:
-    if config is None:
-        return rows
-    start_ms = parse_time_to_ms(config.start)
-    end_ms = parse_time_to_ms(config.end)
-    if config.lookback_days and start_ms is None and rows:
-        reference_end = end_ms or parse_time_to_ms(rows[-1]["date"])
-        if reference_end is not None:
-            end_ms = end_ms or reference_end
-            start_ms = reference_end - (int(config.lookback_days) * 24 * 60 * 60 * 1000)
-
-    filtered: list[dict[str, Any]] = []
-    for row in rows:
-        timestamp_ms = parse_time_to_ms(row["date"])
-        if timestamp_ms is None:
-            continue
-        if start_ms is not None and timestamp_ms < start_ms:
-            continue
-        if end_ms is not None and timestamp_ms > end_ms:
-            continue
-        filtered.append(row)
-    return filtered
+    rows, metadata = load_shared_btc_daily_history(dataset_path, config)
+    return rows, {**metadata, "coin_id": "bitcoin"}
 
 
 def run_accumulation_variants(
@@ -773,41 +545,3 @@ def cash_drag_note(variant_id: str, cash_drag_values: list[float]) -> str:
     if average > 15.0:
         return "Moderate cash drag: reserve cash improved optionality but may trail DCA in uptrends."
     return "Low cash drag: reserve cash was regularly deployed."
-
-
-def build_synthetic_fallback_history() -> list[dict[str, Any]]:
-    anchors = [
-        ("2014-01-01", 770.0),
-        ("2015-01-01", 315.0),
-        ("2016-01-01", 430.0),
-        ("2017-01-01", 998.0),
-        ("2018-01-01", 13657.0),
-        ("2019-01-01", 3843.0),
-        ("2020-01-01", 7200.0),
-        ("2021-01-01", 29374.0),
-        ("2022-01-01", 47686.0),
-        ("2023-01-01", 16625.0),
-        ("2024-01-01", 42280.0),
-        ("2025-01-01", 93500.0),
-        ("2026-01-01", 94000.0),
-    ]
-    rows: list[dict[str, Any]] = []
-    for index, (day, close) in enumerate(anchors):
-        rows.append({"date": day, "close": close})
-        if index + 1 < len(anchors):
-            next_day = date.fromisoformat(anchors[index + 1][0])
-            current_day = date.fromisoformat(day)
-            current_close = close
-            next_close = anchors[index + 1][1]
-            days = (next_day - current_day).days
-            for offset in range(1, days):
-                progress = offset / days
-                interpolated = current_close + ((next_close - current_close) * progress)
-                rows.append({"date": (current_day.toordinal() + offset), "close": interpolated})
-    normalized = []
-    for row in rows:
-        row_date = row["date"]
-        if isinstance(row_date, int):
-            row_date = date.fromordinal(row_date).isoformat()
-        normalized.append({"date": str(row_date), "close": round(float(row["close"]), 8)})
-    return normalized

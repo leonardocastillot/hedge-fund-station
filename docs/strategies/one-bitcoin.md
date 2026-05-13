@@ -31,11 +31,13 @@ Avoid in:
 ## Inputs
 
 - Daily BTC/USD close history.
-- Default source: CoinGecko `bitcoin` market chart range API cached under the
-  backend data artifact layer.
-- If CoinGecko rejects unauthenticated long-range history, the runner may fall
-  back to public Binance BTCUSDT daily candles and records that source in the
-  backtest artifact.
+- Default fetch path: Yahoo Finance `BTC-USD` daily chart history cached under
+  the backend data artifact layer.
+- If Yahoo Finance is unavailable, the fetch helper may fall back to public
+  Binance BTCUSDT daily candles and records that source in the backtest
+  artifact.
+- Refresh/cache multi-year BTC history with:
+  `npm run hf:market-data:btc-daily -- --start 2014-09-17 --force`.
 - Starting cash: `$300`.
 - Monthly contribution: `$300`, deposited after the first month on the first
   available UTC daily candle of each new month.
@@ -112,8 +114,10 @@ Sources:
   https://www.investor.gov/introduction-investing/investing-basics/glossary/dollar-cost-averaging
 - FINRA dollar-cost averaging overview:
   https://www.finra.org/investors/insights/dollar-cost-averaging
-- CoinGecko market chart range API:
-  https://docs.coingecko.com/reference/coins-id-market-chart-range
+- Yahoo Finance BTC-USD chart history:
+  https://finance.yahoo.com/quote/BTC-USD/history/
+- Binance public market data:
+  https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints
 
 ## Validation
 
@@ -121,6 +125,7 @@ Run:
 
 ```bash
 npm run hf:backtest -- --strategy one_bitcoin
+npm run hf:backtest -- --strategy one_bitcoin --dataset backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json
 npm run hf:validate -- --strategy one_bitcoin --report <generated_report>
 ```
 
@@ -146,6 +151,8 @@ The backtest report must include:
 - Dips continue into deeper drawdowns and reserve buys happen too early.
 - Waiting for dips leaves too much cash idle while BTC trends up.
 - The historical data source changes granularity, coverage, or availability.
+- Daily candles are not enough to validate intraday scalps that need OI,
+  funding, crowding, order book, or 5m/15m replay context.
 - A user treats a backtest as proof rather than as a first research filter.
 - Monthly contributions are not made in real life, making the path to `1 BTC`
   mathematically different from the model.

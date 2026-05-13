@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 try:
     from .backtesting.doubling import build_doubling_estimate, build_paper_readiness
+    from .backtesting.btc_daily_history import load_btc_daily_history
     from .backtesting.engine import BacktestConfig, normalize_symbols
     from .backtesting.registry import available_strategies, get_strategy_definition
     from .backtesting.workflow import (
@@ -45,8 +46,17 @@ try:
         SETUP_TAGS as BTC_FAILED_IMPULSE_SETUP_TAGS,
         build_paper_runtime_plan as build_btc_failed_impulse_paper_runtime_plan,
     )
+    from .strategies.btc_adaptive_cycle_trend.paper import (
+        SETUP_TAGS as BTC_ADAPTIVE_CYCLE_TREND_SETUP_TAGS,
+        build_paper_runtime_plan as build_btc_adaptive_cycle_trend_paper_runtime_plan,
+    )
+    from .strategies.btc_guarded_cycle_trend.paper import (
+        SETUP_TAGS as BTC_GUARDED_CYCLE_TREND_SETUP_TAGS,
+        build_paper_runtime_plan as build_btc_guarded_cycle_trend_paper_runtime_plan,
+    )
 except ImportError:
     from backtesting.doubling import build_doubling_estimate, build_paper_readiness
+    from backtesting.btc_daily_history import load_btc_daily_history
     from backtesting.engine import BacktestConfig, normalize_symbols
     from backtesting.registry import available_strategies, get_strategy_definition
     from backtesting.workflow import (
@@ -72,6 +82,14 @@ except ImportError:
     from strategies.btc_failed_impulse_reversal.paper import (
         SETUP_TAGS as BTC_FAILED_IMPULSE_SETUP_TAGS,
         build_paper_runtime_plan as build_btc_failed_impulse_paper_runtime_plan,
+    )
+    from strategies.btc_adaptive_cycle_trend.paper import (
+        SETUP_TAGS as BTC_ADAPTIVE_CYCLE_TREND_SETUP_TAGS,
+        build_paper_runtime_plan as build_btc_adaptive_cycle_trend_paper_runtime_plan,
+    )
+    from strategies.btc_guarded_cycle_trend.paper import (
+        SETUP_TAGS as BTC_GUARDED_CYCLE_TREND_SETUP_TAGS,
+        build_paper_runtime_plan as build_btc_guarded_cycle_trend_paper_runtime_plan,
     )
 
 try:
@@ -1169,12 +1187,16 @@ def build_paper_runtime_supervisor_status(strategy_id: str, tail_lines: int = 20
 
 
 def apply_btc_failed_impulse_paper_runtime_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    return apply_paper_runtime_plan(plan, setup_tags=BTC_FAILED_IMPULSE_SETUP_TAGS)
+
+
+def apply_paper_runtime_plan(plan: dict[str, Any], *, setup_tags: tuple[str, ...]) -> dict[str, Any]:
     closed_trade_ids: list[int] = []
     opened_trade_id: int | None = None
     created_signal_id: int | None = None
     skipped_entry_reason: str | None = None
     now = int(time.time() * 1000)
-    setup_tags = tuple(tag.lower() for tag in BTC_FAILED_IMPULSE_SETUP_TAGS)
+    normalized_setup_tags = tuple(tag.lower() for tag in setup_tags)
 
     with db_connection() as connection:
         for action in plan.get("exitActions") or []:
@@ -1201,7 +1223,7 @@ def apply_btc_failed_impulse_paper_runtime_plan(plan: dict[str, Any]) -> dict[st
         trade_payload = entry.get("tradePayload") if isinstance(entry.get("tradePayload"), dict) else None
         signal_payload = entry.get("signalPayload") if isinstance(entry.get("signalPayload"), dict) else None
         if trade_payload:
-            placeholders = ",".join("?" for _ in setup_tags)
+            placeholders = ",".join("?" for _ in normalized_setup_tags)
             existing = connection.execute(
                 f"""
                 SELECT 1 FROM paper_trades
@@ -1210,7 +1232,7 @@ def apply_btc_failed_impulse_paper_runtime_plan(plan: dict[str, Any]) -> dict[st
                   AND lower(setup_tag) IN ({placeholders})
                 LIMIT 1
                 """,
-                setup_tags,
+                normalized_setup_tags,
             ).fetchone()
             if existing:
                 skipped_entry_reason = "matching_open_trade"
@@ -5741,17 +5763,38 @@ async def paper_runtime_tick(
     portfolio_value: float = Query(default=100_000.0, gt=0),
 ) -> dict[str, Any]:
     normalized = normalize_strategy_id(strategy_id)
-    if normalized != "btc_failed_impulse_reversal":
+    if normalized not in {"btc_failed_impulse_reversal", "btc_guarded_cycle_trend", "btc_adaptive_cycle_trend"}:
         raise HTTPException(status_code=400, detail=f"Paper runtime tick is not implemented for {normalized}.")
 
     await ensure_overview_data()
-    history_entries = paper_runtime_history_entries("BTC")
     open_trades = paper_trade_payloads_without_mark_to_market(limit=100, status="open")
-    plan = build_btc_failed_impulse_paper_runtime_plan(
-        history_entries=history_entries,
-        open_trades=open_trades,
-        portfolio_value=portfolio_value,
-    )
+    if normalized in {"btc_guarded_cycle_trend", "btc_adaptive_cycle_trend"}:
+        definition = get_strategy_definition(normalized)
+        if not definition.default_dataset:
+            raise HTTPException(status_code=400, detail=f"No default dataset configured for {normalized}.")
+        daily_rows, _ = load_btc_daily_history(Path(definition.default_dataset), BacktestConfig())
+        if normalized == "btc_adaptive_cycle_trend":
+            plan = build_btc_adaptive_cycle_trend_paper_runtime_plan(
+                daily_rows=daily_rows,
+                open_trades=open_trades,
+                portfolio_value=portfolio_value,
+            )
+            setup_tags = BTC_ADAPTIVE_CYCLE_TREND_SETUP_TAGS
+        else:
+            plan = build_btc_guarded_cycle_trend_paper_runtime_plan(
+                daily_rows=daily_rows,
+                open_trades=open_trades,
+                portfolio_value=portfolio_value,
+            )
+            setup_tags = BTC_GUARDED_CYCLE_TREND_SETUP_TAGS
+    else:
+        history_entries = paper_runtime_history_entries("BTC")
+        plan = build_btc_failed_impulse_paper_runtime_plan(
+            history_entries=history_entries,
+            open_trades=open_trades,
+            portfolio_value=portfolio_value,
+        )
+        setup_tags = BTC_FAILED_IMPULSE_SETUP_TAGS
     applied = {
         "closedTradeIds": [],
         "openedTradeId": None,
@@ -5759,7 +5802,7 @@ async def paper_runtime_tick(
         "skippedEntryReason": "dry_run" if dry_run else None,
     }
     if not dry_run:
-        applied = apply_btc_failed_impulse_paper_runtime_plan(plan)
+        applied = apply_paper_runtime_plan(plan, setup_tags=setup_tags)
 
     return {
         "success": True,

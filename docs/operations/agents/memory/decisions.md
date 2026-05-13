@@ -73,10 +73,11 @@ needs status, date, decision, and reason.
 ## Recurring Agent Cadence
 
 - Status: accepted
-- Date: 2026-05-10
-- Decision: Hedge Fund Station uses a daily 02:30 small-improvement automation
-  plus a Sunday 09:00 read-only health report for harness, memory, Graphify,
-  Obsidian, and strategy status.
+- Date: 2026-05-13
+- Decision: Hedge Fund Station uses a daily 02:30 Strategy Factory to generate
+  at most one backend-first strategy candidate from existing wins/losses, a
+  daily 03:30 small-improvement automation, and a Sunday 09:00 read-only health
+  report for harness, memory, Graphify, Obsidian, and strategy status.
 - Reason: agents need compounding improvement without turning recurring work
   into noisy broad rewrites or unsafe trading promotion.
 

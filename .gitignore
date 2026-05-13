@@ -97,3 +97,12 @@ backend/hyperliquid_gateway/data/validations/*-[0-9][0-9][0-9][0-9][0-9][0-9]*.j
 !backend/hyperliquid_gateway/data/backtests/*-smoke.json
 !backend/hyperliquid_gateway/data/paper/*-smoke.json
 !backend/hyperliquid_gateway/data/validations/*-smoke.json
+!backend/hyperliquid_gateway/data/audits/btc_guarded_cycle_trend-doubling-stability-20260513T181253Z.json
+!backend/hyperliquid_gateway/data/audits/btc_adaptive_cycle_trend-doubling-stability-20260513T183812Z.json
+!backend/hyperliquid_gateway/data/backtests/btc_adaptive_cycle_trend-btc_usd_daily_yahoo-20260513T183755Z.json
+!backend/hyperliquid_gateway/data/backtests/btc_guarded_cycle_trend-btc_usd_daily_yahoo-20260513T181241Z.json
+!backend/hyperliquid_gateway/data/backtests/btc_guarded_cycle_trend-btc_usd_daily_yahoo-20260513T183751Z.json
+!backend/hyperliquid_gateway/data/paper/btc_adaptive_cycle_trend-20260513T183807Z.json
+!backend/hyperliquid_gateway/data/paper/btc_guarded_cycle_trend-20260513T181250Z.json
+!backend/hyperliquid_gateway/data/validations/btc_adaptive_cycle_trend-20260513T183803Z.json
+!backend/hyperliquid_gateway/data/validations/btc_guarded_cycle_trend-20260513T181246Z.json

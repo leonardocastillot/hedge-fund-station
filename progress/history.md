@@ -1353,6 +1353,39 @@ entries unless the human explicitly asks for cleanup.
 - Evidence:
   `src/features/cockpit/pages/BtcAnalysisPage.tsx`,
   `src/features/cockpit/pages/BtcPineLabPanel.tsx`,
+## 2026-05-13 - Dual Hyperliquid Strategy Candidates
+
+- Agent: Codex
+- Mission class: strategy research
+- Summary: Added two backend-first Hyperliquid candidates:
+  `breakout_oi_confirmation` for OI-confirmed breakout continuation and
+  `liquidation_pressure_flip_reversal` for stretched liquidation-pressure
+  reversals. Both have docs, backend deterministic logic/scoring/risk/paper/
+  backtest modules, registry entries, validation thresholds, readiness rows, and
+  focused synthetic tests. No paper runtime loop, credential change, live
+  trading, or production promotion occurred.
+- Evidence:
+  `docs/strategies/breakout-oi-confirmation.md`,
+  `docs/strategies/liquidation-pressure-flip-reversal.md`,
+  `backend/hyperliquid_gateway/strategies/breakout_oi_confirmation/`,
+  `backend/hyperliquid_gateway/strategies/liquidation_pressure_flip_reversal/`,
+  `backend/hyperliquid_gateway/backtesting/registry.py`,
+  `tests/test_breakout_oi_confirmation.py`,
+  `tests/test_liquidation_pressure_flip_reversal.py`,
+  `backend/hyperliquid_gateway/data/backtests/breakout_oi_confirmation-initial.json`,
+  `backend/hyperliquid_gateway/data/backtests/liquidation_pressure_flip_reversal-initial.json`,
+  `backend/hyperliquid_gateway/data/validations/breakout_oi_confirmation-20260513T142258Z.json`,
+  `backend/hyperliquid_gateway/data/validations/liquidation_pressure_flip_reversal-20260513T142258Z.json`,
+  and `progress/impl_dual_hyperliquid_strategy_candidates.md`.
+- Verification: harness check, strategy catalog tests, new strategy tests,
+  initial backtests, build, `hf:status`, diff check, and Python compile checks
+  passed. Validation reports were generated and blocked as expected.
+- Status: done. `breakout_oi_confirmation` had 52 trades but failed return,
+  profit factor, win rate, and robust gates. `liquidation_pressure_flip_reversal`
+  had only 2 losing trades and failed sample/profitability gates.
+
+---
+
   `src/services/performanceTelemetry.ts`,
   `progress/impl_btc_daily_performance_automation.md`, and
   `progress/current.md`.
@@ -1399,6 +1432,200 @@ entries unless the human explicitly asks for cleanup.
   process sample.
 - Status: done. Backend trading logic, strategy logic, paper runtime,
   credentials, IPC trading contracts, and order routing were not changed.
+
+---
+
+## 2026-05-13 - BTC Adaptive Cycle Trend
+
+- Agent: Codex
+- Mission class: strategy research
+- Summary: Added `btc_adaptive_cycle_trend`, a backend-first BTC daily strategy
+  that keeps the guarded-cycle entry/exit structure and uses adaptive exposure:
+  `20%` only in strong daily regimes, `10%` in the base regime, no shorts, and
+  no leverage. It beat the paper-ready `btc_guarded_cycle_trend` 500 USD
+  benchmark.
+- Evidence:
+  `docs/strategies/btc-adaptive-cycle-trend.md`,
+  `backend/hyperliquid_gateway/strategies/btc_adaptive_cycle_trend/`,
+  `backend/hyperliquid_gateway/backtesting/registry.py`,
+  `backend/hyperliquid_gateway/app.py`,
+  `docs/operations/strategy-validation-thresholds.md`,
+  `docs/operations/strategy-readiness-matrix.md`,
+  `tests/test_btc_adaptive_cycle_trend.py`,
+  `backend/hyperliquid_gateway/data/backtests/btc_guarded_cycle_trend-btc_usd_daily_yahoo-20260513T183751Z.json`,
+  `backend/hyperliquid_gateway/data/backtests/btc_adaptive_cycle_trend-btc_usd_daily_yahoo-20260513T183755Z.json`,
+  `backend/hyperliquid_gateway/data/validations/btc_adaptive_cycle_trend-20260513T183803Z.json`,
+  `backend/hyperliquid_gateway/data/paper/btc_adaptive_cycle_trend-20260513T183807Z.json`,
+  `backend/hyperliquid_gateway/data/audits/btc_adaptive_cycle_trend-doubling-stability-20260513T183812Z.json`,
+  and `progress/impl_btc_adaptive_cycle_trend.md`.
+- Verification: refreshed BTC daily history to 4,257 rows from 2014-09-17
+  through 2026-05-13, reran the benchmark at `89.53%`, ran the new official
+  500 USD backtest at `94.39%`, validated `ready-for-paper`, generated paper
+  candidate, stability audit returned `stable`, restarted the stale local
+  gateway, and dry-run paper loop passed with no opened trade. Focused tests,
+  `hf:status`, and harness check passed.
+- Status: ready for review. Production/live execution remains blocked behind
+  paper journal evidence, regime review, risk review, operator sign-off,
+  monitoring, and rollback planning.
+
+---
+
+## 2026-05-13 - BTC Fee-Aware Failed Impulse Scalp
+
+- Agent: Codex
+- Mission class: strategy research
+- Summary: Repaired the stale `btc_momentum_oi_swing_benchmark` handoff by
+  adding `btc_fee_aware_failed_impulse_scalp`, a BTC-only failed-impulse fade
+  candidate that requires trapped-leverage context, valid OI/funding/crowding/
+  setup inputs, no extreme 4h overextension, and fee-aware expected-move
+  clearance. Added backend logic, scoring, risk, paper, backtest, docs, registry
+  entry, validation threshold/readiness rows, and focused tests. No paper
+  runtime loop, credential change, live trading, or production promotion
+  occurred.
+- Evidence:
+  `docs/strategies/btc-fee-aware-failed-impulse-scalp.md`,
+  `backend/hyperliquid_gateway/strategies/btc_fee_aware_failed_impulse_scalp/`,
+  `backend/hyperliquid_gateway/backtesting/registry.py`,
+  `docs/operations/strategy-validation-thresholds.md`,
+  `docs/operations/strategy-readiness-matrix.md`,
+  `tests/test_btc_fee_aware_failed_impulse_scalp.py`,
+  `backend/hyperliquid_gateway/data/backtests/btc_fee_aware_failed_impulse_scalp-hyperliquid-20260513T150908Z.json`,
+  `backend/hyperliquid_gateway/data/validations/btc_fee_aware_failed_impulse_scalp-20260513T150918Z.json`,
+  and `progress/impl_btc_fee_aware_failed_impulse_scalp.md`.
+- Verification: harness check, new strategy tests, catalog/filter/fee tests,
+  `hf:status`, build, and diff check passed. The 3-day local taker backtest
+  returned `-0.09%` over 5 trades, with BTC hold at `-0.80%` and excess vs BTC
+  hold at `+0.71%`; validation blocked it for insufficient sample, negative net
+  return, weak profit factor, and weak average net trade return.
+- Status: done. VM BTC data only spans about 10.72 days
+  (`2026-05-02T21:59:54Z` to `2026-05-13T15:09:37Z`), so required 30/60/90 day
+  VM backtests were skipped as a data-quality blocker.
+
+---
+
+## 2026-05-13 - BTC Guarded Cycle Trend
+
+- Agent: Codex
+- Mission class: strategy research
+- Summary: Added `btc_guarded_cycle_trend`, a backend-first BTC daily trend
+  strategy using close > SMA150, SMA50 > SMA150, RSI14 > 42, 10% max exposure,
+  and exits on 15% close drawdown from trade peak, slow-trend break, or crash
+  guard. Registered it with a `50%` minimum return validation gate and paper
+  candidate path.
+- Evidence:
+  `docs/strategies/btc-guarded-cycle-trend.md`,
+  `backend/hyperliquid_gateway/strategies/btc_guarded_cycle_trend/`,
+  `backend/hyperliquid_gateway/backtesting/registry.py`,
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_btc_guarded_cycle_trend.py`,
+  `backend/hyperliquid_gateway/data/backtests/btc_guarded_cycle_trend-btc_usd_daily_yahoo-20260513T171411Z.json`,
+  `backend/hyperliquid_gateway/data/validations/btc_guarded_cycle_trend-20260513T171421Z.json`,
+  `backend/hyperliquid_gateway/data/paper/btc_guarded_cycle_trend-20260513T171426Z.json`,
+  `backend/hyperliquid_gateway/data/audits/btc_guarded_cycle_trend-doubling-stability-20260513T171436Z.json`,
+  and `progress/impl_btc_guarded_cycle_trend.md`.
+- Verification: BTC daily cache refreshed with 4,257 Yahoo rows from
+  2014-09-17 through 2026-05-13. Official taker-fee backtest returned `89.53%`
+  net return, 48 trades, `41.67%` win rate, `2.93` profit factor, `8.79%` max
+  drawdown, and robust gate `passes`. Validation returned `ready-for-paper`.
+  `hf:paper` generated a paper candidate. Doubling stability returned `stable`
+  with 100% positive slices. Dry-run paper loop tick succeeded with
+  `flat-no-signal` and no paper trade writes. Build, gateway probe, focused
+  tests, harness, and diff checks passed.
+- Status: done. This is paper-candidate evidence only. No live routing,
+  credential change, production promotion, or non-dry-run paper supervisor start
+  occurred.
+
+---
+
+## 2026-05-13 - BTC 500 USD Validated Profile
+
+- Agent: Codex
+- Mission class: strategy research
+- Summary: Added the official `500_usd_validated` profile for
+  `btc_guarded_cycle_trend`: `500 USD` initial equity, `10%` exposure, taker
+  fees, no leverage, no shorts, one matching BTC paper position. Generated
+  official 500 USD backtest, validation, paper candidate, and stability audit
+  evidence and narrow `.gitignore` exceptions for those artifacts. Added
+  runtime test coverage for `50 USD` sizing and duplicate position blocking.
+  Leverage remains research-only behind separate audits.
+- Evidence:
+  `docs/strategies/btc-guarded-cycle-trend.md`,
+  `backend/hyperliquid_gateway/strategies/btc_guarded_cycle_trend/spec.md`,
+  `tests/test_btc_guarded_cycle_trend.py`,
+  `.gitignore`,
+  `backend/hyperliquid_gateway/data/backtests/btc_guarded_cycle_trend-btc_usd_daily_yahoo-20260513T181241Z.json`,
+  `backend/hyperliquid_gateway/data/validations/btc_guarded_cycle_trend-20260513T181246Z.json`,
+  `backend/hyperliquid_gateway/data/paper/btc_guarded_cycle_trend-20260513T181250Z.json`,
+  `backend/hyperliquid_gateway/data/audits/btc_guarded_cycle_trend-doubling-stability-20260513T181253Z.json`,
+  and `progress/impl_btc_500_usd_validated_profile.md`.
+- Verification: focused tests passed. Official 500 USD taker-fee backtest
+  returned `89.53%` net return, final equity `947.65 USD`, `48` trades,
+  `41.67%` win rate, `2.93` profit factor, `8.79%` max drawdown, and robust
+  gate `passes`. Validation returned `ready-for-paper`, paper candidate was
+  generated, stability audit returned `stable`, and `hf:status` points to the
+  new artifacts.
+- Status: ready for review. No live routing, credential change, production
+  promotion, or leverage implementation occurred.
+
+---
+
+## 2026-05-13 - Daily Strategy Factory Automation
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Created a local Codex `Daily Hedge Fund Strategy Factory` automation
+  for daily 02:30, configured it to use `gpt-5.5` with `xhigh` reasoning, and
+  moved the general nightly improvement automation to daily 03:30. Updated the
+  automation operating docs and curated decision memory so future agents know
+  the new cadence.
+- Evidence:
+  `/Users/optimus/.codex/automations/daily-hedge-fund-strategy-factory/automation.toml`,
+  `/Users/optimus/.codex/automations/nightly-hedge-fund-station-improvement/automation.toml`,
+  `docs/operations/agents/automation-system.md`,
+  `docs/operations/agents/memory/decisions.md`,
+  `progress/current.md`, and
+  `progress/impl_daily_strategy_factory_automation.md`.
+- Verification: startup checks passed with `rtk npm run agent:brief`,
+  `rtk npm run agent:check`, `rtk npm run graph:status`, and
+  `rtk npm run hf:status`. Graphify was rebuilt and `rtk npm run graph:check`
+  passed. The factory behavior test concluded it should produce report-only
+  output on the current dirty worktree rather than creating a new strategy.
+- Status: done. No live trading, order routing, credential changes,
+  production promotion, or immediate strategy generation occurred.
+
+---
+
+## 2026-05-13 - BTC Daily Yahoo History Backtesting
+
+- Agent: Codex
+- Mission class: data quality audit
+- Summary: Added a shared backend BTC/USD daily history loader and cache
+  workflow for long-horizon backtests. Yahoo Finance `BTC-USD` is the primary
+  source, Binance BTCUSDT daily candles are the auto fallback, and the stable
+  command is `npm run hf:market-data:btc-daily`. The existing One Bitcoin daily
+  backtest now reuses the shared loader instead of owning inline market-data
+  fetch code.
+- Evidence:
+  `backend/hyperliquid_gateway/backtesting/btc_daily_history.py`,
+  `backend/hyperliquid_gateway/cli.py`,
+  `package.json`,
+  `backend/hyperliquid_gateway/strategies/one_bitcoin/backtest.py`,
+  `backend/hyperliquid_gateway/strategies/one_bitcoin/spec.md`,
+  `docs/strategies/one-bitcoin.md`,
+  `backend/hyperliquid_gateway/data/README.md`,
+  `tests/test_btc_daily_history.py`,
+  `backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json`,
+  `backend/hyperliquid_gateway/data/backtests/one_bitcoin-btc_usd_daily_yahoo-20260513T152722Z.json`,
+  and `progress/impl_btc_daily_yahoo_history_backtesting.md`.
+- Verification: catalog/BTC daily/One Bitcoin tests passed, py_compile passed,
+  Yahoo 2020-01-01 through 2020-01-10 fetch produced 10 exact daily rows,
+  multi-year Yahoo cache produced 4,257 rows from 2014-09-17 through
+  2026-05-13, One Bitcoin consumed the multi-year cache, `hf:status` passed,
+  harness check passed, and diff check passed.
+- Status: done. Daily BTC candles are approved for daily/long-horizon
+  backtests and BTC benchmarks only; intraday scalp validation still requires
+  Hyperliquid snapshot history with OI, funding, crowding, order book, and
+  replay context.
 
 ---
 

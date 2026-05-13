@@ -12,8 +12,16 @@ try:
     from ..strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
     from ..strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
     from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+    from ..strategies.breakout_oi_confirmation.backtest import run_backtest as breakout_oi_confirmation_run_backtest
+    from ..strategies.breakout_oi_confirmation.paper import paper_candidate as breakout_oi_confirmation_paper_candidate
     from ..strategies.btc_crowding_scalper.backtest import run_backtest as btc_crowding_scalper_run_backtest
     from ..strategies.btc_crowding_scalper.paper import paper_candidate as btc_crowding_scalper_paper_candidate
+    from ..strategies.btc_adaptive_cycle_trend.backtest import run_backtest as btc_adaptive_cycle_trend_run_backtest
+    from ..strategies.btc_adaptive_cycle_trend.paper import paper_candidate as btc_adaptive_cycle_trend_paper_candidate
+    from ..strategies.btc_guarded_cycle_trend.backtest import run_backtest as btc_guarded_cycle_trend_run_backtest
+    from ..strategies.btc_guarded_cycle_trend.paper import paper_candidate as btc_guarded_cycle_trend_paper_candidate
+    from ..strategies.btc_fee_aware_failed_impulse_scalp.backtest import run_backtest as btc_fee_aware_failed_impulse_scalp_run_backtest
+    from ..strategies.btc_fee_aware_failed_impulse_scalp.paper import paper_candidate as btc_fee_aware_failed_impulse_scalp_paper_candidate
     from ..strategies.btc_failed_impulse_balanced_fast.backtest import run_backtest as btc_failed_impulse_balanced_fast_run_backtest
     from ..strategies.btc_failed_impulse_balanced_fast.paper import paper_candidate as btc_failed_impulse_balanced_fast_paper_candidate
     from ..strategies.btc_failed_impulse_reversal.backtest import run_backtest as btc_failed_impulse_reversal_run_backtest
@@ -22,6 +30,8 @@ try:
     from ..strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
     from ..strategies.long_flush_continuation.backtest import run_backtest as long_flush_continuation_run_backtest
     from ..strategies.long_flush_continuation.paper import paper_candidate as long_flush_continuation_paper_candidate
+    from ..strategies.liquidation_pressure_flip_reversal.backtest import run_backtest as liquidation_pressure_flip_reversal_run_backtest
+    from ..strategies.liquidation_pressure_flip_reversal.paper import paper_candidate as liquidation_pressure_flip_reversal_paper_candidate
     from ..strategies.oi_expansion_failure_fade.backtest import run_backtest as oi_expansion_failure_fade_run_backtest
     from ..strategies.oi_expansion_failure_fade.paper import paper_candidate as oi_expansion_failure_fade_paper_candidate
     from ..strategies.one_bitcoin.backtest import run_backtest as one_bitcoin_run_backtest
@@ -36,8 +46,16 @@ except ImportError:
     from strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
     from strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
     from strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
+    from strategies.breakout_oi_confirmation.backtest import run_backtest as breakout_oi_confirmation_run_backtest
+    from strategies.breakout_oi_confirmation.paper import paper_candidate as breakout_oi_confirmation_paper_candidate
     from strategies.btc_crowding_scalper.backtest import run_backtest as btc_crowding_scalper_run_backtest
     from strategies.btc_crowding_scalper.paper import paper_candidate as btc_crowding_scalper_paper_candidate
+    from strategies.btc_adaptive_cycle_trend.backtest import run_backtest as btc_adaptive_cycle_trend_run_backtest
+    from strategies.btc_adaptive_cycle_trend.paper import paper_candidate as btc_adaptive_cycle_trend_paper_candidate
+    from strategies.btc_guarded_cycle_trend.backtest import run_backtest as btc_guarded_cycle_trend_run_backtest
+    from strategies.btc_guarded_cycle_trend.paper import paper_candidate as btc_guarded_cycle_trend_paper_candidate
+    from strategies.btc_fee_aware_failed_impulse_scalp.backtest import run_backtest as btc_fee_aware_failed_impulse_scalp_run_backtest
+    from strategies.btc_fee_aware_failed_impulse_scalp.paper import paper_candidate as btc_fee_aware_failed_impulse_scalp_paper_candidate
     from strategies.btc_failed_impulse_balanced_fast.backtest import run_backtest as btc_failed_impulse_balanced_fast_run_backtest
     from strategies.btc_failed_impulse_balanced_fast.paper import paper_candidate as btc_failed_impulse_balanced_fast_paper_candidate
     from strategies.btc_failed_impulse_reversal.backtest import run_backtest as btc_failed_impulse_reversal_run_backtest
@@ -46,6 +64,8 @@ except ImportError:
     from strategies.funding_exhaustion_snap.paper import paper_candidate as funding_exhaustion_snap_paper_candidate
     from strategies.long_flush_continuation.backtest import run_backtest as long_flush_continuation_run_backtest
     from strategies.long_flush_continuation.paper import paper_candidate as long_flush_continuation_paper_candidate
+    from strategies.liquidation_pressure_flip_reversal.backtest import run_backtest as liquidation_pressure_flip_reversal_run_backtest
+    from strategies.liquidation_pressure_flip_reversal.paper import paper_candidate as liquidation_pressure_flip_reversal_paper_candidate
     from strategies.oi_expansion_failure_fade.backtest import run_backtest as oi_expansion_failure_fade_run_backtest
     from strategies.oi_expansion_failure_fade.paper import paper_candidate as oi_expansion_failure_fade_paper_candidate
     from strategies.one_bitcoin.backtest import run_backtest as one_bitcoin_run_backtest
@@ -62,6 +82,7 @@ BacktestRunner = Callable[[Path, BacktestConfig], dict[str, Any]]
 DATA_ROOT = Path(os.getenv("HYPERLIQUID_DATA_ROOT", str(Path(__file__).resolve().parents[1] / "data"))).expanduser()
 DEFAULT_GATEWAY_DB = DATA_ROOT / "hyperliquid.db"
 DEFAULT_ONE_BITCOIN_DATASET = DATA_ROOT / "market_data" / "one_bitcoin_btc_usd_daily.json"
+DEFAULT_BTC_DAILY_YAHOO_DATASET = DATA_ROOT / "market_data" / "btc_usd_daily_yahoo.json"
 
 
 @dataclass(frozen=True)
@@ -120,6 +141,20 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
         default_dataset=r"C:\Users\leonard\Documents\trading-harvard\Harvard-Algorithmic-Trading-with-AI\backtest\data\BTC-6h-1000wks-data.csv",
         dataset_label="ohlcv_csv",
     ),
+    "breakout_oi_confirmation": StrategyDefinition(
+        strategy_id="breakout_oi_confirmation",
+        backtest_runner=breakout_oi_confirmation_run_backtest,
+        paper_candidate_builder=breakout_oi_confirmation_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=20,
+            min_return_pct=0.15,
+            min_profit_factor=1.15,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=6.0,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
     "funding_exhaustion_snap": StrategyDefinition(
         strategy_id="funding_exhaustion_snap",
         backtest_runner=funding_exhaustion_snap_run_backtest,
@@ -138,6 +173,48 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
         strategy_id="btc_crowding_scalper",
         backtest_runner=btc_crowding_scalper_run_backtest,
         paper_candidate_builder=btc_crowding_scalper_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=60,
+            min_return_pct=0.0,
+            min_profit_factor=1.30,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=3.5,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "btc_adaptive_cycle_trend": StrategyDefinition(
+        strategy_id="btc_adaptive_cycle_trend",
+        backtest_runner=btc_adaptive_cycle_trend_run_backtest,
+        paper_candidate_builder=btc_adaptive_cycle_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=10,
+            min_return_pct=90.0,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=20.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_guarded_cycle_trend": StrategyDefinition(
+        strategy_id="btc_guarded_cycle_trend",
+        backtest_runner=btc_guarded_cycle_trend_run_backtest,
+        paper_candidate_builder=btc_guarded_cycle_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=10,
+            min_return_pct=50.0,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=25.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_fee_aware_failed_impulse_scalp": StrategyDefinition(
+        strategy_id="btc_fee_aware_failed_impulse_scalp",
+        backtest_runner=btc_fee_aware_failed_impulse_scalp_run_backtest,
+        paper_candidate_builder=btc_fee_aware_failed_impulse_scalp_paper_candidate,
         validation_policy=ValidationPolicy(
             min_trades=60,
             min_return_pct=0.0,
@@ -214,6 +291,20 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_profit_factor=1.02,
             min_win_rate_pct=35.0,
             max_drawdown_pct=8.0,
+        ),
+        default_dataset=str(DEFAULT_GATEWAY_DB),
+        dataset_label="gateway_snapshot_db",
+    ),
+    "liquidation_pressure_flip_reversal": StrategyDefinition(
+        strategy_id="liquidation_pressure_flip_reversal",
+        backtest_runner=liquidation_pressure_flip_reversal_run_backtest,
+        paper_candidate_builder=liquidation_pressure_flip_reversal_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=15,
+            min_return_pct=0.10,
+            min_profit_factor=1.20,
+            min_win_rate_pct=42.0,
+            max_drawdown_pct=5.5,
         ),
         default_dataset=str(DEFAULT_GATEWAY_DB),
         dataset_label="gateway_snapshot_db",

@@ -138,15 +138,21 @@ Expected output:
 
 The current approved cadence for this repo is:
 
-- daily at 02:30: one small verified improvement, biased toward strategy and
-  validation quality.
+- daily at 02:30: Daily Hedge Fund Strategy Factory, which may create at most
+  one backend-first strategy candidate from existing wins, losses, blockers, and
+  lessons.
+- daily at 03:30: one small verified improvement, biased toward validation,
+  paper-readiness, data quality, or the agent operating system around the
+  strategy factory output.
 - weekly on Sunday at 09:00: read-only health report covering harness, memory,
   Graphify, Obsidian, strategy status, and next recommended task.
 
 Use these recurring checks inside that cadence:
 
-- daily: harness, Graphify status, strategy/paper artifact status, and one
-  focused improvement when safe.
+- daily factory: harness, Graphify status, `hf:status`, local evidence mining,
+  duplicate-strategy check, and report-only fallback when the worktree is risky.
+- daily improvement: harness, Graphify status, strategy/paper artifact status,
+  and one focused improvement when safe.
 - weekly: data quality, strategy validation gaps, UI review-speed gaps, memory
   cleanup needs, and automation health.
 

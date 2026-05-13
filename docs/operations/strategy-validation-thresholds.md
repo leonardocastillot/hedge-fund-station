@@ -12,11 +12,16 @@ production routing.
 | Strategy | Min Trades | Min Return | Min Profit Factor | Min Win Rate | Max Drawdown | Dataset Contract | Stage Meaning |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | `bb_squeeze_adx` | 3 | 0.50% | 1.05 | 30.00% | 20.00% | OHLCV CSV | donor-compatible smoke/paper example |
+| `breakout_oi_confirmation` | 20 | 0.15% | 1.15 | 40.00% | 6.00% | gateway snapshot DB | research/backtest candidate |
+| `btc_adaptive_cycle_trend` | 10 | 90.00% | 2.00 | 40.00% | 20.00% | BTC USD daily history | daily trend paper candidate |
 | `btc_crowding_scalper` | 60 | 0.00% | 1.30 | 40.00% | 3.50% | gateway snapshot DB | scalper validation candidate |
+| `btc_guarded_cycle_trend` | 10 | 50.00% | 2.00 | 40.00% | 25.00% | BTC USD daily history | daily trend paper candidate |
+| `btc_fee_aware_failed_impulse_scalp` | 60 | 0.00% | 1.30 | 40.00% | 3.50% | gateway snapshot DB | fee-aware scalper validation candidate |
 | `btc_failed_impulse_balanced_fast` | 8 | 0.25% | 1.50 | 50.00% | 4.00% | gateway snapshot DB | validation candidate |
 | `btc_failed_impulse_reversal` | 8 | 0.50% | 1.50 | 55.00% | 4.00% | gateway snapshot DB | paper candidate only after validation |
 | `funding_exhaustion_snap` | 8 | 0.25% | 1.10 | 35.00% | 8.00% | gateway snapshot DB | validation candidate |
 | `long_flush_continuation` | 5 | 0.10% | 1.02 | 35.00% | 8.00% | gateway snapshot DB | research/backtest candidate |
+| `liquidation_pressure_flip_reversal` | 15 | 0.10% | 1.20 | 42.00% | 5.50% | gateway snapshot DB | research/backtest candidate |
 | `oi_expansion_failure_fade` | 30 | 0.10% | 1.20 | 42.00% | 5.00% | gateway snapshot DB | validation candidate |
 | `one_bitcoin` | 1 | -100.00% | 0.00 | 0.00% | 1000.00% | BTC USD daily fixture | accumulation research only |
 | `polymarket_btc_5m_maker_basis_skew` | 2 | 0.10% | 1.05 | 50.00% | 4.00% | Polymarket snapshot DB | maker replay candidate |

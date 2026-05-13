@@ -1,0 +1,267 @@
+{
+  "artifact_id": "paper_candidate:btc_guarded_cycle_trend:20260513T181250Z",
+  "generated_at": "2026-05-13T18:12:50Z",
+  "artifact_type": "paper_candidate",
+  "strategy_id": "btc_guarded_cycle_trend",
+  "research": {
+    "strategy_id": "btc_guarded_cycle_trend",
+    "docs_path": "/Users/optimus/Documents/New project 9/docs/strategies/btc-guarded-cycle-trend.md",
+    "spec_path": "/Users/optimus/Documents/New project 9/backend/hyperliquid_gateway/strategies/btc_guarded_cycle_trend/spec.md",
+    "strategy_dir": "/Users/optimus/Documents/New project 9/backend/hyperliquid_gateway/strategies/btc_guarded_cycle_trend",
+    "docs_exists": true,
+    "spec_exists": true,
+    "logic_exists": true,
+    "scoring_exists": true,
+    "risk_exists": true,
+    "paper_exists": true
+  },
+  "report_path": "backend/hyperliquid_gateway/data/backtests/btc_guarded_cycle_trend-btc_usd_daily_yahoo-20260513T181241Z.json",
+  "validation_path": "backend/hyperliquid_gateway/data/validations/btc_guarded_cycle_trend-20260513T181246Z.json",
+  "report_artifact_id": "backtest_report:btc_guarded_cycle_trend:20260513T181241Z",
+  "validation_artifact_id": "validation_report:btc_guarded_cycle_trend:20260513T181246Z",
+  "dataset": {
+    "path": "backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json",
+    "type": "btc_usd_daily",
+    "source": "yahoo_finance_chart",
+    "source_url": "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD",
+    "source_symbol": "BTC-USD",
+    "generated_at": "2026-05-13T17:14:03Z",
+    "requested_start": "2014-09-17",
+    "requested_end": "2026-05-13",
+    "source_errors": null,
+    "vs_currency": "usd",
+    "rows": 4257,
+    "start": "2014-09-17",
+    "end": "2026-05-13",
+    "symbol": "BTC"
+  },
+  "summary": {
+    "initial_equity": 500.0,
+    "final_equity": 947.65,
+    "net_profit": 447.65,
+    "return_pct": 89.53,
+    "total_trades": 48,
+    "wins": 20,
+    "losses": 28,
+    "win_rate_pct": 41.67,
+    "profit_factor": 2.93,
+    "max_drawdown_pct": 8.79,
+    "fees_paid": 3.41,
+    "strategy_id": "btc_guarded_cycle_trend"
+  },
+  "latest_signal": {
+    "date": "2026-05-13",
+    "close": 79194.0078125,
+    "sma50": 74555.960625,
+    "sma150": 77514.10330729,
+    "rsi14": 63.8031,
+    "trailing_high_180d": 96929.328125,
+    "drawdown_180d_pct": 18.2972,
+    "trade_peak_close": 79194.0078125,
+    "trade_drawdown_pct": 0.0,
+    "has_required_history": true,
+    "strategy_id": "btc_guarded_cycle_trend",
+    "symbol": "BTC",
+    "signal": "none",
+    "entry_trigger": false,
+    "exit_trigger": false,
+    "exit_reason": null,
+    "filters_passed": {
+      "close_above_sma150": true,
+      "sma50_above_sma150": false,
+      "rsi_above_entry_floor": true,
+      "trailing_stop_clear": true,
+      "trend_break_clear": true,
+      "crash_guard_clear": true
+    },
+    "reasons": [
+      "No guarded trend entry or exit trigger."
+    ],
+    "rank_score": 40.45,
+    "execution_quality": 40,
+    "trigger_plan": "Enter long when BTC daily close > SMA150, SMA50 > SMA150, and RSI14 > 42.",
+    "invalidation_plan": "Exit on 15% close drawdown from trade peak, slow-trend break, or crash guard."
+  },
+  "paper_candidate": {
+    "strategy_id": "btc_guarded_cycle_trend",
+    "symbol": "BTC",
+    "signal": "none",
+    "status": "candidate",
+    "promotion_gate": "eligible-for-paper-review",
+    "validation_status": "ready-for-paper",
+    "validation_blockers": [],
+    "thesis": "Participate in BTC cycle uptrends with partial exposure and daily exits that protect against deep cycle breaks.",
+    "trigger_plan": "Enter long when BTC daily close > SMA150, SMA50 > SMA150, and RSI14 > 42.",
+    "invalidation_plan": "Exit on 15% close drawdown from trade peak, slow-trend break, or crash guard.",
+    "report_context": {
+      "return_pct": 89.53,
+      "profit_factor": 2.93,
+      "win_rate_pct": 41.67,
+      "max_drawdown_pct": 8.79,
+      "total_trades": 48,
+      "fees_paid": 3.41
+    },
+    "paperTradeMatch": {
+      "symbol": "BTC",
+      "setupTags": [
+        "btc_guarded_cycle_trend",
+        "btc-guarded-cycle-trend",
+        "guarded_cycle_trend",
+        "guarded-cycle-trend"
+      ]
+    },
+    "review_fields": [
+      "daily close",
+      "sma50",
+      "sma150",
+      "rsi14",
+      "trade peak drawdown",
+      "exit reason",
+      "paper journal outcome"
+    ]
+  },
+  "paper_baseline": {
+    "status": "collect-paper-evidence",
+    "strategyId": "btc_guarded_cycle_trend",
+    "artifactId": "backtest_report:btc_guarded_cycle_trend:20260513T181241Z",
+    "matchedValidationStatus": "ready-for-paper",
+    "candidateStatus": "candidate",
+    "candidateSignal": "none",
+    "projection": {
+      "use": "paper-drift-baseline-only",
+      "projectedDaysToDouble": 4613.9,
+      "projectedTradesToDouble": 53,
+      "geometricDailyReturnPct": 0.015,
+      "sampleDays": 4256.0,
+      "sampleStart": "2014-09-17",
+      "sampleEnd": "2026-05-13"
+    },
+    "backtestBenchmark": {
+      "returnPct": 89.53,
+      "baselineReturnPerTradePct": 1.8652,
+      "profitFactor": 2.93,
+      "winRatePct": 41.67,
+      "maxDrawdownPct": 8.79,
+      "totalTrades": 48,
+      "feeModel": "taker",
+      "feesPaid": 3.41,
+      "baselineFeePerTrade": 0.071,
+      "robustStatus": "passes",
+      "robustMetrics": {
+        "avg_net_trade_return_pct": 14.3753,
+        "largest_trade_pnl_share_pct": 34.46,
+        "dominant_exit_reason_pnl_share_pct": 151.87,
+        "profit_factor": 2.93
+      }
+    },
+    "paperTradeMatch": {
+      "symbol": "BTC",
+      "setupTags": [
+        "btc_guarded_cycle_trend",
+        "btc-guarded-cycle-trend"
+      ]
+    },
+    "minimumPaperSample": {
+      "calendarDays": 14,
+      "closedTrades": 144,
+      "reviewCoveragePct": 90,
+      "reason": "Short-window BTC edge must survive at least two weeks and a larger paper sample than the backtest."
+    },
+    "driftChecks": [
+      {
+        "key": "paper_positive_after_fees",
+        "operator": ">",
+        "threshold": 0,
+        "metric": "paper_net_return_pct"
+      },
+      {
+        "key": "paper_profit_factor_floor",
+        "operator": ">=",
+        "threshold": 1.5,
+        "metric": "paper_profit_factor"
+      },
+      {
+        "key": "paper_avg_trade_retains_half_baseline",
+        "operator": ">=",
+        "threshold": 0.9326,
+        "metric": "paper_avg_net_trade_return_pct"
+      },
+      {
+        "key": "paper_drawdown_guard",
+        "operator": "<=",
+        "threshold": 26.37,
+        "metric": "paper_max_drawdown_pct"
+      },
+      {
+        "key": "paper_review_coverage",
+        "operator": ">=",
+        "threshold": 90,
+        "metric": "review_coverage_pct"
+      }
+    ],
+    "killSwitches": [
+      "Stop paper promotion review if paper net return turns negative after the minimum sample.",
+      "Stop paper promotion review if drawdown exceeds the paper_drawdown_guard threshold.",
+      "Stop paper promotion review if two consecutive losses happen for the same failed-impulse side and regime.",
+      "Stop paper promotion review if fee or slippage per trade materially exceeds the taker-fee backtest baseline.",
+      "Stop paper promotion review if any paper trade lacks trigger, invalidation, exit reason, and human review notes."
+    ],
+    "promotionBlockers": [
+      "paper_minimum_sample",
+      "paper_drift_checks",
+      "paper_trade_reviews",
+      "regime_review",
+      "risk_review",
+      "operator_sign_off"
+    ]
+  },
+  "production_candidate_assessment": {
+    "strategy_id": "btc_guarded_cycle_trend",
+    "status": "needs-paper-evidence",
+    "checklist": {
+      "backtest_validated": true,
+      "paper_candidate_created": true,
+      "paper_signal_present": false,
+      "operator_review_complete": false,
+      "paper_journal_complete": false,
+      "regime_review_complete": false
+    },
+    "blocking_reasons": [
+      "paper_signal_present",
+      "operator_review_complete",
+      "paper_journal_complete",
+      "regime_review_complete"
+    ],
+    "minimum_requirements": [
+      "validated backtest thresholds",
+      "paper trade journal with outcomes",
+      "regime segmentation review",
+      "explicit operator sign-off"
+    ],
+    "report_context": {
+      "return_pct": 89.53,
+      "profit_factor": 2.93,
+      "max_drawdown_pct": 8.79,
+      "total_trades": 48
+    }
+  },
+  "promotion_path": {
+    "current_stage": "paper_candidate",
+    "next_stage": "production_candidate_review",
+    "requires": [
+      "paper execution journal",
+      "regime review",
+      "operator sign-off"
+    ]
+  },
+  "lineage": {
+    "stage": "paper",
+    "parents": [
+      "backtest_report:btc_guarded_cycle_trend:20260513T181241Z",
+      "validation_report:btc_guarded_cycle_trend:20260513T181246Z"
+    ],
+    "children": [
+      "production_candidate_review"
+    ]
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "artifact_id": "doubling_stability_audit:btc_adaptive_cycle_trend:20260513T183812Z",
+  "generated_at": "2026-05-13T18:38:12Z",
+  "artifact_type": "doubling_stability_audit",
+  "strategy_id": "btc_adaptive_cycle_trend",
+  "report_path": "backend/hyperliquid_gateway/data/backtests/btc_adaptive_cycle_trend-btc_usd_daily_yahoo-20260513T183755Z.json",
+  "validation_path": "backend/hyperliquid_gateway/data/validations/btc_adaptive_cycle_trend-20260513T183803Z.json",
+  "report_artifact_id": "backtest_report:btc_adaptive_cycle_trend:20260513T183755Z",
+  "validation_artifact_id": "validation_report:btc_adaptive_cycle_trend:20260513T183803Z",
+  "audit": {
+    "status": "stable",
+    "strategyId": "btc_adaptive_cycle_trend",
+    "artifactId": "backtest_report:btc_adaptive_cycle_trend:20260513T183755Z",
+    "reportPath": "backend/hyperliquid_gateway/data/backtests/btc_adaptive_cycle_trend-btc_usd_daily_yahoo-20260513T183755Z.json",
+    "doublingEstimate": {
+      "status": "candidate",
+      "candidate": true,
+      "strategyId": "btc_adaptive_cycle_trend",
+      "artifactId": "backtest_report:btc_adaptive_cycle_trend:20260513T183755Z",
+      "reportPath": "backend/hyperliquid_gateway/data/backtests/btc_adaptive_cycle_trend-btc_usd_daily_yahoo-20260513T183755Z.json",
+      "sampleStart": "2014-09-17",
+      "sampleEnd": "2026-05-13",
+      "sampleDays": 4256.0,
+      "returnPct": 94.39,
+      "geometricDailyReturnPct": 0.0156,
+      "projectedDaysToDouble": 4438.2,
+      "projectedTradesToDouble": 51,
+      "periodsToDouble": 1.04,
+      "totalTrades": 48,
+      "feeModel": "taker",
+      "riskFraction": 0.2,
+      "robustStatus": "passes",
+      "validationStatus": "ready-for-paper",
+      "blockers": []
+    },
+    "sampleStart": "2014-09-17",
+    "sampleEnd": "2026-05-13",
+    "sampleDays": 4256.0,
+    "sliceCount": 3,
+    "activeSliceCount": 3,
+    "positiveSliceCount": 3,
+    "negativeSliceCount": 0,
+    "positiveSliceRatioPct": 100.0,
+    "minSliceReturnPct": 14.876,
+    "medianSliceReturnPct": 39.63,
+    "maxSliceReturnPct": 39.888,
+    "largestPositiveSlicePnlSharePct": 42.26,
+    "blockers": [],
+    "slices": [
+      {
+        "index": 1,
+        "start": "2014-09-17T00:00:00Z",
+        "end": "2018-08-05T16:00:00Z",
+        "days": 1418.6667,
+        "tradeCount": 22,
+        "wins": 10,
+        "losses": 12,
+        "winRatePct": 45.45,
+        "netPnl": 198.15,
+        "returnPct": 39.63,
+        "profitFactor": 2.72,
+        "avgTradeReturnPct": 14.9354,
+        "projectedDaysToDouble": 2945.7,
+        "status": "positive"
+      },
+      {
+        "index": 2,
+        "start": "2018-08-05T16:00:00Z",
+        "end": "2022-06-24T08:00:00Z",
+        "days": 1418.6667,
+        "tradeCount": 16,
+        "wins": 6,
+        "losses": 10,
+        "winRatePct": 37.5,
+        "netPnl": 199.44,
+        "returnPct": 39.888,
+        "profitFactor": 2.55,
+        "avgTradeReturnPct": 19.1142,
+        "projectedDaysToDouble": 2929.5,
+        "status": "positive"
+      },
+      {
+        "index": 3,
+        "start": "2022-06-24T08:00:00Z",
+        "end": "2026-05-13T00:00:00Z",
+        "days": 1418.6667,
+        "tradeCount": 10,
+        "wins": 4,
+        "losses": 6,
+        "winRatePct": 40.0,
+        "netPnl": 74.38,
+        "returnPct": 14.876,
+        "profitFactor": 2.4,
+        "avgTradeReturnPct": 5.561,
+        "projectedDaysToDouble": 7090.6,
+        "status": "positive"
+      }
+    ],
+    "interpretation": "Backtest return is distributed across active subwindows."
+  },
+  "lineage": {
+    "stage": "doubling_stability_audit",
+    "parents": [
+      "backtest_report:btc_adaptive_cycle_trend:20260513T183755Z",
+      "validation_report:btc_adaptive_cycle_trend:20260513T183803Z"
+    ],
+    "children": [
+      "paper_review"
+    ]
+  }
+}

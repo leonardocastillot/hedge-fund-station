@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from .backtesting.engine import BacktestConfig, normalize_symbols
+from .backtesting.btc_daily_history import DEFAULT_HISTORY_START, fetch_and_cache_btc_daily_history, load_btc_daily_history
 from .backtesting.io import list_csv_files
 from .backtesting.registry import available_strategies
 from .backtesting.workflow import (
     AUDITS_ROOT,
     BACKEND_ROOT,
+    DATA_ROOT,
     PAPER_ROOT,
     REPORTS_ROOT,
     REPO_ROOT,
@@ -57,6 +59,16 @@ def build_parser() -> argparse.ArgumentParser:
     strategy_new.add_argument("--strategy-id", required=True)
     strategy_new.add_argument("--title", default=None)
     strategy_new.set_defaults(func=command_strategy_new)
+
+    market_data_parser = subparsers.add_parser("market-data", help="Market data cache helpers for backend backtests.")
+    market_data_subparsers = market_data_parser.add_subparsers(dest="market_data_command", required=True)
+    btc_daily_parser = market_data_subparsers.add_parser("btc-daily", help="Fetch/cache BTC/USD daily history for long-horizon backtests.")
+    btc_daily_parser.add_argument("--output", default=None, help="Output JSON path. Defaults to <data-root>/market_data/btc_usd_daily_yahoo.json.")
+    btc_daily_parser.add_argument("--source", choices=["auto", "yahoo", "binance"], default="auto")
+    btc_daily_parser.add_argument("--start", default=DEFAULT_HISTORY_START)
+    btc_daily_parser.add_argument("--end", default=None)
+    btc_daily_parser.add_argument("--force", action="store_true", help="Refresh even when the output file already exists.")
+    btc_daily_parser.set_defaults(func=command_market_data_btc_daily)
 
     backtest_parser = subparsers.add_parser("backtest", help="Run deterministic backend backtests.")
     backtest_parser.add_argument("--strategy", default="bb_squeeze_adx", choices=available_strategies())
@@ -225,6 +237,43 @@ def command_strategy_new(args: argparse.Namespace) -> int:
             written_files.append(str(path))
 
     print(json.dumps({"ok": True, "strategy_id": strategy_id, "written_files": written_files}, indent=2))
+    return 0
+
+
+def command_market_data_btc_daily(args: argparse.Namespace) -> int:
+    output_path = Path(args.output) if args.output else DATA_ROOT / "market_data" / "btc_usd_daily_yahoo.json"
+    if output_path.exists() and not args.force:
+        rows, metadata = load_btc_daily_history(output_path)
+        refreshed = False
+    else:
+        rows, metadata = fetch_and_cache_btc_daily_history(
+            output_path,
+            source=args.source,
+            start_date=args.start,
+            end_date=args.end,
+        )
+        refreshed = True
+
+    start = rows[0]["date"] if rows else None
+    end = rows[-1]["date"] if rows else None
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "path": str(output_path),
+                "refreshed": refreshed,
+                "source": metadata.get("source"),
+                "source_url": metadata.get("source_url"),
+                "source_symbol": metadata.get("source_symbol"),
+                "rows": len(rows),
+                "start": start,
+                "end": end,
+                "generated_at": metadata.get("generated_at"),
+                "source_errors": metadata.get("source_errors"),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

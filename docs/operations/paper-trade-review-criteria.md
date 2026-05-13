@@ -32,6 +32,7 @@ Every closed paper trade used as evidence should answer:
 | --- | --- | --- | --- |
 | `btc_failed_impulse_reversal` | failed impulse, trap, and reversal confirmation | no progress, adverse continuation, crowding/flow flip | whether the reversal was real or only local noise |
 | `btc_failed_impulse_balanced_fast` | faster balanced variant of failed impulse reversal | tight adverse move and no-progress guard | whether speed improved quality without overtrading |
+| `btc_guarded_cycle_trend` | BTC daily close above SMA150 with SMA50 > SMA150 and RSI14 > 42 | 15% close drawdown from trade peak, slow-trend break, or crash guard | daily history freshness, late exits, `500_usd_validated` sizing, one matching BTC position, and whether paper drift matches the long-window backtest |
 | `btc_crowding_scalper` | frequent BTC crowding and execution-quality setups | small drawdown, poor fill, weak continuation | fees, slippage, and overtrading pressure |
 | `short_squeeze_continuation` | shorts trapped with price staying bid | squeeze stalls or aggressive buyers disappear | continuation quality after the initial squeeze |
 | `long_flush_continuation` | crowded longs failing to bounce | sellers fail to press lows or shorts lose momentum | downside follow-through after failed support |

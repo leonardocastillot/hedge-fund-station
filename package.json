@@ -34,6 +34,7 @@
     "hf:doctor": "python3 scripts/hf.py doctor",
     "hf:strategy:new": "python3 scripts/hf.py strategy new",
     "hf:backtest": "python3 scripts/hf.py backtest",
+    "hf:market-data:btc-daily": "python3 scripts/hf.py market-data btc-daily",
     "hf:validate": "python3 scripts/hf.py validate",
     "hf:paper": "python3 scripts/hf.py paper",
     "hf:paper:tick": "python3 scripts/hf.py paper-runtime-tick",

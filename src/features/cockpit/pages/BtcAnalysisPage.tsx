@@ -9,6 +9,8 @@ import {
   EyeOff,
   Grip,
   Lock,
+  Maximize2,
+  Minimize2,
   Minus,
   Plus,
   RotateCcw,
@@ -439,6 +441,7 @@ export default function BtcAnalysisPage() {
   const [layoutState, setLayoutState] = useState<BtcLayoutState>(() => loadBtcLayoutState());
   const [performanceMode, setPerformanceMode] = useState<BtcPerformanceMode>(BTC_PERFORMANCE_MODE);
   const [activeVideoPanelId, setActiveVideoPanelId] = useState<BtcVideoPanelId | null>(() => getActiveVideoPanelId(layoutState.visibility) ?? btcVideos[0]?.panelId ?? null);
+  const [fullscreenVideoPanelId, setFullscreenVideoPanelId] = useState<BtcVideoPanelId | null>(null);
   const [autoSuspendEnabled, setAutoSuspendEnabled] = useState(true);
   const performanceProfile = usePerformanceProfile();
   const suspendBackgroundMedia = shouldSuspendBackgroundMedia(performanceProfile);
@@ -451,10 +454,34 @@ export default function BtcAnalysisPage() {
     () => filterLayoutsForVisibility(layoutState.layouts, layoutState.visibility),
     [layoutState.layouts, layoutState.visibility]
   );
+  const hasFullscreenVideo = fullscreenVideoPanelId !== null;
+  const layoutEditingEnabled = isEditing && !hasFullscreenVideo;
 
   useEffect(() => {
     saveBtcLayoutState(layoutState);
   }, [layoutState]);
+
+  useEffect(() => {
+    if (!fullscreenVideoPanelId || layoutState.visibility[fullscreenVideoPanelId]) {
+      return;
+    }
+    setFullscreenVideoPanelId(null);
+  }, [fullscreenVideoPanelId, layoutState.visibility]);
+
+  useEffect(() => {
+    if (!fullscreenVideoPanelId) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setFullscreenVideoPanelId(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenVideoPanelId]);
 
   const applyVideoMode = useCallback((mode: BtcPerformanceMode, panelId: BtcVideoPanelId | null, reason: string) => {
     const nextPanelId = panelId ?? btcVideos[0]?.panelId ?? null;
@@ -504,19 +531,20 @@ export default function BtcAnalysisPage() {
   }, [activeVideoPanelId, applyVideoMode, performanceMode]);
 
   const handleLayoutChange = useCallback((_currentLayout: Layout, allLayouts: Layouts) => {
-    if (!isEditing) {
+    if (!layoutEditingEnabled) {
       return;
     }
     setLayoutState((current) => ({
       ...current,
       layouts: mergeLayouts(current.layouts, allLayouts)
     }));
-  }, [isEditing]);
+  }, [layoutEditingEnabled]);
 
   const resetLayout = useCallback(() => {
     setLayoutState(cloneLayoutState(defaultLayoutState));
     setPerformanceMode(BTC_PERFORMANCE_MODE);
     setActiveVideoPanelId(btcVideos[0]?.panelId ?? null);
+    setFullscreenVideoPanelId(null);
     setIsPineDrawerOpen(false);
     setIsEditing(false);
   }, []);
@@ -690,16 +718,16 @@ export default function BtcAnalysisPage() {
                   key={video.id}
                   type="button"
                   onClick={() => toggleVideoPanel(video.panelId)}
-	                  className={`inline-flex h-8 items-center gap-1.5 rounded px-2 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
-	                    performanceMode === 'focus' && activeVideoPanelId === video.panelId
-	                      ? 'bg-orange-400/12 text-orange-100'
-	                      : 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-200'
-	                  }`}
-	                  title={performanceMode === 'focus' && activeVideoPanelId === video.panelId ? 'Volver a 3 videos' : `Focus ${video.label}`}
-	                >
-	                  {performanceMode === 'focus' && activeVideoPanelId === video.panelId ? <Eye size={12} /> : <EyeOff size={12} />}
-	                  {video.label.replace('Stream ', 'S')}
-	                </button>
+                  className={`inline-flex h-8 items-center gap-1.5 rounded px-2 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
+                    performanceMode === 'focus' && activeVideoPanelId === video.panelId
+                      ? 'bg-orange-400/12 text-orange-100'
+                      : 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-200'
+                  }`}
+                  title={performanceMode === 'focus' && activeVideoPanelId === video.panelId ? 'Volver a 3 videos' : `Focus ${video.label}`}
+                >
+                  {performanceMode === 'focus' && activeVideoPanelId === video.panelId ? <Eye size={12} /> : <EyeOff size={12} />}
+                  {video.label.replace('Stream ', 'S')}
+                </button>
               ))}
             </div>
 
@@ -711,10 +739,10 @@ export default function BtcAnalysisPage() {
         </div>
       </header>
 
-      <main className="relative min-h-0 flex-1 overflow-auto p-3">
+      <main className={`relative min-h-0 flex-1 p-3 ${hasFullscreenVideo ? 'overflow-hidden' : 'overflow-auto'}`}>
         <div ref={setGridContainerRef} className="min-h-full">
           <ResponsiveGridLayout
-            className={`btc-workbench-grid ${isEditing ? 'btc-workbench-grid-editing' : ''}`}
+            className={`btc-workbench-grid ${layoutEditingEnabled ? 'btc-workbench-grid-editing' : ''} ${hasFullscreenVideo ? 'btc-workbench-fullscreen-active' : ''}`}
             width={gridWidth}
             layouts={visibleLayouts}
             breakpoints={gridBreakpoints}
@@ -724,12 +752,12 @@ export default function BtcAnalysisPage() {
             containerPadding={[0, 0]}
             compactor={noCompactor}
             dragConfig={{
-              enabled: isEditing,
+              enabled: layoutEditingEnabled,
               handle: '.btc-drag-handle',
               cancel: 'button, textarea, input, pre'
             }}
             resizeConfig={{
-              enabled: isEditing,
+              enabled: layoutEditingEnabled,
               handles: ['se', 'e', 's']
             }}
             onLayoutChange={handleLayoutChange}
@@ -737,7 +765,7 @@ export default function BtcAnalysisPage() {
             <div key="tradingview" className="min-h-0 min-w-0">
               <TradingViewPanel
                 interval={interval}
-                isEditing={isEditing}
+                isEditing={layoutEditingEnabled}
                 tradingViewUrl={tradingViewUrl}
                 suspendWhenHidden={suspendBackgroundMedia}
                 onGrow={() => resizePanel('tradingview', 'grow')}
@@ -747,24 +775,30 @@ export default function BtcAnalysisPage() {
 
             {btcVideos.map((video) => (
               layoutState.visibility[video.panelId] ? (
-                <div key={video.panelId} className="min-h-0 min-w-0">
-	                  <VideoPanel
-	                    video={video}
-	                    isEditing={isEditing}
-	                    performanceMode={performanceMode}
-	                    autoSuspendEnabled={autoSuspendEnabled && suspendBackgroundMedia}
-	                    suspendWhenHidden={suspendBackgroundMedia}
-	                    quality={selectYoutubePlaybackQuality(
-	                      performanceProfile,
-	                      video.panelId === activeVideoPanelId,
-	                      performanceMode
-	                    )}
-	                    onGrow={() => resizePanel(video.panelId, 'grow')}
-	                    onShrink={() => resizePanel(video.panelId, 'shrink')}
-	                    onFocusOnly={() => applyVideoMode('focus', video.panelId, 'panel-focus')}
-	                    onShowAll={() => applyVideoMode('all-videos', video.panelId, 'panel-show-all')}
-	                    onSuspend={(reason) => applyVideoMode('focus', video.panelId, `${reason}-focus`)}
-	                  />
+                <div
+                  key={video.panelId}
+                  className={`min-h-0 min-w-0 ${fullscreenVideoPanelId === video.panelId ? 'btc-video-fullscreen-grid-item' : ''}`}
+                >
+                  <VideoPanel
+                    video={video}
+                    isEditing={layoutEditingEnabled}
+                    isFullscreen={fullscreenVideoPanelId === video.panelId}
+                    performanceMode={performanceMode}
+                    autoSuspendEnabled={autoSuspendEnabled && suspendBackgroundMedia}
+                    suspendWhenHidden={suspendBackgroundMedia}
+                    quality={selectYoutubePlaybackQuality(
+                      performanceProfile,
+                      video.panelId === activeVideoPanelId,
+                      performanceMode
+                    )}
+                    onGrow={() => resizePanel(video.panelId, 'grow')}
+                    onShrink={() => resizePanel(video.panelId, 'shrink')}
+                    onFocusOnly={() => applyVideoMode('focus', video.panelId, 'panel-focus')}
+                    onShowAll={() => applyVideoMode('all-videos', video.panelId, 'panel-show-all')}
+                    onSuspend={(reason) => applyVideoMode('focus', video.panelId, `${reason}-focus`)}
+                    onEnterFullscreen={() => setFullscreenVideoPanelId(video.panelId)}
+                    onExitFullscreen={() => setFullscreenVideoPanelId((current) => current === video.panelId ? null : current)}
+                  />
                 </div>
               ) : null
             ))}
@@ -871,6 +905,7 @@ function TradingViewPanel({
 function VideoPanel({
   video,
   isEditing,
+  isFullscreen,
   performanceMode,
   autoSuspendEnabled,
   suspendWhenHidden,
@@ -879,10 +914,13 @@ function VideoPanel({
   onShrink,
   onFocusOnly,
   onShowAll,
-  onSuspend
+  onSuspend,
+  onEnterFullscreen,
+  onExitFullscreen
 }: {
   video: BtcVideo;
   isEditing: boolean;
+  isFullscreen: boolean;
   performanceMode: BtcPerformanceMode;
   autoSuspendEnabled: boolean;
   suspendWhenHidden: boolean;
@@ -892,6 +930,8 @@ function VideoPanel({
   onFocusOnly: () => void;
   onShowAll: () => void;
   onSuspend: (reason: string) => void;
+  onEnterFullscreen: () => void;
+  onExitFullscreen: () => void;
 }) {
   const watchUrl = useMemo(() => buildYoutubeWatchUrl(video.videoId), [video.videoId]);
   const panelRef = useRef<HTMLElement | null>(null);
@@ -930,16 +970,28 @@ function VideoPanel({
   }, [autoSuspendEnabled, onSuspend]);
 
   return (
-    <section ref={panelRef} className="group relative h-full min-h-0 min-w-0 overflow-hidden rounded-md border border-white/[0.06] bg-black">
-      <FocusedYoutubeWebview src={watchUrl} suspendWhenHidden={suspendWhenHidden} quality={quality} />
+    <section
+      ref={panelRef}
+      className={`group relative h-full min-h-0 min-w-0 overflow-hidden border border-white/[0.06] bg-black ${
+        isFullscreen ? 'rounded-none' : 'rounded-md'
+      }`}
+    >
+      <FocusedYoutubeWebview
+        src={watchUrl}
+        suspendWhenHidden={suspendWhenHidden}
+        quality={quality}
+        isFullscreen={isFullscreen}
+        onEnterHtmlFullscreen={onEnterFullscreen}
+        onLeaveHtmlFullscreen={onExitFullscreen}
+      />
       {isEditing ? <div className="btc-drag-handle absolute inset-0 z-10 cursor-move bg-orange-300/[0.04]" /> : null}
 
-      <div className={`absolute left-2 top-2 z-20 inline-flex max-w-[calc(100%-9rem)] items-center gap-1.5 rounded border border-black/50 bg-black/55 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-50 shadow-lg transition ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+      <div className={`absolute left-2 top-2 z-20 inline-flex max-w-[calc(100%-9rem)] items-center gap-1.5 rounded border border-black/50 bg-black/55 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-50 shadow-lg transition ${isEditing || isFullscreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
         {isEditing ? <Grip size={12} /> : <Video size={12} />}
         <span className="truncate">{video.label}</span>
       </div>
 
-      <div className={`absolute right-2 top-2 z-30 flex gap-1 transition ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+      <div className={`absolute right-2 top-2 z-30 flex gap-1 transition ${isEditing || isFullscreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
         {isEditing ? (
           <>
             <IconButton title="Agrandar panel" onClick={onGrow}>
@@ -950,6 +1002,14 @@ function VideoPanel({
             </IconButton>
           </>
         ) : null}
+        <button
+          type="button"
+          onClick={isFullscreen ? onExitFullscreen : onEnterFullscreen}
+          className="inline-flex h-7 w-7 items-center justify-center rounded border border-black/50 bg-black/60 text-slate-200 transition hover:bg-black/80 hover:text-white"
+          title={isFullscreen ? 'Salir de pantalla completa' : 'Ver en pantalla completa'}
+        >
+          {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        </button>
         <button
           type="button"
           onClick={() => void window.electronAPI.external.openUrlInBrave(watchUrl)}
@@ -985,14 +1045,53 @@ function VideoPanel({
 function FocusedYoutubeWebview({
   src,
   suspendWhenHidden,
-  quality
+  quality,
+  isFullscreen,
+  onEnterHtmlFullscreen,
+  onLeaveHtmlFullscreen
 }: {
   src: string;
   suspendWhenHidden: boolean;
   quality: YoutubePlaybackQuality;
+  isFullscreen: boolean;
+  onEnterHtmlFullscreen: () => void;
+  onLeaveHtmlFullscreen: () => void;
 }) {
   const webviewRef = useRef<any>(null);
+  const onEnterHtmlFullscreenRef = useRef(onEnterHtmlFullscreen);
+  const onLeaveHtmlFullscreenRef = useRef(onLeaveHtmlFullscreen);
+  const wasFullscreenRef = useRef(false);
   const effectiveSrc = useHiddenWebviewSrc(src, suspendWhenHidden);
+
+  useEffect(() => {
+    onEnterHtmlFullscreenRef.current = onEnterHtmlFullscreen;
+    onLeaveHtmlFullscreenRef.current = onLeaveHtmlFullscreen;
+  }, [onEnterHtmlFullscreen, onLeaveHtmlFullscreen]);
+
+  useEffect(() => {
+    if (isFullscreen) {
+      wasFullscreenRef.current = true;
+      return;
+    }
+    if (!wasFullscreenRef.current) {
+      return;
+    }
+    wasFullscreenRef.current = false;
+
+    const webview = webviewRef.current;
+    if (!webview || effectiveSrc === 'about:blank') {
+      return;
+    }
+
+    try {
+      void webview.executeJavaScript?.(
+        'if (document.fullscreenElement && document.exitFullscreen) { document.exitFullscreen().catch(() => {}); }',
+        true
+      );
+    } catch {
+      // Best effort: host fullscreen can close even if YouTube ignores the request.
+    }
+  }, [effectiveSrc, isFullscreen]);
 
   useEffect(() => {
     const webview = webviewRef.current;
@@ -1016,10 +1115,14 @@ function FocusedYoutubeWebview({
         // Best effort only; the webview-level mute above is the primary guard.
       }
     };
+    const handleEnterHtmlFullscreen = () => onEnterHtmlFullscreenRef.current();
+    const handleLeaveHtmlFullscreen = () => onLeaveHtmlFullscreenRef.current();
 
     webview.addEventListener?.('dom-ready', focusAndMute);
     webview.addEventListener?.('did-finish-load', focusAndMute);
     webview.addEventListener?.('did-navigate', focusAndMute);
+    webview.addEventListener?.('enter-html-full-screen', handleEnterHtmlFullscreen);
+    webview.addEventListener?.('leave-html-full-screen', handleLeaveHtmlFullscreen);
     focusAndMute();
     recordTelemetry({ type: 'webview', label: 'btc:youtube', status: 'mounted', detail: effectiveSrc === 'about:blank' ? 'hidden-suspended' : `${src}:quality=${quality}` });
 
@@ -1027,6 +1130,8 @@ function FocusedYoutubeWebview({
       webview.removeEventListener?.('dom-ready', focusAndMute);
       webview.removeEventListener?.('did-finish-load', focusAndMute);
       webview.removeEventListener?.('did-navigate', focusAndMute);
+      webview.removeEventListener?.('enter-html-full-screen', handleEnterHtmlFullscreen);
+      webview.removeEventListener?.('leave-html-full-screen', handleLeaveHtmlFullscreen);
       cleanupWebview(webview);
       recordTelemetry({ type: 'webview', label: 'btc:youtube', status: 'unmounted', detail: effectiveSrc === 'about:blank' ? 'hidden-suspended' : `${src}:quality=${quality}` });
     };
@@ -1399,6 +1504,26 @@ function BtcWorkbenchStyles() {
 
         .btc-workbench-grid .react-grid-item {
           transition: box-shadow 160ms ease, transform 160ms ease;
+        }
+
+        .btc-workbench-grid .react-grid-item.btc-video-fullscreen-grid-item {
+          position: fixed !important;
+          inset: 0 !important;
+          z-index: 1000 !important;
+          width: 100vw !important;
+          width: 100dvw !important;
+          height: 100vh !important;
+          height: 100dvh !important;
+          transform: none !important;
+          transition: none !important;
+        }
+
+        .btc-workbench-grid .react-grid-item.btc-video-fullscreen-grid-item > .react-resizable-handle {
+          display: none !important;
+        }
+
+        .btc-workbench-fullscreen-active .react-grid-item:not(.btc-video-fullscreen-grid-item) {
+          pointer-events: none;
         }
 
         .btc-workbench-grid-editing .react-grid-item {
