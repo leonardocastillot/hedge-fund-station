@@ -3,19 +3,41 @@
 This file tracks the live session. Keep it short, current, and useful to the
 next agent.
 
-- Task: mac-terminal-stabilization
+- Task: review-and-publish-current-changes
 - Status: completed
 - Last updated: 2026-05-14
 - Owner: `codex`
 
 ## Active Plan
 
-- Completed macOS terminal/consoles stabilization. Scope stayed in
-  Electron/renderer terminal reliability; no trading/backend behavior changed.
-- Handoff: `progress/impl_mac_terminal_stabilization.md`.
+- Completed review and publish prep for the current working tree.
+- Handoff: `progress/review_publish_current_changes.md`.
 
 ## Last Completed Work
 
+- Reviewed the full Desk Space / Stations + Desks working tree before publish.
+  Fixed TypeScript blockers found by `rtk npx tsc --noEmit` in memory graph,
+  Obsidian, Polymarket, mission actions, calendar, and strategy detail code.
+- Verification passed: `rtk npm run build`, `rtk npx tsc --noEmit`,
+  `rtk npm run agent:check`, `rtk npm run terminal:doctor`, and
+  `rtk git diff --check`.
+- Handoff: `progress/review_publish_current_changes.md`.
+- Desk Space now makes `/workbench` the active desk's complete operating room:
+  overview stats, browser tabs, saved commands, scoped agents, and scoped
+  terminals. Desk browser tabs are part of the `Workspace` contract, default
+  routes now land on `/workbench`, and desk switching from Sidebar, Command
+  Palette, and `Cmd+1-9` opens the desk space instead of the fixed hedge fund
+  station.
+- Verification passed: `rtk npm run build`, `rtk npm run agent:check`,
+  `rtk npm run terminal:doctor`, and `rtk git diff --check`.
+- Handoff: `progress/impl_desk_space_complete_workspaces.md`.
+- Workspace Desk Redesign added `WorkspaceKind`, required `Command Hub`, config
+  migration, desk grouping, desk-aware terminals, kind-based agent defaults, and
+  user-facing Desk terminology. No backend trading, paper/live execution, or
+  credential behavior changed.
+- Verification passed: `rtk npm run build`, `rtk npm run agent:check`,
+  `rtk npm run terminal:doctor`, and `rtk git diff --check`.
+- Handoff: `progress/impl_workspace_desk_redesign.md`.
 - Mac terminal stabilization added shared shell normalization, migrated stale
   Windows app shell settings to Mac defaults, returned PTY create details to the
   renderer, normalized restored sessions, converted stale `launching` states to

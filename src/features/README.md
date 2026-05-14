@@ -18,6 +18,8 @@ The renderer is organized by product surface. Shared infrastructure stays in
   Backend/docs/artifacts remain the source of truth.
 - `liquidations/` owns liquidation pressure review pages and local components.
 - `agents/` owns commander, fleet, mission, and knowledge-dock UI.
+- `desks/` owns the active Desk Space at `/workbench`: desk stats, browser
+  tabs, scoped agent surfaces, and scoped terminal evidence.
 - `settings/` owns operator configuration screens.
 
 Do not put backend strategy logic in these folders. If a feature needs
@@ -25,11 +27,16 @@ replay, persistence, validation, or paper execution, implement it in the
 backend and expose inspectable outputs to the renderer.
 
 The visible cockpit navigation is intentionally narrow: Cockpit, BTC,
-Hyperliquid, Strategies, Memory, Repo Graph, Paper, Liquidations, Portfolio, Data,
-Workbench, and Settings. Fixed trading stations sit above that module set.
+Hyperliquid, Strategies, Memory, Repo Graph, Paper, Liquidations, Portfolio,
+Data, Desk Space, and Settings. Fixed trading stations sit above that module set.
 Routes without one of those roles should be deleted or documented as temporary
 internal review surfaces before they accumulate UI logic.
 
 Use **Trading Stations** for fixed product surfaces and **Desks** for
 filesystem-backed Electron workspaces. The `Workspace` model is for desks,
-commands, terminals, agents, and vaults; it is not the source of trading truth.
+commands, browser tabs, terminals, agents, and vaults; it is not the source of
+trading truth. `/workbench` is the selected desk's complete working room, not a
+hedge fund product station.
+Desks are explicitly classified as `hedge-fund`, `command-hub`, `project`, or
+`ops`, so unrelated side projects and the global terminal hub do not inherit
+hedge fund commands or agents.

@@ -45,7 +45,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   { path: '/portfolio', label: 'Portfolio', icon: Wallet, group: 'ops' },
   { path: '/data', label: 'Data', icon: Database, group: 'ops' },
   { path: '/terminals', label: 'Terminales / CLI', icon: Terminal, group: 'ops' },
-  { path: '/workbench', label: 'Workbench', icon: Bot, group: 'ops' },
+  { path: '/workbench', label: 'Desk Space', icon: Bot, group: 'ops' },
   { path: '/diagnostics', label: 'Diagnostics', icon: Activity, group: 'system' },
   { path: '/settings', label: 'Settings', icon: Settings, group: 'system' }
 ] as const;

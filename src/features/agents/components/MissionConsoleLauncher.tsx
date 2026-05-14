@@ -38,7 +38,7 @@ function buildWorkspaceCapsulePrompt(params: {
         `- ${profile.name}: ${profile.steps.map((step) => `${step.delayMs}ms>${step.command}`).join(' | ')}`
       )).join('\n')
     : '- none saved';
-  const hedgeFundGuardrail = /hedge|fund|hyperliquid|trading|market|new project 9/i.test(`${workspace.name} ${workspace.path}`)
+  const hedgeFundGuardrail = workspace.kind === 'hedge-fund'
     ? [
         '',
         'Hedge Fund Station guardrails:',
@@ -54,14 +54,15 @@ function buildWorkspaceCapsulePrompt(params: {
     `Provider runtime: ${provider}`,
     `Mission title: ${title}`,
     `Mission kind: ${MISSION_KIND_LABELS[missionKind]}`,
-    `Workspace name: ${workspace.name}`,
-    `Workspace path: ${workspace.path}`,
+    `Desk name: ${workspace.name}`,
+    `Desk path: ${workspace.path}`,
+    `Desk kind: ${workspace.kind}`,
     `Preferred shell: ${workspace.shell}`,
     '',
     'Goal:',
     goal,
     '',
-    'Workspace operating rules:',
+    'Desk operating rules:',
     '- Read AGENTS.md first if it exists.',
     '- Inspect before changing code.',
     '- Keep changes focused and reviewable.',
@@ -69,7 +70,7 @@ function buildWorkspaceCapsulePrompt(params: {
     '- If a command may take a long time or mutate many files, ask before running it.',
     hedgeFundGuardrail,
     '',
-    'Saved workspace commands:',
+    'Saved desk commands:',
     savedCommands,
     '',
     'Launch profiles:',
@@ -88,7 +89,7 @@ export const MissionConsoleLauncher: React.FC<MissionConsoleLauncherProps> = ({ 
   const { createTerminal, setActiveTerminal } = useTerminalContext();
   const [provider, setProvider] = React.useState<AgentProvider>('codex');
   const [missionKind, setMissionKind] = React.useState<MissionConsoleMissionKind>('development');
-  const [title, setTitle] = React.useState('Workspace mission');
+  const [title, setTitle] = React.useState('Desk mission');
   const [goal, setGoal] = React.useState('');
   const [recentRuns, setRecentRuns] = React.useState<MissionConsoleRun[]>([]);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
@@ -206,8 +207,8 @@ export const MissionConsoleLauncher: React.FC<MissionConsoleLauncherProps> = ({ 
       <div style={headerStyle}>
         <div>
           <div style={eyebrowStyle}>Mission Console V1</div>
-          <div style={titleStyle}>Useful CLI missions for this workspace</div>
-          <div style={copyStyle}>Launch Codex, Claude, or Gemini with workspace context, guardrails, and an auditable handoff path.</div>
+          <div style={titleStyle}>Useful CLI missions for this desk</div>
+          <div style={copyStyle}>Launch Codex, Claude, or Gemini with desk context, guardrails, and an auditable handoff path.</div>
         </div>
         <div style={{ ...providerBadgeStyle, color: providerMeta.accent, background: providerMeta.glow }}>
           {providerMeta.label}
@@ -261,7 +262,7 @@ export const MissionConsoleLauncher: React.FC<MissionConsoleLauncherProps> = ({ 
 
       <div style={recentGridStyle}>
         {recentRuns.length === 0 ? (
-          <div style={emptyStyle}>No Mission Console runs captured for this workspace yet.</div>
+          <div style={emptyStyle}>No Mission Console runs captured for this desk yet.</div>
         ) : recentRuns.map((run) => (
           <div key={run.id} style={runCardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>

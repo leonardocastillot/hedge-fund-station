@@ -99,7 +99,7 @@ export const KnowledgeDock: React.FC<{
       if (nextStatus.vaultPath && nextStatus.vaultPath !== workspace.obsidian_vault_path) {
         await updateWorkspace(workspace.id, { obsidian_vault_path: nextStatus.vaultPath });
       }
-      setExportMessage(`Workspace vault ready at ${nextStatus.vaultPath}`);
+      setExportMessage(`Desk vault ready at ${nextStatus.vaultPath}`);
       void refresh();
     } finally {
       setSetupRunning(false);
@@ -269,7 +269,7 @@ export const KnowledgeDock: React.FC<{
             {isLoading ? 'Checking...' : status?.isAvailable ? 'Connected' : 'Not detected'}
           </div>
           <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '8px', lineHeight: 1.45, wordBreak: 'break-word' }}>
-            {status?.vaultPath || workspace?.obsidian_vault_path || workspace?.path || 'No workspace selected'}
+            {status?.vaultPath || workspace?.obsidian_vault_path || workspace?.path || 'No desk selected'}
           </div>
           {status?.vaultPath ? (
             <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
@@ -293,7 +293,7 @@ export const KnowledgeDock: React.FC<{
           ) : (
             <div style={{ marginTop: '12px' }}>
               <div style={{ color: '#cbd5e1', fontSize: '12px', lineHeight: 1.45 }}>
-                Create a local Obsidian vault for this workspace. The app will add starter notes for missions, pinned memory and open questions.
+                Create a local Obsidian vault for this desk. The app will add starter notes for missions, pinned memory and open questions.
               </div>
               <button
                 type="button"
@@ -306,7 +306,7 @@ export const KnowledgeDock: React.FC<{
                   cursor: !workspace || setupRunning ? 'not-allowed' : 'pointer'
                 }}
               >
-                {setupRunning ? 'Creating Vault...' : 'Create Workspace Vault'}
+                {setupRunning ? 'Creating Vault...' : 'Create Desk Vault'}
               </button>
             </div>
           )}

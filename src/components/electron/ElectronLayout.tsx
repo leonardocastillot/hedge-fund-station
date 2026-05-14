@@ -57,7 +57,7 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
               >
                 <CollapsedRail
                   side="left"
-                  title="Open workspace panel"
+                  title="Open desk panel"
                   icon={<Monitor size={17} />}
                   actionIcon={<PanelLeftOpen size={15} />}
                   onExpand={() => setIsSidebarCollapsed(false)}
@@ -78,7 +78,7 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
                 </Panel>
 
                 <ResizeHandle
-                  title="Collapse workspace panel"
+                  title="Collapse desk panel"
                   onCollapse={() => setIsSidebarCollapsed(true)}
                   icon={<PanelLeftClose size={14} />}
                 />

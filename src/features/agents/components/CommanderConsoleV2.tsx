@@ -795,7 +795,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
           <div style={eyebrowStyle}>Mission Control</div>
           <div style={titleStyle}>Speak, route, retry, and keep agents moving.</div>
         </div>
-        <div style={workspaceChipStyle}>{workspace?.name || 'No workspace'}</div>
+        <div style={workspaceChipStyle}>{workspace?.name || 'No desk'}</div>
       </div>
 
       <div style={heroGridStyle}>
@@ -1041,7 +1041,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
           </div>
           {!workspace ? (
             <div style={{ color: '#fca5a5', fontSize: '11px', marginTop: '10px' }}>
-              Select an active workspace before launching.
+              Select an active desk before launching.
             </div>
           ) : previewAgents.length === 0 ? (
             <div style={{ color: '#fde68a', fontSize: '11px', marginTop: '10px' }}>
@@ -1113,7 +1113,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
                 </div>
               </div>
             ) : previewOrFallbackAgents.length === 0 ? (
-              <div style={emptyStyle}>No agents available in this workspace.</div>
+              <div style={emptyStyle}>No agents available in this desk.</div>
             ) : (
               previewOrFallbackAgents.map((agent) => {
                 const provider = getProviderMeta(effectiveProvider);

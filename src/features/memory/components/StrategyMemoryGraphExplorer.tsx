@@ -77,7 +77,7 @@ const NETWORK_OPTIONS: VisOptions = {
     color: { inherit: false },
     selectionWidth: 1.4,
     hoverWidth: 1.2,
-    smooth: { enabled: true, type: 'dynamic' }
+    smooth: { enabled: true, type: 'dynamic', roundness: 0.5 }
   },
   interaction: {
     hover: true,
@@ -106,11 +106,11 @@ const NETWORK_OPTIONS: VisOptions = {
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function normalize(value: unknown): string {
@@ -297,7 +297,7 @@ export default function StrategyMemoryGraphExplorer({
       title: edgeTooltip(edge, source, target),
       width: selected ? 2.4 : edge.type === 'artifact' ? 1.7 : 1.15,
       color: { color: selected ? '#f8fafc' : `${color}99`, highlight: '#67e8f9', hover: '#86efac' },
-      smooth: { enabled: true, type: 'dynamic' }
+      smooth: { enabled: true, type: 'dynamic', roundness: 0.5 }
     };
   };
 

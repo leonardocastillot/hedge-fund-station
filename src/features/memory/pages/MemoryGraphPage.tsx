@@ -155,6 +155,8 @@ function mapStrategyForSync(strategy: HyperliquidStrategyCatalogRow): ObsidianSt
     checklist: strategy.checklist,
     missingAuditItems: strategy.missingAuditItems,
     doublingEstimate: strategy.doublingEstimate
+      ? { ...strategy.doublingEstimate }
+      : null
   };
 }
 
@@ -335,13 +337,6 @@ function formatPercent(value: unknown): string {
 function formatNumber(value: unknown, digits = 2): string {
   const numeric = Number(value ?? 0);
   return Number.isFinite(numeric) ? numeric.toFixed(digits) : 'N/A';
-}
-
-function formatRate(value: unknown): string {
-  const numeric = Number(value ?? 0);
-  if (!Number.isFinite(numeric)) return 'N/A';
-  const percent = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
-  return `${Math.round(percent)}%`;
 }
 
 function statusLabel(strategy: HyperliquidStrategyCatalogRow): string {
@@ -947,7 +942,7 @@ export default function MemoryGraphPage() {
 
   const runSync = async () => {
     if (!activeWorkspace || !window.electronAPI?.obsidian?.syncStrategyMemory) {
-      setError('Obsidian sync is only available inside the Electron app with an active workspace.');
+      setError('Obsidian sync is only available inside the Electron app with an active desk.');
       return;
     }
 

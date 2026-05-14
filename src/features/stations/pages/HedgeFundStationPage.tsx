@@ -25,6 +25,7 @@ import {
 } from '@/services/hyperliquidService';
 import { useTerminalContext } from '@/contexts/TerminalContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { useDeskSpaceContext } from '@/features/desks/DeskSpaceContext';
 import { useMarketPolling } from '@/hooks/useMarketPolling';
 import { navigateCenterPanel } from '@/utils/centerNavigation';
 
@@ -40,7 +41,7 @@ const MODULE_LINKS = [
   { label: 'Strategy Pipeline', to: '/strategies', icon: FlaskConical },
   { label: 'Audit Focus', to: '/strategy-audit', icon: ShieldCheck },
   { label: 'Paper', to: '/paper', icon: ListChecks },
-  { label: 'Workbench', to: '/workbench', icon: Bot },
+  { label: 'Desk Space', to: '/workbench', icon: Bot },
   { label: 'Data', to: '/data', icon: Database },
   { label: 'Terminals', to: '/terminals', icon: Terminal }
 ];
@@ -84,6 +85,7 @@ function readinessLabel(readiness: HyperliquidAppReadiness | null | undefined): 
 export default function HedgeFundStationPage() {
   const { activeWorkspace } = useWorkspaceContext();
   const { createTerminal } = useTerminalContext();
+  const { setDeskState } = useDeskSpaceContext();
   const stationPoll = useMarketPolling(
     'station:hedge-fund',
     (): Promise<HyperliquidHedgeFundStationSnapshot> => hyperliquidService.getHedgeFundStationSnapshot(500),
@@ -128,8 +130,11 @@ export default function HedgeFundStationPage() {
   const launchCommand = (command: string) => {
     const cwd = activeWorkspace?.path || '/Users/optimus/Documents/New project 9';
     const shell = activeWorkspace?.shell || '/bin/zsh';
-    createTerminal(cwd, shell, `HF: ${command}`, command);
-    navigateCenterPanel('/terminals');
+    createTerminal(cwd, shell, `HF: ${command}`, command, { workspaceId: activeWorkspace?.id });
+    if (activeWorkspace?.id) {
+      setDeskState(activeWorkspace.id, { activeView: 'terminals' });
+    }
+    navigateCenterPanel('/workbench');
   };
 
   return (

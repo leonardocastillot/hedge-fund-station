@@ -109,7 +109,7 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
           {ready ? 'Ready' : checkState === 'error' ? 'Needs Attention' : checkState === 'running' ? 'Running' : 'Idle'}
         </div>
         <div style={{ color: '#64748b', fontSize: '11px' }}>
-          {workspace ? workspace.path : 'No active workspace'}
+          {workspace ? workspace.path : 'No active desk'}
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export const SystemHealthCard: React.FC<SystemHealthCardProps> = ({ workspace, p
         <div style={subLabelStyle}>Runtime Commands</div>
         <div style={{ display: 'grid', gap: '8px', marginTop: '8px' }}>
           {runtimeCommands.length === 0 ? (
-            <div style={emptyStyle}>No provider commands in this workspace.</div>
+            <div style={emptyStyle}>No provider commands in this desk.</div>
           ) : runtimeCommands.map((command) => {
             const status = commands.find((item) => item.command === command);
             return (

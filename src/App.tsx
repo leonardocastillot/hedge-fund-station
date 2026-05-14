@@ -6,18 +6,21 @@ import { ContextProvider } from './contexts/ContextContext';
 import { DeskHistoryProvider } from './contexts/DeskHistoryContext';
 import { AgentProfilesProvider } from './contexts/AgentProfilesContext';
 import { CommanderTasksProvider } from './contexts/CommanderTasksContext';
+import { DeskSpaceProvider } from './features/desks/DeskSpaceContext';
 import { ElectronLayout } from './components/electron/ElectronLayout';
 import { AppNavRail } from './components/electron/AppNavRail';
 import { UpdateNotification } from './components/electron/UpdateNotification';
 import { PreloadApiNotice } from './components/electron/PreloadApiNotice';
 import { AppErrorBoundary } from './components/ui/AppErrorBoundary';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useDeskSpaceContext } from './features/desks/DeskSpaceContext';
 import {
   APP_SETTINGS_CHANGED_EVENT,
   applyAppTheme,
   loadAppSettings,
   type AppSettings
 } from './utils/appSettings';
+import { navigateCenterPanel } from './utils/centerNavigation';
 
 const BackendStatus = lazy(() => import('./components/electron/BackendStatus').then((module) => ({ default: module.BackendStatus })));
 const CommandPalette = lazy(() => import('./components/electron/CommandPalette').then((module) => ({ default: module.CommandPalette })));
@@ -25,6 +28,7 @@ const CommandPalette = lazy(() => import('./components/electron/CommandPalette')
 function AppWithShortcuts() {
   const { createTerminal, closeTerminal, activeTerminalId } = useTerminalContext();
   const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspaceContext();
+  const { setDeskState } = useDeskSpaceContext();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // Define keyboard shortcuts
@@ -43,7 +47,9 @@ function AppWithShortcuts() {
       description: 'New Terminal',
       handler: () => {
         if (activeWorkspace) {
-          createTerminal(activeWorkspace.path, activeWorkspace.shell);
+          createTerminal(activeWorkspace.path, activeWorkspace.shell, undefined, undefined, { workspaceId: activeWorkspace.id });
+          setDeskState(activeWorkspace.id, { activeView: 'terminals' });
+          navigateCenterPanel('/workbench');
         }
       }
     },
@@ -57,14 +63,16 @@ function AppWithShortcuts() {
         }
       }
     },
-    // Workspace switching (Ctrl+1 through Ctrl+9)
+    // Desk switching (Ctrl+1 through Ctrl+9)
     ...Array.from({ length: 9 }, (_, i) => ({
       key: String(i + 1),
       ctrlKey: true,
-      description: `Switch to Workspace ${i + 1}`,
+      description: `Switch to Desk ${i + 1}`,
       handler: () => {
         if (workspaces[i]) {
           setActiveWorkspace(workspaces[i].id);
+          setDeskState(workspaces[i].id, { activeView: 'overview' });
+          navigateCenterPanel('/workbench');
         }
       }
     }))
@@ -115,79 +123,81 @@ function App() {
         <WorkspaceProvider>
           <CommanderTasksProvider>
             <DeskHistoryProvider>
-              <TerminalProvider>
-                <AppErrorBoundary>
-                  <div
-                    style={{
-                      width: '100vw',
-                      height: '100vh',
-                      background: '#020408',
-                      color: 'var(--app-text, #f0f2f5)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    <div style={statusStripStyle}>
-                      <div style={statusStripLeftStyle}>
-                        <div style={compactTitleStyle}>Hedge Fund Station</div>
-                        <Suspense fallback={<BackendStatusFallback />}>
-                          <BackendStatus />
-                        </Suspense>
+              <DeskSpaceProvider>
+                <TerminalProvider>
+                  <AppErrorBoundary>
+                    <div
+                      style={{
+                        width: '100vw',
+                        height: '100vh',
+                        background: '#020408',
+                        color: 'var(--app-text, #f0f2f5)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div style={statusStripStyle}>
+                        <div style={statusStripLeftStyle}>
+                          <div style={compactTitleStyle}>Hedge Fund Station</div>
+                          <Suspense fallback={<BackendStatusFallback />}>
+                            <BackendStatus />
+                          </Suspense>
+                        </div>
+
+                        <div style={shortcutListStyle}>
+                          {[
+                            { key: '⌘K', label: 'Palette' },
+                            { key: '⌘T', label: 'New Term' },
+                            { key: '⌘W', label: 'Close' },
+                            { key: '⌘1-9', label: 'Desks' }
+                          ].map((shortcut, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '9px',
+                                color: 'var(--app-muted)',
+                                padding: '2px 6px',
+                                background: 'rgba(255, 255, 255, 0.02)',
+                                borderRadius: '5px',
+                                border: '1px solid rgba(255, 255, 255, 0.04)',
+                                fontFamily: "'JetBrains Mono', monospace",
+                                fontWeight: '500',
+                                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                letterSpacing: '0.02em'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                                e.currentTarget.style.borderColor = 'var(--app-border-strong)';
+                                e.currentTarget.style.boxShadow = '0 0 12px var(--app-glow)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
+                                e.currentTarget.style.boxShadow = 'none';
+                              }}
+                            >
+                              <span style={{ color: 'var(--app-accent)', fontWeight: '600', fontSize: '10px' }}>{shortcut.key}</span>
+                              <span className="hidden sm:inline" style={{ color: 'var(--app-subtle)' }}>{shortcut.label}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
-                      <div style={shortcutListStyle}>
-                        {[
-                          { key: '⌘K', label: 'Palette' },
-                          { key: '⌘T', label: 'New Term' },
-                          { key: '⌘W', label: 'Close' },
-                          { key: '⌘1-9', label: 'WS' }
-                        ].map((shortcut, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '9px',
-                              color: 'var(--app-muted)',
-                              padding: '2px 6px',
-                              background: 'rgba(255, 255, 255, 0.02)',
-                              borderRadius: '5px',
-                              border: '1px solid rgba(255, 255, 255, 0.04)',
-                              fontFamily: "'JetBrains Mono', monospace",
-                              fontWeight: '500',
-                              transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                              letterSpacing: '0.02em'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                              e.currentTarget.style.borderColor = 'var(--app-border-strong)';
-                              e.currentTarget.style.boxShadow = '0 0 12px var(--app-glow)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.04)';
-                              e.currentTarget.style.boxShadow = 'none';
-                            }}
-                          >
-                            <span style={{ color: 'var(--app-accent)', fontWeight: '600', fontSize: '10px' }}>{shortcut.key}</span>
-                            <span className="hidden sm:inline" style={{ color: 'var(--app-subtle)' }}>{shortcut.label}</span>
-                          </div>
-                        ))}
+                      <div style={{ flex: 1, overflow: 'hidden' }}>
+                        <PreloadApiNotice />
+                        <AppWithShortcuts />
                       </div>
-                    </div>
 
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <PreloadApiNotice />
-                      <AppWithShortcuts />
+                      <UpdateNotification />
                     </div>
-
-                    <UpdateNotification />
-                  </div>
-                </AppErrorBoundary>
-              </TerminalProvider>
+                  </AppErrorBoundary>
+                </TerminalProvider>
+              </DeskSpaceProvider>
             </DeskHistoryProvider>
           </CommanderTasksProvider>
         </WorkspaceProvider>

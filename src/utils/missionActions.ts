@@ -19,8 +19,9 @@ export async function runMissionAction(task: CommanderTask, actionKey: string): 
     }
     case 'run-all-backtests': {
       const result = await strategyService.runAllBacktests('4h', 3);
-      const successCount = result?.successful ?? result?.success_count ?? 0;
-      const failedCount = result?.failed ?? result?.failed_count ?? 0;
+      const legacyResult = result as typeof result & { success_count?: number; failed_count?: number };
+      const successCount = legacyResult?.successful ?? legacyResult?.success_count ?? 0;
+      const failedCount = legacyResult?.failed ?? legacyResult?.failed_count ?? 0;
       return { summary: `Gateway strategy refresh finished. Signals created: ${successCount}. Failed: ${failedCount}.` };
     }
     case 'seed-paper-signals': {

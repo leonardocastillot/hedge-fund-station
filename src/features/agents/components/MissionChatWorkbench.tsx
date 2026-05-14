@@ -887,7 +887,7 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
       workspace.shell,
       proposal.title || 'Gemini terminal proposal',
       execute ? trimmed : undefined,
-      { terminalPurpose: 'gemini-orchestrator' }
+      { workspaceId: workspace.id, terminalPurpose: 'gemini-orchestrator' }
     );
     setActiveTerminal(terminalId);
     if (!execute) {

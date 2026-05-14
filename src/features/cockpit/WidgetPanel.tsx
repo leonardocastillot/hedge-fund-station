@@ -21,7 +21,7 @@ const HyperliquidIntelligencePage = React.lazy(() => import('@/features/hyperliq
 const HyperliquidPaperLabPage = React.lazy(() => import('@/features/paper/pages/HyperliquidPaperLabPage'));
 const LiquidationsPage = React.lazy(() => import('@/features/liquidations/pages/LiquidationsPage'));
 const PortfolioDashboardPage = React.lazy(() => import('@/features/paper/pages/PortfolioDashboardPage'));
-const AgentsPanel = React.lazy(() => import('@/features/agents/panels/AgentsPanel').then((module) => ({ default: module.AgentsPanel })));
+const DeskSpacePage = React.lazy(() => import('@/features/desks/pages/DeskSpacePage'));
 const SettingsPage = React.lazy(() => import('@/features/settings/pages/SettingsPage'));
 const DiagnosticsPage = React.lazy(() => import('@/features/diagnostics/pages/DiagnosticsPage'));
 const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid').then((module) => ({ default: module.TerminalGrid })));
@@ -188,7 +188,7 @@ export const WidgetPanel: React.FC = () => {
                   <Route path="/liquidations" element={<LiquidationsRoute />} />
                   <Route path="/data" element={<HyperliquidDataPage />} />
                   <Route path="/terminals" element={<TerminalGrid />} />
-                  <Route path="/workbench" element={<AgentsPanel />} />
+                  <Route path="/workbench" element={<DeskSpacePage />} />
                   <Route path="/diagnostics" element={<DiagnosticsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="*" element={<Navigate replace to="/station/hedge-fund" />} />

@@ -16,6 +16,7 @@ interface LaunchAgentRunDependencies {
       agentId?: string;
       agentName?: string;
       terminalPurpose?: string;
+      workspaceId?: string;
       runtimeProvider?: AgentProfile['provider'];
       missionPrompt?: string;
       runId?: string;
@@ -147,6 +148,7 @@ export function launchAgentRun(
     agentId: agent.id,
     agentName: agent.name,
     terminalPurpose: agent.autoAssignTerminalPurpose,
+    workspaceId: workspace.id,
     runtimeProvider: agent.provider,
     missionPrompt,
     runId: run.id

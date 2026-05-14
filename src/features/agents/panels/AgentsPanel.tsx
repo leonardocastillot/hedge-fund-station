@@ -90,6 +90,35 @@ function SummaryCard({ label, value, accent }: { label: string; value: number; a
   );
 }
 
+function getWorkbenchCopy(workspaceKind?: string): { eyebrow: string; title: string; copy: string } {
+  if (workspaceKind === 'hedge-fund') {
+    return {
+      eyebrow: 'Hedge Fund Desk Agents',
+      title: 'Strategy Mission Control',
+      copy: 'Route research, validation, paper review, and backend evidence through agents scoped to this desk.'
+    };
+  }
+  if (workspaceKind === 'command-hub') {
+    return {
+      eyebrow: 'Command Hub Agents',
+      title: 'Global Runtime Control',
+      copy: 'Launch shell-first helpers, runtime probes, tunnels, and short operational missions.'
+    };
+  }
+  if (workspaceKind === 'ops') {
+    return {
+      eyebrow: 'Ops Desk Agents',
+      title: 'Service Mission Control',
+      copy: 'Keep diagnostics, logs, tunnels, local processes, and runtime health attached to this desk.'
+    };
+  }
+  return {
+    eyebrow: 'Project Desk Agents',
+    title: 'Project Mission Control',
+    copy: 'Run project agents, tasks, and terminal evidence without leaking hedge fund assumptions into this workspace.'
+  };
+}
+
 export const AgentsPanel: React.FC = () => {
   const { activeWorkspace } = useWorkspaceContext();
   const { agents } = useAgentProfilesContext();
@@ -99,6 +128,7 @@ export const AgentsPanel: React.FC = () => {
   const [activeView, setActiveView] = React.useState<PanelView>('chat');
 
   const workspaceId = activeWorkspace?.id;
+  const workbenchCopy = getWorkbenchCopy(activeWorkspace?.kind);
 
   const scopedAgents = React.useMemo(
     () => agents.filter((agent) => agent.workspaceId === workspaceId),
@@ -243,6 +273,7 @@ export const AgentsPanel: React.FC = () => {
       `Probe: ${getProviderMeta(provider).label}`,
       command,
       {
+        workspaceId: activeWorkspace.id,
         agentName: 'System Probe',
         terminalPurpose: 'runtime-probe',
         runtimeProvider: provider
@@ -255,9 +286,9 @@ export const AgentsPanel: React.FC = () => {
     <div style={pageStyle}>
       <div style={heroStyle}>
         <div>
-          <div style={heroEyebrowStyle}>AI Trading Workbench</div>
-          <h2 style={heroTitleStyle}>Codex Mission Control</h2>
-          <p style={heroCopyStyle}>Chat by voice or text, approve the mission, then run Codex CLI with terminal evidence.</p>
+          <div style={heroEyebrowStyle}>{workbenchCopy.eyebrow}</div>
+          <h2 style={heroTitleStyle}>{workbenchCopy.title}</h2>
+          <p style={heroCopyStyle}>{workbenchCopy.copy}</p>
         </div>
 
         <div style={heroActionsStyle}>
@@ -326,7 +357,7 @@ export const AgentsPanel: React.FC = () => {
         {activeView === 'evidence' ? (
           <div style={evidenceShellStyle}>
             <React.Suspense fallback={<div style={emptyStyle}>Loading terminal evidence...</div>}>
-              <TerminalGrid />
+              <TerminalGrid defaultDeskFilter="active" embedded />
             </React.Suspense>
           </div>
         ) : null}

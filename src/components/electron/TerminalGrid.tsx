@@ -13,8 +13,14 @@ import type { AgentProvider } from '../../types/agents';
 
 const MAX_TERMINALS = 6;
 type QuickTerminalType = 'shell' | 'codex' | 'claude' | 'gemini' | 'dev' | 'git' | 'python';
+export type TerminalDeskFilter = 'all' | 'command-hub' | 'active';
 
-export const TerminalGrid: React.FC = () => {
+interface TerminalGridProps {
+  defaultDeskFilter?: TerminalDeskFilter;
+  embedded?: boolean;
+}
+
+export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 'all', embedded = false }) => {
   const navigate = useNavigate();
   const {
     terminals,
@@ -32,8 +38,9 @@ export const TerminalGrid: React.FC = () => {
     onLayoutUpdateNeeded
   } = useTerminalContext();
   const { runs, tasks, updateRun, updateTaskStatus } = useCommanderTasksContext();
-  const { activeWorkspace } = useWorkspaceContext();
+  const { activeWorkspace, workspaces } = useWorkspaceContext();
   const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>('grid');
+  const [deskFilter, setDeskFilter] = React.useState<TerminalDeskFilter>(defaultDeskFilter);
   const [handoffNotice, setHandoffNotice] = React.useState<string | null>(null);
   const terminalLimitReached = terminals.length >= MAX_TERMINALS;
   const quickLaunches = React.useMemo<Array<{ type: QuickTerminalType; label: string }>>(() => [
@@ -46,9 +53,30 @@ export const TerminalGrid: React.FC = () => {
   const handleOpenDiagnostics = React.useCallback(() => {
     navigate('/diagnostics');
   }, [navigate]);
+  const commandHubWorkspace = React.useMemo(
+    () => workspaces.find((workspace) => workspace.kind === 'command-hub') || null,
+    [workspaces]
+  );
+  const visibleTerminals = React.useMemo(() => {
+    if (deskFilter === 'command-hub') {
+      return terminals.filter((terminal) => (
+        terminal.workspaceId === commandHubWorkspace?.id
+        || (!terminal.workspaceId && commandHubWorkspace?.path && terminal.cwd === commandHubWorkspace.path)
+      ));
+    }
+
+    if (deskFilter === 'active') {
+      return terminals.filter((terminal) => (
+        terminal.workspaceId === activeWorkspace?.id
+        || (!terminal.workspaceId && activeWorkspace?.path && terminal.cwd === activeWorkspace.path)
+      ));
+    }
+
+    return terminals;
+  }, [activeWorkspace?.id, activeWorkspace?.path, commandHubWorkspace?.id, commandHubWorkspace?.path, deskFilter, terminals]);
   const missionTerminals = React.useMemo(
-    () => terminals.filter((terminal) => Boolean(terminal.missionTitle || terminal.terminalPurpose === 'mission-console')),
-    [terminals]
+    () => visibleTerminals.filter((terminal) => Boolean(terminal.missionTitle || terminal.terminalPurpose === 'mission-console')),
+    [visibleTerminals]
   );
 
   React.useEffect(() => {
@@ -273,7 +301,10 @@ export const TerminalGrid: React.FC = () => {
       shell,
       label,
       autoCommand,
-      runtimeProvider ? { runtimeProvider, terminalPurpose: 'agent-runtime' } : undefined
+      {
+        workspaceId: activeWorkspace?.id,
+        ...(runtimeProvider ? { runtimeProvider, terminalPurpose: 'agent-runtime' } : {})
+      }
     );
   };
 
@@ -318,9 +349,9 @@ export const TerminalGrid: React.FC = () => {
     return { cols: 2, rows: 3 };
   };
 
-  const gridLayout = getGridLayout(terminals.length);
+  const gridLayout = getGridLayout(visibleTerminals.length);
 
-  if (terminals.length === 0) {
+  if (visibleTerminals.length === 0) {
     return (
       <div style={{
         width: '100%',
@@ -331,14 +362,14 @@ export const TerminalGrid: React.FC = () => {
         justifyContent: 'center',
         background: 'var(--app-terminal-bg)',
         color: 'var(--app-muted)',
-        padding: '40px'
+        padding: embedded ? '0' : '40px'
       }}>
         <div style={{
           background: 'var(--app-panel)',
           backdropFilter: 'blur(20px) saturate(180%)',
           WebkitBackdropFilter: 'blur(20px) saturate(180%)',
           padding: '40px 60px',
-          borderRadius: '16px',
+          borderRadius: embedded ? '8px' : '16px',
           border: '1px solid var(--app-terminal-border)',
           boxShadow: '0 8px 32px var(--app-glow)',
           display: 'flex',
@@ -348,13 +379,19 @@ export const TerminalGrid: React.FC = () => {
         }}>
           <div style={{ fontSize: '48px', marginBottom: '8px', fontFamily: "'JetBrains Mono', monospace" }}>CLI</div>
           <div style={{ fontSize: '20px', color: 'var(--app-text)', fontWeight: '600', marginBottom: '8px' }}>
-            No terminal sessions running
+            {terminals.length === 0 ? 'No terminal sessions running' : 'No terminals match this desk filter'}
           </div>
           <div style={{ fontSize: '14px', color: 'var(--app-muted)', textAlign: 'center', maxWidth: '340px', lineHeight: '1.6' }}>
-            This is the Hedge Fund Station command hub for your primary hedge fund desk and bot/dev/side project workspaces.
+            This is the command hub for your primary hedge fund desk, AI runtimes, and side project desks.
             Launch saved commands and profiles here so output stays visible in the center panel.
           </div>
           <div style={quickLaunchBarStyle}>
+            <TerminalDeskFilterBar
+              value={deskFilter}
+              onChange={setDeskFilter}
+              activeDeskName={activeWorkspace?.name}
+              commandHubName={commandHubWorkspace?.name}
+            />
             {quickLaunches.map((item) => (
               <button
                 key={item.type}
@@ -381,7 +418,7 @@ export const TerminalGrid: React.FC = () => {
       width: '100%',
       height: '100%',
       background: 'var(--app-bg)',
-      padding: '8px',
+      padding: embedded ? '0' : '8px',
       display: 'flex',
       flexDirection: 'column',
       gap: '8px'
@@ -394,7 +431,7 @@ export const TerminalGrid: React.FC = () => {
         background: 'var(--app-panel)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-        borderRadius: '8px',
+        borderRadius: embedded ? '8px' : '8px',
         border: '1px solid var(--app-border)',
         boxShadow: '0 2px 12px var(--app-glow), inset 0 1px 1px rgba(255, 255, 255, 0.03)',
         gap: '12px'
@@ -417,7 +454,7 @@ export const TerminalGrid: React.FC = () => {
               fontWeight: '600',
               border: `1px solid ${terminalLimitReached ? 'var(--app-negative)' : 'var(--app-border-strong)'}`
             }}>
-              {terminals.length}/{MAX_TERMINALS}
+              {visibleTerminals.length}/{MAX_TERMINALS}
             </div>
 
             <button
@@ -450,6 +487,12 @@ export const TerminalGrid: React.FC = () => {
             </button>
           </div>
 
+          <TerminalDeskFilterBar
+            value={deskFilter}
+            onChange={setDeskFilter}
+            activeDeskName={activeWorkspace?.name}
+            commandHubName={commandHubWorkspace?.name}
+          />
         </div>
 
         <div style={quickLaunchBarStyle}>
@@ -532,7 +575,7 @@ export const TerminalGrid: React.FC = () => {
         gap: '6px',
         overflow: layoutMode === 'vertical' ? 'auto' : 'hidden'
       }}>
-        {terminals.map((terminal) => (
+        {visibleTerminals.map((terminal) => (
           <div
             key={terminal.id}
             style={{
@@ -610,6 +653,70 @@ const quickLaunchButtonStyle: React.CSSProperties = {
   boxShadow: '0 1px 6px var(--app-glow)',
   transition: 'all 0.15s ease',
   whiteSpace: 'nowrap'
+};
+
+function TerminalDeskFilterBar({
+  value,
+  onChange,
+  activeDeskName,
+  commandHubName
+}: {
+  value: TerminalDeskFilter;
+  onChange: (value: TerminalDeskFilter) => void;
+  activeDeskName?: string;
+  commandHubName?: string;
+}) {
+  const filters: Array<{ value: TerminalDeskFilter; label: string; title: string }> = [
+    { value: 'all', label: 'All', title: 'Show all terminal sessions' },
+    { value: 'command-hub', label: commandHubName || 'Command Hub', title: 'Show global command hub terminals' },
+    { value: 'active', label: activeDeskName || 'Active Desk', title: 'Show terminals for the active desk' }
+  ];
+
+  return (
+    <div style={deskFilterBarStyle} aria-label="Terminal desk filter">
+      {filters.map((filter) => {
+        const selected = filter.value === value;
+        return (
+          <button
+            key={filter.value}
+            type="button"
+            title={filter.title}
+            onClick={() => onChange(filter.value)}
+            style={{
+              ...deskFilterButtonStyle,
+              background: selected ? 'var(--app-focus)' : 'var(--app-panel-muted)',
+              borderColor: selected ? 'var(--app-border-strong)' : 'var(--app-border)',
+              color: selected ? 'var(--app-text)' : 'var(--app-subtle)'
+            }}
+          >
+            {filter.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const deskFilterBarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  flexWrap: 'wrap'
+};
+
+const deskFilterButtonStyle: React.CSSProperties = {
+  height: '26px',
+  minWidth: '44px',
+  maxWidth: '150px',
+  padding: '4px 9px',
+  border: '1px solid var(--app-border)',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontSize: '10px',
+  fontWeight: 800,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis'
 };
 
 function deriveRunState(

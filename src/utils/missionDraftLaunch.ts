@@ -19,6 +19,7 @@ interface LaunchMissionDraftDependencies {
       agentId?: string;
       agentName?: string;
       terminalPurpose?: string;
+      workspaceId?: string;
       runtimeProvider?: AgentProfile['provider'];
       missionPrompt?: string;
       runId?: string;

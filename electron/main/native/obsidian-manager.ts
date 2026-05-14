@@ -1181,7 +1181,7 @@ export class ObsidianManager {
     const fileTarget = fs.existsSync(homeNotePath) ? relativeHomeNote : undefined;
 
     const registeredVault = this.registerObsidianVault(vaultPath);
-    const vaultIdentifier = registeredVault?.vaultName || path.basename(vaultPath) || registeredVault?.vaultId;
+    const vaultIdentifier = registeredVault?.vaultName || registeredVault?.vaultId || path.basename(vaultPath) || 'vault';
     const fileUrl = fs.existsSync(homeNotePath)
       ? `obsidian://open?path=${encodeURIComponent(homeNotePath)}`
       : null;

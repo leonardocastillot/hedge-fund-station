@@ -80,8 +80,15 @@ Renderer terminology:
   Live Trading. They organize research, validation, review, monitoring, and
   operator attention.
 - Desks are Electron workspaces backed by local folders, commands, terminals,
-  agents, and vaults. The `Workspace` IPC contract should stay scoped to desks,
-  not trading lifecycle state.
+  agents, browser tabs, and vaults. `/workbench` is the complete active desk
+  space: it shows desk stats, scoped agents, scoped terminals, saved commands,
+  and a browser partition isolated by desk. The `Workspace` IPC contract should
+  stay scoped to desks, not trading lifecycle state.
+- Desk kind is explicit through `WorkspaceKind`: `hedge-fund`, `command-hub`,
+  `project`, or `ops`. `Command Hub` is a required global desk for shells, AI
+  runtimes, tunnels, and short operational commands. Hedge fund work belongs in
+  a `hedge-fund` desk, while unrelated repos default to `project` unless the
+  operator explicitly classifies them otherwise.
 
 ### `electron/`
 

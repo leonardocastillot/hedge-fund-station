@@ -1773,3 +1773,82 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Manual Electron `/terminals` smoke remains the next visual
   confirmation step; no live trading, credentials, or backend trading behavior
   changed.
+
+---
+
+## 2026-05-14 - Workspace Desk Redesign
+
+- Agent: Codex
+- Mission class: UI review-speed audit / operations runbook audit
+- Summary: Implemented the Stations + Desks model. `Workspace` now carries an
+  explicit kind, the app inserts a required `Command Hub`, classifies the hedge
+  fund repo separately from side projects, groups desks in the sidebar, filters
+  terminals by desk, and seeds agents by desk kind instead of path/name regex.
+- Evidence:
+  `electron/main/native/workspace-manager.ts`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/WorkspaceModal.tsx`,
+  `src/contexts/AgentProfilesContext.tsx`,
+  `docs/project-architecture.md`,
+  `docs/operations/how-to-develop-this-app.md`, and
+  `progress/impl_workspace_desk_redesign.md`.
+- Verification: `rtk npm run build`, `rtk npm run agent:check`,
+  `rtk npm run terminal:doctor`, and `rtk git diff --check` passed.
+- Status: done. No backend strategy logic, paper/live execution, credentials,
+  or trading command behavior changed.
+
+---
+
+## 2026-05-14 - Desk Space Complete Workspaces
+
+- Agent: Codex
+- Mission class: UI review-speed audit / operations runbook audit
+- Summary: Converted `/workbench` into the complete active desk space. Each
+  desk now carries editable browser tabs, opens with scoped overview stats,
+  saved commands, agents, and active-desk terminal evidence, while fixed
+  trading stations remain separate product surfaces.
+- Evidence:
+  `src/features/desks/`,
+  `electron/main/native/workspace-manager.ts`,
+  `electron/types/ipc.types.ts`,
+  `src/types/electron.d.ts`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/components/electron/CommandPalette.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/WorkspaceModal.tsx`,
+  `src/features/cockpit/WidgetPanel.tsx`,
+  `src/features/agents/panels/AgentsPanel.tsx`,
+  `docs/project-architecture.md`,
+  `docs/operations/how-to-develop-this-app.md`,
+  `src/features/README.md`, and
+  `progress/impl_desk_space_complete_workspaces.md`.
+- Verification: `rtk npm run build`, `rtk npm run agent:check`,
+  `rtk npm run terminal:doctor`, and `rtk git diff --check` passed.
+- Status: done. No backend strategy logic, paper/live execution, credentials,
+  production routing, or strategy computation changed.
+
+---
+
+## 2026-05-14 - Review And Publish Current Changes
+
+- Agent: Codex
+- Mission class: repo health audit / UI review-speed audit
+- Summary: Reviewed the full Desk Space / Stations + Desks working tree before
+  publish. Added a final typecheck pass and fixed 12 TypeScript blockers in
+  memory graph, Obsidian, Polymarket, mission actions, calendar, and strategy
+  detail code.
+- Evidence:
+  `progress/review_publish_current_changes.md`,
+  `src/features/memory/components/StrategyMemoryGraphExplorer.tsx`,
+  `electron/main/native/obsidian-manager.ts`,
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/utils/missionActions.ts`,
+  `src/features/cockpit/pages/PolymarketPage.tsx`,
+  `src/features/cockpit/pages/EconomicCalendarPage.tsx`, and
+  `src/features/strategies/pages/StrategyDetailPage.tsx`.
+- Verification: `rtk npm run build`, `rtk npx tsc --noEmit`,
+  `rtk npm run agent:check`, `rtk npm run terminal:doctor`, and
+  `rtk git diff --check` passed.
+- Status: done. Ready to commit and push; no live trading, credentials,
+  backend strategy logic, or production routing changed.

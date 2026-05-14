@@ -60,14 +60,14 @@ export function getKeyboardShortcutsHelp(): KeyboardShortcut[] {
     { key: ',', ctrlKey: true, handler: () => {}, description: 'Settings' },
     { key: 'c', ctrlKey: true, shiftKey: true, handler: () => {}, description: 'Copy from Terminal' },
     { key: 'v', ctrlKey: true, shiftKey: true, handler: () => {}, description: 'Paste to Terminal' },
-    { key: '1', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 1' },
-    { key: '2', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 2' },
-    { key: '3', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 3' },
-    { key: '4', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 4' },
-    { key: '5', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 5' },
-    { key: '6', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 6' },
-    { key: '7', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 7' },
-    { key: '8', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 8' },
-    { key: '9', ctrlKey: true, handler: () => {}, description: 'Switch to Workspace 9' }
+    { key: '1', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 1' },
+    { key: '2', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 2' },
+    { key: '3', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 3' },
+    { key: '4', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 4' },
+    { key: '5', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 5' },
+    { key: '6', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 6' },
+    { key: '7', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 7' },
+    { key: '8', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 8' },
+    { key: '9', ctrlKey: true, handler: () => {}, description: 'Switch to Desk 9' }
   ];
 }

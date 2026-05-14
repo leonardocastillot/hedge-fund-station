@@ -55,6 +55,7 @@ export const AgentSupervisorBoard: React.FC<{ workspaceId?: string | null }> = (
       agentId: agent.id,
       agentName: agent.name,
       terminalPurpose: agent.autoAssignTerminalPurpose,
+      workspaceId: workspace.id,
       runtimeProvider: agent.provider
     };
     const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
@@ -111,7 +112,7 @@ export const AgentSupervisorBoard: React.FC<{ workspaceId?: string | null }> = (
       <div style={fleetGridStyle}>
         <div style={{ display: 'grid', gap: '10px' }}>
           {scopedAgents.length === 0 ? (
-            <div style={emptyStyle}>No agents in this workspace.</div>
+            <div style={emptyStyle}>No agents in this desk.</div>
           ) : (
             scopedAgents.map((agent) => {
               const provider = getProviderMeta(agent.provider);

@@ -15,8 +15,9 @@ import {
 import { useDeskHistoryContext } from '../../contexts/DeskHistoryContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { useTerminalContext } from '../../contexts/TerminalContext';
+import { useDeskSpaceContext } from '@/features/desks/DeskSpaceContext';
 import { WorkspaceModal } from './WorkspaceModal';
-import type { Workspace } from '../../types/electron';
+import type { Workspace, WorkspaceKind } from '../../types/electron';
 import { buildTerminalLabel, getLaunchProfileCommandSummary, launchProfileSequence } from '../../utils/workspaceLaunch';
 import {
   CENTER_ROUTE_CHANGED_EVENT,
@@ -35,14 +36,37 @@ const ICONS: Record<string, string> = {
   folder: 'DIR',
   rocket: 'RUN',
   chart: 'MKT',
+  terminal: 'CLI',
   database: 'DB',
   server: 'SRV',
   cloud: 'CLD'
 };
 
 function isPrimaryHedgeFundDesk(workspace: Workspace): boolean {
-  const haystack = `${workspace.id} ${workspace.name}`.toLowerCase();
-  return haystack.includes('hedge') || haystack.includes('trading');
+  return workspace.kind === 'hedge-fund';
+}
+
+function sortDesks(workspaces: Workspace[]): Workspace[] {
+  const kindOrder: Record<WorkspaceKind, number> = {
+    'command-hub': 0,
+    'hedge-fund': 1,
+    ops: 2,
+    project: 3
+  };
+
+  return [...workspaces].sort((a, b) => {
+    if (a.pinned !== b.pinned) {
+      return a.pinned ? -1 : 1;
+    }
+
+    const leftKind = kindOrder[a.kind] ?? 99;
+    const rightKind = kindOrder[b.kind] ?? 99;
+    if (leftKind !== rightKind) {
+      return leftKind - rightKind;
+    }
+
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export const Sidebar: React.FC = () => {
@@ -58,6 +82,7 @@ export const Sidebar: React.FC = () => {
     deleteWorkspace
   } = useWorkspaceContext();
   const { createTerminal } = useTerminalContext();
+  const { setDeskState } = useDeskSpaceContext();
   const { recordLaunch } = useDeskHistoryContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
@@ -83,8 +108,24 @@ export const Sidebar: React.FC = () => {
   ));
 
   const sortedWorkspaces = useMemo(
-    () => [...workspaces].sort((a, b) => a.name.localeCompare(b.name)),
+    () => sortDesks(workspaces),
     [workspaces]
+  );
+  const commandHubDesks = useMemo(
+    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'command-hub'),
+    [sortedWorkspaces]
+  );
+  const hedgeFundDesks = useMemo(
+    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'hedge-fund'),
+    [sortedWorkspaces]
+  );
+  const opsDesks = useMemo(
+    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'ops'),
+    [sortedWorkspaces]
+  );
+  const projectDesks = useMemo(
+    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'project'),
+    [sortedWorkspaces]
   );
 
   const liquidationPoll = useMarketPolling(
@@ -148,10 +189,12 @@ export const Sidebar: React.FC = () => {
       workspace.path,
       workspace.shell,
       buildTerminalLabel(workspace, command),
-      command
+      command,
+      { workspaceId: workspace.id }
     );
-    navigateCenterPanel('/terminals');
-  }, [createTerminal, setActiveWorkspace]);
+    setDeskState(workspace.id, { activeView: 'terminals' });
+    navigateCenterPanel('/workbench');
+  }, [createTerminal, setActiveWorkspace, setDeskState]);
 
   const runWorkspaceProfile = React.useCallback((workspace: Workspace, profileId: string) => {
     const profile = workspace.launch_profiles.find((item) => item.id === profileId);
@@ -161,11 +204,14 @@ export const Sidebar: React.FC = () => {
 
     void setActiveWorkspace(workspace.id);
     launchProfileSequence(workspace, profile, createTerminal, undefined, recordLaunch);
-    navigateCenterPanel('/terminals');
-  }, [createTerminal, recordLaunch, setActiveWorkspace]);
+    setDeskState(workspace.id, { activeView: 'terminals' });
+    navigateCenterPanel('/workbench');
+  }, [createTerminal, recordLaunch, setActiveWorkspace, setDeskState]);
 
   const handleWorkspaceClick = async (workspaceId: string) => {
     await setActiveWorkspace(workspaceId);
+    setDeskState(workspaceId, { activeView: 'overview' });
+    navigateCenterPanel('/workbench');
   };
 
   const handleEditWorkspace = (workspace: Workspace) => {
@@ -174,7 +220,7 @@ export const Sidebar: React.FC = () => {
   };
 
   const handleDeleteWorkspace = async (workspace: Workspace) => {
-    const confirmed = window.confirm(`Delete workspace "${workspace.name}"?\n\nThis removes it from the app but does not delete the folder on disk.`);
+    const confirmed = window.confirm(`Delete desk "${workspace.name}"?\n\nThis removes it from the app but does not delete the folder on disk.`);
     if (!confirmed) {
       return;
     }
@@ -182,7 +228,7 @@ export const Sidebar: React.FC = () => {
     try {
       await deleteWorkspace(workspace.id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete workspace';
+      const message = error instanceof Error ? error.message : 'Failed to delete desk';
       window.alert(message);
     }
   };
@@ -202,7 +248,7 @@ export const Sidebar: React.FC = () => {
         await window.electronAPI.obsidian.openVault(readyStatus.vaultPath);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open workspace vault';
+      const message = error instanceof Error ? error.message : 'Failed to open desk vault';
       window.alert(message);
     }
   };
@@ -218,7 +264,7 @@ export const Sidebar: React.FC = () => {
       await createWorkspace(workspace);
       await setActiveWorkspace(workspace.id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create workspace';
+      const message = error instanceof Error ? error.message : 'Failed to create desk';
       window.alert(message);
     }
   };
@@ -354,14 +400,34 @@ export const Sidebar: React.FC = () => {
         overflow: 'hidden'
       }}>
         <div style={workspaceListStyle}>
-          {sortedWorkspaces.map((workspace) => (
-            <WorkspaceListItem
-              key={workspace.id}
-              workspace={workspace}
-              isActive={activeWorkspace?.id === workspace.id}
-              onSelect={() => void handleWorkspaceClick(workspace.id)}
-            />
-          ))}
+          <WorkspaceGroup
+            title="Command Hub"
+            subtitle="Global terminal desk"
+            workspaces={commandHubDesks}
+            activeWorkspaceId={activeWorkspace?.id}
+            onSelect={handleWorkspaceClick}
+          />
+          <WorkspaceGroup
+            title="Hedge Fund Desk"
+            subtitle="Research, validation, paper review"
+            workspaces={hedgeFundDesks}
+            activeWorkspaceId={activeWorkspace?.id}
+            onSelect={handleWorkspaceClick}
+          />
+          <WorkspaceGroup
+            title="Ops"
+            subtitle="Services, tunnels, runtime health"
+            workspaces={opsDesks}
+            activeWorkspaceId={activeWorkspace?.id}
+            onSelect={handleWorkspaceClick}
+          />
+          <WorkspaceGroup
+            title="Projects"
+            subtitle="Code, agents, notes"
+            workspaces={projectDesks}
+            activeWorkspaceId={activeWorkspace?.id}
+            onSelect={handleWorkspaceClick}
+          />
         </div>
 
         <ActiveWorkspaceDetails
@@ -473,11 +539,49 @@ function WorkspaceListItem({
           textOverflow: 'ellipsis'
         }}>
             {isActive
-            ? isPrimaryHedgeFundDesk(workspace) ? 'Primary command desk' : 'Active command desk'
-            : `Command desk - ${compactPath(workspace.path)}`}
+            ? isPrimaryHedgeFundDesk(workspace) ? 'Active hedge fund desk' : 'Active desk'
+            : workspace.description || `Desk - ${compactPath(workspace.path)}`}
         </span>
       </span>
     </button>
+  );
+}
+
+function WorkspaceGroup({
+  title,
+  subtitle,
+  workspaces,
+  activeWorkspaceId,
+  onSelect
+}: {
+  title: string;
+  subtitle: string;
+  workspaces: Workspace[];
+  activeWorkspaceId?: string;
+  onSelect: (workspaceId: string) => void | Promise<void>;
+}) {
+  if (workspaces.length === 0) {
+    return null;
+  }
+
+  return (
+    <section style={deskGroupStyle} aria-label={title}>
+      <div style={deskGroupHeaderStyle}>
+        <span>{title}</span>
+        <span style={countPillStyle}>{workspaces.length}</span>
+      </div>
+      <div style={deskGroupSubtitleStyle}>{subtitle}</div>
+      <div style={deskGroupListStyle}>
+        {workspaces.map((workspace) => (
+          <WorkspaceListItem
+            key={workspace.id}
+            workspace={workspace}
+            isActive={activeWorkspaceId === workspace.id}
+            onSelect={() => void onSelect(workspace.id)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -580,7 +684,7 @@ function ActiveWorkspaceDetails({
   if (!workspace) {
     return (
       <div style={activeDetailStyle}>
-        <div style={emptyDetailStyle}>Select the primary hedge fund desk or add a bot/dev/client/business side desk to prepare commands.</div>
+        <div style={emptyDetailStyle}>Select Command Hub, the hedge fund desk, or a project desk to prepare commands.</div>
       </div>
     );
   }
@@ -600,23 +704,27 @@ function ActiveWorkspaceDetails({
           }}>
             {workspace.name}
           </div>
+          <div style={deskKindTextStyle}>{workspace.kind.replace('-', ' ')}</div>
           <div style={pathTextStyle} title={workspace.path}>{workspace.path}</div>
         </div>
       </div>
 
       <div style={quickActionGridStyle}>
         <IconActionButton label="Shell" title="Open shell" icon={<Terminal size={13} />} onClick={() => onRunCommand(workspace)} />
+        <IconActionButton label="Codex" title="Run Codex" icon={<Bot size={13} />} onClick={() => onRunCommand(workspace, 'codex')} />
         <IconActionButton label="Claude" title="Run Claude" icon={<Bot size={13} />} onClick={() => onRunCommand(workspace, 'claude')} />
         <IconActionButton label="Git" title="Run git status" icon={<GitBranch size={13} />} onClick={() => onRunCommand(workspace, 'git status')} />
-        <IconActionButton label="Edit" title="Edit workspace" icon={<Pencil size={13} />} onClick={() => onEdit(workspace)} />
-        <IconActionButton label="Vault" title="Open workspace vault" icon={<BookOpen size={13} />} onClick={() => onOpenVault(workspace)} />
-        <IconActionButton
-          label="Delete"
-          title="Delete workspace"
-          icon={<Trash2 size={13} />}
-          danger
-          onClick={() => onDelete(workspace)}
-        />
+        <IconActionButton label="Edit" title="Edit desk" icon={<Pencil size={13} />} onClick={() => onEdit(workspace)} />
+        <IconActionButton label="Vault" title="Open desk vault" icon={<BookOpen size={13} />} onClick={() => onOpenVault(workspace)} />
+        {workspace.kind !== 'command-hub' ? (
+          <IconActionButton
+            label="Delete"
+            title="Delete desk"
+            icon={<Trash2 size={13} />}
+            danger
+            onClick={() => onDelete(workspace)}
+          />
+        ) : null}
       </div>
 
       <CollapsibleSectionHeader
@@ -1023,6 +1131,41 @@ const workspaceListStyle: React.CSSProperties = {
   padding: '8px'
 };
 
+const deskGroupStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: '6px',
+  paddingBottom: '4px'
+};
+
+const deskGroupHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '8px',
+  padding: '4px 2px 0',
+  color: 'var(--app-accent)',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  letterSpacing: '0.12em'
+};
+
+const deskGroupSubtitleStyle: React.CSSProperties = {
+  marginTop: '-2px',
+  padding: '0 2px',
+  color: 'var(--app-subtle)',
+  fontSize: '10px',
+  lineHeight: 1.35,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis'
+};
+
+const deskGroupListStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: '6px'
+};
+
 const stationListStyle: React.CSSProperties = {
   display: 'grid',
   gap: '6px'
@@ -1067,6 +1210,15 @@ const pathTextStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis'
+};
+
+const deskKindTextStyle: React.CSSProperties = {
+  marginTop: '5px',
+  color: 'var(--app-accent)',
+  fontSize: '10px',
+  fontWeight: 800,
+  textTransform: 'uppercase',
+  letterSpacing: '0.1em'
 };
 
 const quickActionGridStyle: React.CSSProperties = {

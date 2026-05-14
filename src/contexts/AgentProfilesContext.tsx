@@ -49,8 +49,8 @@ function normalizeAgentProvider(agent: AgentProfile): AgentProfile['provider'] {
 }
 
 function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
-  const signature = `${workspace.name} ${workspace.path}`.toLowerCase();
-  const isTrading = /(trade|btc|market|alpha|fund|hedge|perp|liquidation)/.test(signature);
+  const kind = workspace.kind || 'project';
+  const isTrading = kind === 'hedge-fund';
   const planningProfileId = workspace.launch_profiles[0]?.id;
   const opsProfileId = workspace.launch_profiles[1]?.id || planningProfileId;
 
@@ -266,6 +266,38 @@ function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
     }
   ];
 
+  if (kind === 'command-hub') {
+    const allowedRoles = new Set<AgentProfile['role']>(['commander', 'developer', 'ops']);
+    return base
+      .filter((agent) => allowedRoles.has(agent.role))
+      .map((agent) => {
+        if (agent.role === 'commander') {
+          return {
+            ...agent,
+            promptTemplate: 'Lead terminal, AI runtime, tunnel, and short operational work. Keep commands explicit and ask for approval before mutating important project state.',
+            objective: 'Turn loose operational needs into safe terminal actions and short handoffs.'
+          };
+        }
+        if (agent.role === 'developer') {
+          return {
+            ...agent,
+            promptTemplate: 'Help with local code and tooling work from the command hub. Prefer scoped commands, clear cwd, and verification.',
+            objective: 'Ship small project or tooling changes from a terminal-first desk.'
+          };
+        }
+        return {
+          ...agent,
+          promptTemplate: 'Watch processes, shells, tunnels, services, and runtime health across local projects.',
+          objective: 'Keep terminal operations healthy and easy to recover.'
+        };
+      });
+  }
+
+  if (kind === 'project') {
+    const allowedRoles = new Set<AgentProfile['role']>(['commander', 'researcher', 'developer', 'ops', 'data-engineer']);
+    return base.filter((agent) => allowedRoles.has(agent.role));
+  }
+
   return base;
 }
 
@@ -289,19 +321,44 @@ export const AgentProfilesProvider: React.FC<{ children: React.ReactNode }> = ({
     },
     ensureWorkspaceAgents: (workspaces) => {
       setAgents((prev) => {
-        const next = [...prev];
+        let next = [...prev];
         for (const workspace of workspaces) {
           const existingForWorkspace = next.filter((agent) => agent.workspaceId === workspace.id);
           const defaults = createDefaultAgentsForWorkspace(workspace);
+          const defaultRoles = new Set(defaults.map((agent) => agent.role));
+          const defaultIds = new Set(defaults.map((agent) => agent.id));
+
+          next = next.filter((agent) => {
+            if (agent.workspaceId !== workspace.id) {
+              return true;
+            }
+
+            const isGeneratedDefaultId = agent.id === `${workspace.id}:${agent.role}`;
+            return !isGeneratedDefaultId || defaultRoles.has(agent.role) || defaultIds.has(agent.id);
+          });
+
+          const refreshedExistingForWorkspace = next.filter((agent) => agent.workspaceId === workspace.id);
           if (existingForWorkspace.length === 0) {
             next.push(...defaults);
             continue;
           }
 
           defaults.forEach((defaultAgent) => {
-            const existingMatch = existingForWorkspace.find((agent) => agent.role === defaultAgent.role);
+            const existingMatch = refreshedExistingForWorkspace.find((agent) => agent.role === defaultAgent.role);
             if (!existingMatch) {
               next.push(defaultAgent);
+              return;
+            }
+
+            if (existingMatch.id === defaultAgent.id) {
+              next = next.map((agent) => (
+                agent.id === existingMatch.id
+                  ? {
+                      ...defaultAgent,
+                      provider: existingMatch.provider
+                    }
+                  : agent
+              ));
             }
           });
         }

@@ -1,6 +1,5 @@
 import { Fragment, type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle,
   Brain,
   CalendarDays,
   Clock3,

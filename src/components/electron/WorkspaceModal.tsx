@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Workspace } from '../../types/electron';
+import type { DeskBrowserTab, Workspace, WorkspaceKind } from '../../types/electron';
 import { formatLaunchProfiles, parseLaunchProfiles } from '../../utils/workspaceLaunchProfiles';
-import { createDefaultLaunchProfiles } from '../../utils/workspaceLaunch';
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -33,6 +32,75 @@ const COLORS = [
   '#ec4899'
 ];
 
+const WORKSPACE_KIND_OPTIONS: Array<{ value: WorkspaceKind; label: string; description: string }> = [
+  { value: 'command-hub', label: 'Command Hub', description: 'Global terminal and AI runtime desk.' },
+  { value: 'hedge-fund', label: 'Hedge Fund', description: 'Research, validation, paper review, and backend commands.' },
+  { value: 'project', label: 'Project', description: 'Normal code, notes, agents, and terminal work.' },
+  { value: 'ops', label: 'Ops', description: 'Services, tunnels, diagnostics, and runtime health.' }
+];
+
+function defaultDescription(kind: WorkspaceKind): string {
+  return WORKSPACE_KIND_OPTIONS.find((item) => item.value === kind)?.description || '';
+}
+
+function defaultRouteForKind(kind: WorkspaceKind): string {
+  void kind;
+  return '/workbench';
+}
+
+function slugify(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'tab';
+}
+
+function isSafeBrowserUrl(url: string): boolean {
+  if (url === 'about:blank') {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function formatBrowserTabs(tabs: DeskBrowserTab[]): string {
+  return tabs.map((tab) => `${tab.title} | ${tab.url}`).join('\n');
+}
+
+function parseBrowserTabs(value: string): DeskBrowserTab[] {
+  return value
+    .split('\n')
+    .map((line, index) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return null;
+      }
+
+      const [titlePart, ...urlParts] = trimmed.split('|');
+      const url = (urlParts.join('|') || titlePart).trim();
+      if (!isSafeBrowserUrl(url)) {
+        return null;
+      }
+
+      const title = urlParts.length > 0 && titlePart.trim()
+        ? titlePart.trim()
+        : `Tab ${index + 1}`;
+
+      return {
+        id: `${slugify(title)}-${index + 1}`,
+        title,
+        url
+      };
+    })
+    .filter((tab): tab is DeskBrowserTab => tab !== null);
+}
+
 export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   isOpen,
   onClose,
@@ -41,12 +109,17 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
+  const [kind, setKind] = useState<WorkspaceKind>('project');
+  const [description, setDescription] = useState('');
+  const [pinned, setPinned] = useState(false);
+  const [defaultRoutePath, setDefaultRoutePath] = useState('/workbench');
   const [icon, setIcon] = useState('briefcase');
   const [color, setColor] = useState('#ef4444');
   const [shell, setShell] = useState('/bin/zsh');
   const [obsidianVaultPath, setObsidianVaultPath] = useState('');
   const [defaultCommands, setDefaultCommands] = useState('');
   const [launchProfiles, setLaunchProfiles] = useState('');
+  const [browserTabs, setBrowserTabs] = useState('');
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -55,21 +128,31 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     if (existingWorkspace) {
       setName(existingWorkspace.name);
       setPath(existingWorkspace.path);
+      setKind(existingWorkspace.kind || 'project');
+      setDescription(existingWorkspace.description || defaultDescription(existingWorkspace.kind || 'project'));
+      setPinned(Boolean(existingWorkspace.pinned));
+      setDefaultRoutePath(existingWorkspace.default_route || defaultRouteForKind(existingWorkspace.kind || 'project'));
       setIcon(existingWorkspace.icon);
       setColor(existingWorkspace.color);
       setShell(existingWorkspace.shell);
       setObsidianVaultPath(existingWorkspace.obsidian_vault_path || '');
       setDefaultCommands(existingWorkspace.default_commands.join('\n'));
       setLaunchProfiles(formatLaunchProfiles(existingWorkspace.launch_profiles || []));
+      setBrowserTabs(formatBrowserTabs(existingWorkspace.browser_tabs || []));
     } else {
       setName('');
       setPath('');
+      setKind('project');
+      setDescription(defaultDescription('project'));
+      setPinned(false);
+      setDefaultRoutePath(defaultRouteForKind('project'));
       setIcon('briefcase');
       setColor('#ef4444');
       setShell('/bin/zsh');
       setObsidianVaultPath('');
       setDefaultCommands('');
-      setLaunchProfiles(formatLaunchProfiles(createDefaultLaunchProfiles('')));
+      setLaunchProfiles('');
+      setBrowserTabs('');
     }
     setIsAdvancedOpen(false);
     setError('');
@@ -80,12 +163,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     setError('');
 
     if (!name.trim()) {
-      setError('Workspace name is required.');
+      setError('Desk name is required.');
       return;
     }
 
     if (!path.trim()) {
-      setError('Workspace path is required.');
+      setError('Desk path is required.');
       return;
     }
 
@@ -96,6 +179,10 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         id: existingWorkspace?.id || `workspace-${uuidv4()}`,
         name: name.trim(),
         path: path.trim(),
+        kind,
+        description: description.trim() || defaultDescription(kind),
+        pinned,
+        default_route: defaultRoutePath.trim() || defaultRouteForKind(kind),
         icon,
         color,
         shell,
@@ -104,13 +191,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           .split('\n')
           .map((command) => command.trim())
           .filter(Boolean),
-        launch_profiles: parseLaunchProfiles(launchProfiles)
+        launch_profiles: parseLaunchProfiles(launchProfiles),
+        browser_tabs: parseBrowserTabs(browserTabs)
       };
 
       await onSave(workspace);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save workspace.');
+      setError(err instanceof Error ? err.message : 'Failed to save desk.');
     } finally {
       setIsLoading(false);
     }
@@ -177,10 +265,10 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 letterSpacing: '0.14em'
               }}
             >
-              Workspace Config
+              Desk Config
             </div>
             <h2 style={{ margin: '8px 0 4px 0', color: '#f9fafb', fontSize: '22px', fontWeight: 800 }}>
-              {existingWorkspace ? 'Edit Workspace' : 'Create Workspace'}
+              {existingWorkspace ? 'Edit Desk' : 'Create Desk'}
             </h2>
             <p style={{ margin: 0, color: '#9ca3af', fontSize: '12px', lineHeight: 1.55, maxWidth: '560px' }}>
               Edit the desk essentials. Commands, colors and launch profiles are tucked away under Advanced.
@@ -215,9 +303,38 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
               gap: '14px'
             }}
           >
-            <SectionCard title="Basics" subtitle="Name, path and shell.">
-                <Field label="Workspace Name *">
-                  <Input value={name} onChange={setName} placeholder="AI Trading Desk" />
+            <SectionCard title="Basics" subtitle="Name, kind, path and shell.">
+                <Field label="Desk Name *">
+                  <Input value={name} onChange={setName} placeholder="Command Hub" />
+                </Field>
+
+                <Field label="Desk Type">
+                  <select
+                    value={kind}
+                    onChange={(event) => {
+                      const nextKind = event.target.value as WorkspaceKind;
+                      setKind(nextKind);
+                      setDescription((current) => (
+                        !current.trim() || WORKSPACE_KIND_OPTIONS.some((option) => option.description === current.trim())
+                          ? defaultDescription(nextKind)
+                          : current
+                      ));
+                      setDefaultRoutePath((current) => (
+                        !current.trim() || ['/station/hedge-fund', '/terminals', '/diagnostics', '/workbench'].includes(current.trim())
+                          ? defaultRouteForKind(nextKind)
+                          : current
+                      ));
+                    }}
+                    style={selectStyle}
+                  >
+                    {WORKSPACE_KIND_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Description">
+                  <Input value={description} onChange={setDescription} placeholder={defaultDescription(kind)} />
                 </Field>
 
                 <Field label="Project Path *">
@@ -232,6 +349,19 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 <Field label="Default Shell">
                   <Input value={shell} onChange={setShell} placeholder="/bin/zsh" mono />
                 </Field>
+
+                <Field label="Default Route">
+                  <Input value={defaultRoutePath} onChange={setDefaultRoutePath} placeholder={defaultRouteForKind(kind)} mono />
+                </Field>
+
+                <label style={checkboxLabelStyle}>
+                  <input
+                    type="checkbox"
+                    checked={pinned}
+                    onChange={(event) => setPinned(event.target.checked)}
+                  />
+                  <span>Pin this desk near the top of the sidebar</span>
+                </label>
 
                 <Field label="Obsidian Vault Path">
                   <Input
@@ -339,6 +469,23 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                   style={textareaStyle}
                 />
               </SectionCard>
+
+              <SectionCard
+                title="Browser Tabs"
+                subtitle="One tab per line: Title | URL. Only http, https and about:blank are allowed."
+              >
+                <textarea
+                  value={browserTabs}
+                  onChange={(event) => setBrowserTabs(event.target.value)}
+                  placeholder={
+                    'Local App | http://localhost:3000\n' +
+                    'Gateway Health | http://127.0.0.1:18001/health\n' +
+                    'TradingView BTC | https://www.tradingview.com/chart/?symbol=BINANCE:BTCUSDT'
+                  }
+                  rows={5}
+                  style={textareaStyle}
+                />
+              </SectionCard>
               </>
             )}
           </div>
@@ -371,7 +518,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
             }}
           >
             <div style={{ color: '#6b7280', fontSize: '11px' }}>
-              Workspaces are stored locally and do not modify folders on disk.
+              Desks are stored locally and do not modify folders on disk.
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -379,7 +526,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 Cancel
               </ActionButton>
               <ActionButton type="submit" primary disabled={isLoading}>
-                {isLoading ? 'Saving...' : existingWorkspace ? 'Save Changes' : 'Create Workspace'}
+                {isLoading ? 'Saving...' : existingWorkspace ? 'Save Changes' : 'Create Desk'}
               </ActionButton>
             </div>
           </div>
@@ -501,6 +648,22 @@ const inputStyle: React.CSSProperties = {
   color: '#f9fafb',
   fontSize: '12px',
   outline: 'none'
+};
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  cursor: 'pointer'
+};
+
+const checkboxLabelStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  color: '#e5e7eb',
+  fontSize: '12px',
+  fontWeight: 600
 };
 
 const textareaStyle: React.CSSProperties = {

@@ -1,7 +1,18 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Workspace, WorkspaceConfig } from '../../types/ipc.types';
+import type { DeskBrowserTab, LaunchProfile, Workspace, WorkspaceConfig, WorkspaceKind } from '../../types/ipc.types';
+
+const COMMAND_HUB_ID = 'command-hub';
+const VALID_WORKSPACE_KINDS: WorkspaceKind[] = ['hedge-fund', 'command-hub', 'project', 'ops'];
+const GENERATED_DESK_ROUTES = new Set(['/station/hedge-fund', '/terminals', '/diagnostics', '/workbench']);
+const LEGACY_HEDGE_COMMANDS = [
+  'git status',
+  'npm run hf:doctor',
+  'npm run backend:health',
+  'npm run gateway:probe',
+  'npm run dev'
+];
 
 function normalizeLaunchProfiles(
   profiles: unknown[] | undefined
@@ -82,6 +93,336 @@ function readPackageScripts(workspacePath: string): Record<string, string> {
   }
 }
 
+function readPackageName(workspacePath: string): string | undefined {
+  const packagePath = path.join(workspacePath, 'package.json');
+  if (!fs.existsSync(packagePath)) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(packagePath, 'utf-8')) as { name?: string };
+    return typeof parsed.name === 'string' ? parsed.name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isWorkspaceKind(value: unknown): value is WorkspaceKind {
+  return typeof value === 'string' && VALID_WORKSPACE_KINDS.includes(value as WorkspaceKind);
+}
+
+function defaultIconForKind(kind: WorkspaceKind): string {
+  if (kind === 'hedge-fund') return 'chart';
+  if (kind === 'command-hub') return 'terminal';
+  if (kind === 'ops') return 'server';
+  return 'code';
+}
+
+function defaultColorForKind(kind: WorkspaceKind): string {
+  if (kind === 'hedge-fund') return '#22d3ee';
+  if (kind === 'command-hub') return '#06b6d4';
+  if (kind === 'ops') return '#f97316';
+  return '#3b82f6';
+}
+
+function defaultRouteForKind(kind: WorkspaceKind): string {
+  void kind;
+  return '/workbench';
+}
+
+function defaultDescriptionForKind(kind: WorkspaceKind): string {
+  if (kind === 'hedge-fund') {
+    return 'Primary hedge fund research, validation, paper review, and backend command desk.';
+  }
+  if (kind === 'command-hub') {
+    return 'Global terminal hub for shells, AI runtimes, tunnels, and short operational commands.';
+  }
+  if (kind === 'ops') {
+    return 'Operational desk for services, logs, tunnels, diagnostics, and runtime health.';
+  }
+  return 'Project desk for local code, agents, commands, terminals, and notes.';
+}
+
+function getCommandHubPath(): string {
+  const documentsPath = app.getPath('documents');
+  return fs.existsSync(documentsPath) ? documentsPath : app.getPath('home');
+}
+
+function hasRealHedgeFundMarkers(workspacePath: string): boolean {
+  const packageName = readPackageName(workspacePath);
+
+  return (
+    packageName === 'hedge-fund-station'
+    || hasPath(workspacePath, 'backend', 'hyperliquid_gateway')
+    || hasPath(workspacePath, 'docs', 'operations', 'hedge-fund-company-constitution.md')
+    || hasPath(workspacePath, 'docs', 'hyperliquid-strategy-roadmap.md')
+  );
+}
+
+function inferWorkspaceKind(workspace: Pick<Workspace, 'id' | 'name' | 'path'> & Partial<Workspace>): WorkspaceKind {
+  if (workspace.id === COMMAND_HUB_ID || workspace.name.toLowerCase() === 'command hub') {
+    return 'command-hub';
+  }
+
+  if (isWorkspaceKind(workspace.kind)) {
+    return workspace.kind;
+  }
+
+  if (hasRealHedgeFundMarkers(workspace.path) || path.basename(workspace.path) === 'New project 9') {
+    return 'hedge-fund';
+  }
+
+  return 'project';
+}
+
+function createDefaultCommands(kind: WorkspaceKind, workspacePath: string): string[] {
+  const scripts = readPackageScripts(workspacePath);
+  const isNodeRepo = Object.keys(scripts).length > 0;
+
+  if (kind === 'command-hub') {
+    return ['pwd', 'ls -la', 'git status'];
+  }
+
+  if (kind === 'hedge-fund') {
+    return [...LEGACY_HEDGE_COMMANDS];
+  }
+
+  if (kind === 'ops') {
+    return [
+      'pwd',
+      'ps aux | head -20',
+      'git status'
+    ];
+  }
+
+  return [
+    'git status',
+    ...(isNodeRepo && scripts.dev ? ['npm run dev'] : []),
+    ...(isNodeRepo && scripts.test ? ['npm test'] : []),
+    ...(isNodeRepo && scripts.build ? ['npm run build'] : [])
+  ];
+}
+
+function createDefaultLaunchProfiles(kind: WorkspaceKind, workspacePath: string): LaunchProfile[] {
+  const scripts = readPackageScripts(workspacePath);
+  const isNodeRepo = Object.keys(scripts).length > 0;
+
+  if (kind === 'command-hub') {
+    return [
+      {
+        id: 'ai-runtimes',
+        name: 'AI Runtimes',
+        steps: [
+          { command: 'codex', delayMs: 0 },
+          { command: 'claude', delayMs: 300 },
+          { command: 'gemini', delayMs: 600 }
+        ]
+      },
+      {
+        id: 'shell-grid',
+        name: 'Shell Grid',
+        steps: [
+          { command: 'pwd', delayMs: 0 },
+          { command: 'ls -la', delayMs: 300 },
+          { command: 'git status', delayMs: 600 }
+        ]
+      }
+    ];
+  }
+
+  if (kind === 'hedge-fund') {
+    return [
+      {
+        id: 'ai-work-desk',
+        name: 'AI Work Desk',
+        steps: [
+          { command: 'agent-runtime', delayMs: 0 },
+          { command: 'git status', delayMs: 300 },
+          { command: 'npm run hf:status', delayMs: 700 }
+        ]
+      },
+      {
+        id: 'health-check',
+        name: 'Health Check',
+        steps: [
+          { command: 'npm run hf:doctor', delayMs: 0 }
+        ]
+      },
+      {
+        id: 'dev-server',
+        name: 'Dev Server',
+        steps: [
+          { command: 'npm run dev', delayMs: 0 }
+        ]
+      }
+    ];
+  }
+
+  if (kind === 'ops') {
+    return [
+      {
+        id: 'ops-console',
+        name: 'Ops Console',
+        steps: [
+          { command: 'pwd', delayMs: 0 },
+          { command: 'ps aux | head -20', delayMs: 300 },
+          { command: 'git status', delayMs: 600 }
+        ]
+      }
+    ];
+  }
+
+  const profiles: LaunchProfile[] = [
+    {
+      id: 'ai-work-desk',
+      name: 'AI Work Desk',
+      steps: [
+        { command: 'agent-runtime', delayMs: 0 },
+        { command: 'git status', delayMs: 300 },
+        ...(isNodeRepo && scripts.dev ? [{ command: 'npm run dev', delayMs: 700 }] : [])
+      ]
+    }
+  ];
+
+  if (isNodeRepo && (scripts.test || scripts.build)) {
+    profiles.push({
+      id: 'review-and-tests',
+      name: 'Review and Tests',
+      steps: [
+        { command: 'git diff --stat', delayMs: 0 },
+        ...(scripts.test ? [{ command: 'npm test', delayMs: 300 }] : []),
+        ...(scripts.build ? [{ command: 'npm run build', delayMs: scripts.test ? 700 : 300 }] : [])
+      ]
+    });
+  }
+
+  return profiles;
+}
+
+function isSafeBrowserUrl(url: string): boolean {
+  if (url === 'about:blank') {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function createDefaultBrowserTabs(kind: WorkspaceKind): DeskBrowserTab[] {
+  if (kind === 'hedge-fund') {
+    return [
+      {
+        id: 'tradingview-btc',
+        title: 'TradingView BTC',
+        url: 'https://www.tradingview.com/chart/?symbol=BINANCE:BTCUSDT'
+      },
+      {
+        id: 'gateway-health',
+        title: 'Gateway Health',
+        url: 'http://127.0.0.1:18001/health'
+      }
+    ];
+  }
+
+  if (kind === 'ops') {
+    return [
+      {
+        id: 'gateway-health',
+        title: 'Gateway Health',
+        url: 'http://127.0.0.1:18001/health'
+      },
+      {
+        id: 'backend-health',
+        title: 'Backend Health',
+        url: 'http://127.0.0.1:18500/health'
+      }
+    ];
+  }
+
+  if (kind === 'command-hub') {
+    return [
+      {
+        id: 'local-dev',
+        title: 'Local Dev',
+        url: 'http://localhost:5173'
+      }
+    ];
+  }
+
+  return [
+    {
+      id: 'local-app',
+      title: 'Local App',
+      url: 'http://localhost:3000'
+    }
+  ];
+}
+
+function normalizeBrowserTabs(tabs: unknown[] | undefined, kind: WorkspaceKind): DeskBrowserTab[] {
+  if (!Array.isArray(tabs)) {
+    return createDefaultBrowserTabs(kind);
+  }
+
+  const normalized = tabs
+    .map((tab, index) => {
+      const rawTab = tab as { id?: string; title?: string; url?: string };
+      const url = typeof rawTab.url === 'string' ? rawTab.url.trim() : '';
+      if (!isSafeBrowserUrl(url)) {
+        return null;
+      }
+
+      const title = typeof rawTab.title === 'string' && rawTab.title.trim()
+        ? rawTab.title.trim()
+        : `Tab ${index + 1}`;
+
+      return {
+        id: typeof rawTab.id === 'string' && rawTab.id.trim()
+          ? slugify(rawTab.id)
+          : slugify(title),
+        title,
+        url
+      };
+    })
+    .filter((tab): tab is DeskBrowserTab => tab !== null);
+
+  return normalized.length > 0 ? normalized : createDefaultBrowserTabs(kind);
+}
+
+function normalizeDefaultRoute(route: unknown, kind: WorkspaceKind): string {
+  const trimmed = typeof route === 'string' ? route.trim() : '';
+  if (!trimmed || GENERATED_DESK_ROUTES.has(trimmed)) {
+    return defaultRouteForKind(kind);
+  }
+
+  return trimmed;
+}
+
+function commandsMatch(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((command, index) => command === right[index]);
+}
+
+function looksLikeLegacyHedgeCommands(commands: string[]): boolean {
+  return commandsMatch(commands, LEGACY_HEDGE_COMMANDS);
+}
+
+function looksLikeLegacyHedgeProfiles(profiles: LaunchProfile[]): boolean {
+  if (profiles.length === 0) {
+    return false;
+  }
+
+  const knownLegacyIds = new Set(['ai-work-desk', 'work-desk', 'health-check', 'dev-server']);
+  const knownOnly = profiles.every((profile) => knownLegacyIds.has(profile.id) || /^launch-profile-\d+$/.test(profile.id));
+  const hasHedgeCommand = profiles.some((profile) => (
+    profile.steps.some((step) => /npm run hf:|gateway:probe|backend:health/.test(step.command))
+  ));
+
+  return knownOnly && hasHedgeCommand;
+}
+
 function findObsidianVaultPath(workspacePath: string): string | undefined {
   const curatedVaultPath = path.join(workspacePath, 'hedge-station');
   if (hasPath(curatedVaultPath, '.obsidian')) {
@@ -145,20 +486,128 @@ export class WorkspaceManager {
     this.loadConfig();
   }
 
+  private createCommandHubWorkspace(): Workspace {
+    const commandHubPath = getCommandHubPath();
+    const shell = process.env.SHELL || '/bin/zsh';
+
+    return {
+      id: COMMAND_HUB_ID,
+      name: 'Command Hub',
+      path: commandHubPath,
+      kind: 'command-hub',
+      description: defaultDescriptionForKind('command-hub'),
+      pinned: true,
+      default_route: defaultRouteForKind('command-hub'),
+      icon: defaultIconForKind('command-hub'),
+      color: defaultColorForKind('command-hub'),
+      default_commands: createDefaultCommands('command-hub', commandHubPath),
+      launch_profiles: createDefaultLaunchProfiles('command-hub', commandHubPath),
+      browser_tabs: createDefaultBrowserTabs('command-hub'),
+      shell,
+      obsidian_vault_path: undefined
+    };
+  }
+
+  private normalizeWorkspace(workspace: Partial<Workspace>, index = 0): Workspace {
+    const fallbackPath = typeof workspace.path === 'string' && workspace.path.trim()
+      ? workspace.path.trim()
+      : getCommandHubPath();
+    const fallbackName = typeof workspace.name === 'string' && workspace.name.trim()
+      ? workspace.name.trim()
+      : path.basename(fallbackPath) || `Desk ${index + 1}`;
+    const fallbackId = typeof workspace.id === 'string' && workspace.id.trim()
+      ? workspace.id.trim()
+      : slugify(fallbackName);
+    const kind = inferWorkspaceKind({
+      ...workspace,
+      id: fallbackId,
+      name: fallbackName,
+      path: fallbackPath
+    });
+    const defaultCommands = createDefaultCommands(kind, fallbackPath);
+    const normalizedCommands = Array.isArray(workspace.default_commands)
+      ? workspace.default_commands.filter(Boolean).map((command) => String(command).trim()).filter(Boolean)
+      : [];
+    const normalizedProfiles = normalizeLaunchProfiles(workspace.launch_profiles);
+    const replaceLegacyDefaults = kind !== 'hedge-fund'
+      && (
+        looksLikeLegacyHedgeCommands(normalizedCommands)
+        || looksLikeLegacyHedgeProfiles(normalizedProfiles)
+      );
+
+    return {
+      id: fallbackId,
+      name: fallbackName,
+      path: fallbackPath,
+      kind,
+      description: typeof workspace.description === 'string' && workspace.description.trim()
+        ? workspace.description.trim()
+        : defaultDescriptionForKind(kind),
+      pinned: typeof workspace.pinned === 'boolean'
+        ? workspace.pinned
+        : kind === 'command-hub' || kind === 'hedge-fund',
+      default_route: normalizeDefaultRoute(workspace.default_route, kind),
+      icon: typeof workspace.icon === 'string' && workspace.icon.trim()
+        ? workspace.icon.trim()
+        : defaultIconForKind(kind),
+      color: typeof workspace.color === 'string' && workspace.color.trim()
+        ? workspace.color.trim()
+        : defaultColorForKind(kind),
+      default_commands: replaceLegacyDefaults || normalizedCommands.length === 0
+        ? defaultCommands
+        : normalizedCommands,
+      launch_profiles: replaceLegacyDefaults || normalizedProfiles.length === 0
+        ? createDefaultLaunchProfiles(kind, fallbackPath)
+        : normalizedProfiles,
+      browser_tabs: normalizeBrowserTabs(workspace.browser_tabs, kind),
+      shell: typeof workspace.shell === 'string' && workspace.shell.trim()
+        ? workspace.shell.trim()
+        : process.env.SHELL || '/bin/zsh',
+      obsidian_vault_path: normalizeObsidianVaultPath(fallbackPath, workspace.obsidian_vault_path)
+    };
+  }
+
+  private ensureCommandHub(workspaces: Workspace[]): Workspace[] {
+    const hasCommandHub = workspaces.some((workspace) => workspace.kind === 'command-hub' || workspace.id === COMMAND_HUB_ID);
+    if (hasCommandHub) {
+      return workspaces.map((workspace) => (
+        workspace.id === COMMAND_HUB_ID || workspace.kind === 'command-hub'
+          ? {
+              ...workspace,
+              id: COMMAND_HUB_ID,
+              name: workspace.name || 'Command Hub',
+              kind: 'command-hub',
+              description: workspace.description || defaultDescriptionForKind('command-hub'),
+              pinned: true,
+              default_route: normalizeDefaultRoute(workspace.default_route, 'command-hub'),
+              icon: workspace.icon || defaultIconForKind('command-hub'),
+              color: workspace.color || defaultColorForKind('command-hub'),
+              browser_tabs: normalizeBrowserTabs(workspace.browser_tabs, 'command-hub')
+            }
+          : workspace
+      ));
+    }
+
+    return [this.createCommandHubWorkspace(), ...workspaces];
+  }
+
   private loadConfig(): void {
     if (fs.existsSync(this.configPath)) {
       try {
         const data = fs.readFileSync(this.configPath, 'utf-8');
         const parsed = JSON.parse(data) as WorkspaceConfig;
+        const normalizedWorkspaces = this.ensureCommandHub(
+          (parsed.workspaces || []).map((workspace, index) => this.normalizeWorkspace(workspace, index))
+        );
+        const activeWorkspaceExists = normalizedWorkspaces.some((workspace) => workspace.id === parsed.active_workspace_id);
         this.config = {
           ...parsed,
-          workspaces: (parsed.workspaces || []).map((workspace) => ({
-            ...workspace,
-            default_commands: Array.isArray(workspace.default_commands) ? workspace.default_commands : [],
-            launch_profiles: normalizeLaunchProfiles(workspace.launch_profiles),
-            obsidian_vault_path: normalizeObsidianVaultPath(workspace.path, workspace.obsidian_vault_path)
-          }))
+          workspaces: normalizedWorkspaces,
+          active_workspace_id: activeWorkspaceExists
+            ? parsed.active_workspace_id
+            : normalizedWorkspaces[0]?.id || COMMAND_HUB_ID
         };
+        this.saveConfig();
       } catch (error) {
         console.error('Failed to load workspace config:', error);
         this.createDefaultConfig();
@@ -174,51 +623,27 @@ export class WorkspaceManager {
     const tradingPath = fs.existsSync(projectPath) ? projectPath : documentsPath;
     const shell = process.env.SHELL || '/bin/zsh';
 
-    const defaultWorkspace: Workspace = {
-      id: 'hedge-fund-trading',
-      name: 'Hedge Fund Station',
+    const hedgeFundWorkspace: Workspace = {
+      id: 'new-project-9',
+      name: 'New project 9',
       path: tradingPath,
+      kind: 'hedge-fund',
+      description: defaultDescriptionForKind('hedge-fund'),
+      pinned: true,
+      default_route: defaultRouteForKind('hedge-fund'),
       icon: 'chart',
       color: '#22d3ee',
-      default_commands: [
-        'git status',
-        'npm run hf:doctor',
-        'npm run backend:health',
-        'npm run gateway:probe',
-        'npm run dev'
-      ],
-      launch_profiles: [
-        {
-          id: 'ai-work-desk',
-          name: 'AI Work Desk',
-          steps: [
-            { command: 'agent-runtime', delayMs: 0 },
-            { command: 'git status', delayMs: 300 },
-            { command: 'npm run dev', delayMs: 700 }
-          ]
-        },
-        {
-          id: 'health-check',
-          name: 'Health Check',
-          steps: [
-            { command: 'npm run hf:doctor', delayMs: 0 }
-          ]
-        },
-        {
-          id: 'dev-server',
-          name: 'Dev Server',
-          steps: [
-            { command: 'npm run dev', delayMs: 0 }
-          ]
-        }
-      ],
+      default_commands: createDefaultCommands('hedge-fund', tradingPath),
+      launch_profiles: createDefaultLaunchProfiles('hedge-fund', tradingPath),
+      browser_tabs: createDefaultBrowserTabs('hedge-fund'),
       shell,
       obsidian_vault_path: undefined
     };
 
+    const commandHub = this.createCommandHubWorkspace();
     this.config = {
-      workspaces: [defaultWorkspace],
-      active_workspace_id: 'hedge-fund-trading'
+      workspaces: [commandHub, hedgeFundWorkspace],
+      active_workspace_id: hedgeFundWorkspace.id
     };
 
     this.saveConfig();
@@ -297,14 +722,12 @@ export class WorkspaceManager {
   create(workspace: Workspace): void {
     if (!this.config) throw new Error('Config not loaded');
 
+    workspace = this.normalizeWorkspace(workspace);
+
     // Validate workspace
     if (!workspace.id || !workspace.name || !workspace.path) {
       throw new Error('Invalid workspace: missing required fields');
     }
-
-    workspace.default_commands = Array.isArray(workspace.default_commands) ? workspace.default_commands : [];
-    workspace.launch_profiles = Array.isArray(workspace.launch_profiles) ? workspace.launch_profiles : [];
-    workspace.obsidian_vault_path = normalizeObsidianVaultPath(workspace.path, workspace.obsidian_vault_path);
 
     // Check if ID already exists
     if (this.config.workspaces.some(w => w.id === workspace.id)) {
@@ -316,7 +739,6 @@ export class WorkspaceManager {
       throw new Error(`Workspace path does not exist or is not a directory: ${workspace.path}`);
     }
 
-    // Add workspace
     this.config.workspaces.push(workspace);
     this.saveConfig();
   }
@@ -332,53 +754,30 @@ export class WorkspaceManager {
     const name = path.basename(normalizedPath) || 'Workspace';
     const scripts = readPackageScripts(normalizedPath);
     const isNodeRepo = Object.keys(scripts).length > 0;
-    const isHedgeFundStation = hasPath(normalizedPath, 'AGENTS.md')
-      || hasPath(normalizedPath, 'docs', 'project-architecture.md')
-      || hasPath(normalizedPath, 'backend', 'hyperliquid_gateway');
+    const kind = inferWorkspaceKind({
+      id: this.createUniqueWorkspaceId(name),
+      name,
+      path: normalizedPath
+    });
     const shell = process.env.SHELL || '/bin/zsh';
     const obsidianVaultPath = normalizeObsidianVaultPath(normalizedPath);
 
-    if (isHedgeFundStation) {
+    if (kind === 'hedge-fund') {
       return {
         id: this.createUniqueWorkspaceId(name),
         name,
         path: normalizedPath,
+        kind,
+        description: defaultDescriptionForKind(kind),
+        pinned: true,
+        default_route: defaultRouteForKind(kind),
         icon: 'chart',
         color: '#22d3ee',
         shell,
         obsidian_vault_path: obsidianVaultPath,
-        default_commands: [
-          'git status',
-          'npm run hf:doctor',
-          'npm run backend:health',
-          'npm run gateway:probe',
-          'npm run dev'
-        ],
-        launch_profiles: [
-          {
-            id: 'ai-work-desk',
-            name: 'AI Work Desk',
-            steps: [
-              { command: 'agent-runtime', delayMs: 0 },
-              { command: 'git status', delayMs: 300 },
-              { command: 'npm run hf:status', delayMs: 700 }
-            ]
-          },
-          {
-            id: 'health-check',
-            name: 'Health Check',
-            steps: [
-              { command: 'npm run hf:doctor', delayMs: 0 }
-            ]
-          },
-          {
-            id: 'dev-server',
-            name: 'Dev Server',
-            steps: [
-              { command: 'npm run dev', delayMs: 0 }
-            ]
-          }
-        ]
+        default_commands: createDefaultCommands(kind, normalizedPath),
+        launch_profiles: createDefaultLaunchProfiles(kind, normalizedPath),
+        browser_tabs: createDefaultBrowserTabs(kind)
       };
     }
 
@@ -417,12 +816,17 @@ export class WorkspaceManager {
       id: this.createUniqueWorkspaceId(name),
       name,
       path: normalizedPath,
+      kind: 'project',
+      description: defaultDescriptionForKind('project'),
+      pinned: false,
+      default_route: defaultRouteForKind('project'),
       icon: isNodeRepo ? 'code' : 'folder',
-      color: '#3b82f6',
+      color: defaultColorForKind('project'),
       shell,
       obsidian_vault_path: obsidianVaultPath,
       default_commands: defaultCommands,
-      launch_profiles: launchProfiles
+      launch_profiles: launchProfiles,
+      browser_tabs: createDefaultBrowserTabs('project')
     };
   }
 
@@ -444,30 +848,23 @@ export class WorkspaceManager {
       throw new Error(`Workspace path does not exist or is not a directory: ${updates.path}`);
     }
 
-    // Update workspace
-    this.config.workspaces[index] = {
+    const merged = this.normalizeWorkspace({
       ...this.config.workspaces[index],
       ...updates,
-      default_commands: Array.isArray(updates.default_commands)
-        ? updates.default_commands
-        : this.config.workspaces[index].default_commands,
-      launch_profiles: Array.isArray(updates.launch_profiles)
-        ? updates.launch_profiles
-        : this.config.workspaces[index].launch_profiles,
-      obsidian_vault_path: normalizeObsidianVaultPath(
-        updates.path || this.config.workspaces[index].path,
-        typeof updates.obsidian_vault_path === 'string'
-          ? updates.obsidian_vault_path
-          : this.config.workspaces[index].obsidian_vault_path
-      ),
-      id // Ensure ID doesn't change
-    };
+      id
+    }, index);
+
+    this.config.workspaces[index] = merged;
 
     this.saveConfig();
   }
 
   delete(id: string): void {
     if (!this.config) throw new Error('Config not loaded');
+
+    if (id === COMMAND_HUB_ID) {
+      throw new Error('Command Hub is required and cannot be deleted');
+    }
 
     const index = this.config.workspaces.findIndex(w => w.id === id);
     if (index === -1) {

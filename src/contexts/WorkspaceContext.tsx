@@ -2,11 +2,18 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { Workspace } from '../types/electron';
 import { useAgentProfilesContext } from './AgentProfilesContext';
 
+const WORKSPACE_KINDS = new Set(['hedge-fund', 'command-hub', 'project', 'ops']);
+
 function normalizeWorkspaces(workspaces: Workspace[]): Workspace[] {
   return workspaces.map((workspace) => ({
     ...workspace,
+    kind: WORKSPACE_KINDS.has(workspace.kind) ? workspace.kind : 'project',
+    description: typeof workspace.description === 'string' ? workspace.description : '',
+    pinned: typeof workspace.pinned === 'boolean' ? workspace.pinned : false,
+    default_route: typeof workspace.default_route === 'string' ? workspace.default_route : '/workbench',
     default_commands: Array.isArray(workspace.default_commands) ? workspace.default_commands : [],
     launch_profiles: Array.isArray(workspace.launch_profiles) ? workspace.launch_profiles : [],
+    browser_tabs: Array.isArray(workspace.browser_tabs) ? workspace.browser_tabs : [],
     obsidian_vault_path: typeof workspace.obsidian_vault_path === 'string' ? workspace.obsidian_vault_path : undefined
   }));
 }
@@ -78,7 +85,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       await window.electronAPI.workspace.setActive(id);
       const active = await window.electronAPI.workspace.getActive();
-      setActiveWorkspaceState(active);
+      setActiveWorkspaceState(active ? normalizeWorkspaces([active])[0] : null);
     } catch (error) {
       console.error('❌ Failed to set active workspace:', error);
       throw error;

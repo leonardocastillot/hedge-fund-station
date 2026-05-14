@@ -77,9 +77,9 @@ export default function DiagnosticsPage() {
       setPerformanceSnapshot(null);
       setLocalChecks([{
         id: 'workspace',
-        label: 'Workspace',
+        label: 'Desk',
         status: 'attention',
-        detail: 'No active workspace is loaded.'
+        detail: 'No active desk is loaded.'
       }]);
       return;
     }
@@ -115,7 +115,7 @@ export default function DiagnosticsPage() {
         const shell = await window.electronAPI.diagnostics.shellSmokeTest(activeWorkspace.path, activeWorkspace.shell);
         nextChecks.push({
           id: 'shell_smoke',
-          label: 'Workspace shell',
+          label: 'Desk shell',
           status: shell.success ? 'ready' : 'attention',
           detail: shell.success ? shell.output.trim().slice(0, 180) : shell.error || 'Shell smoke failed.'
         });

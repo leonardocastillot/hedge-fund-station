@@ -89,7 +89,7 @@ export function launchProfileSequence(
     shell?: string,
     label?: string,
     autoCommand?: string,
-    metadata?: { agentId?: string; agentName?: string; terminalPurpose?: string; runtimeProvider?: AgentProvider }
+    metadata?: { agentId?: string; agentName?: string; terminalPurpose?: string; runtimeProvider?: AgentProvider; workspaceId?: string }
   ) => string,
   terminalMetadata?: { agentId?: string; agentName?: string; terminalPurpose?: string; runtimeProvider?: AgentProvider },
   onLaunched?: (record: LaunchDeskRecord) => void,
@@ -110,7 +110,10 @@ export function launchProfileSequence(
           ? `${workspace.name}: ${runtimeMeta.label}`
           : buildTerminalLabel(workspace, resolvedCommand),
         resolvedCommand,
-        terminalMetadata
+        {
+          ...terminalMetadata,
+          workspaceId: workspace.id
+        }
       );
       onTerminalCreated?.(terminalId);
     }, step.delayMs);

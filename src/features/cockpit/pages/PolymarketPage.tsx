@@ -49,7 +49,7 @@ async function loadPolymarketSnapshot(): Promise<PolymarketSnapshot> {
     if (diagnostics instanceof Error) {
       walletDiagnosticsError = diagnostics.message || 'No se pudo cargar el diagnostico detallado de wallet.';
     } else {
-      walletDiagnostics = diagnostics;
+      walletDiagnostics = diagnostics as PolymarketWalletDiagnostics;
     }
     resolvedWalletBalance = (walletData?.cashBalance ?? 0) > 0
       ? (walletData?.cashBalance ?? 0)

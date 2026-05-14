@@ -11,14 +11,27 @@ export interface LaunchProfile {
   steps: LaunchProfileStep[];
 }
 
+export type WorkspaceKind = 'hedge-fund' | 'command-hub' | 'project' | 'ops';
+
+export interface DeskBrowserTab {
+  id: string;
+  title: string;
+  url: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;
   path: string;
+  kind: WorkspaceKind;
+  description: string;
+  pinned: boolean;
+  default_route: string;
   icon: string;
   color: string;
   default_commands: string[];
   launch_profiles: LaunchProfile[];
+  browser_tabs: DeskBrowserTab[];
   shell: string;
   obsidian_vault_path?: string;
 }

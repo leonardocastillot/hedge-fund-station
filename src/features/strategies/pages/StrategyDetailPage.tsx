@@ -835,13 +835,3 @@ function PathList({ title, paths }: { title: string; paths: string[] }) {
     </div>
   );
 }
-
-function MiniMetric({ label, value, detail, tone = 'text-white' }: { label: string; value: string; detail: string; tone?: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">{label}</div>
-      <div className={`mt-1 truncate text-sm font-semibold ${tone}`}>{value}</div>
-      <div className="mt-1 truncate text-xs text-white/40">{detail}</div>
-    </div>
-  );
-}

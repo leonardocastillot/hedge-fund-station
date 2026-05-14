@@ -70,8 +70,16 @@ validation, replay, paper evidence, and audit trails belong in the backend.
   is the Research OS home and `Live Trading` is a safe monitor/review station.
   They are always visible and are not user-created workspaces.
 - **Desks** are the Electron filesystem workspaces: local folders with saved
-  commands, launch profiles, terminals, agents, and optional Obsidian vaults.
-  Desks may be added, edited, or removed without changing the fixed stations.
+  commands, launch profiles, terminals, agents, browser tabs, and optional
+  Obsidian vaults. Desks may be added, edited, or removed without changing the
+  fixed stations. `/workbench` is the active desk space and should keep desk
+  stats, agents, terminal evidence, browser tabs, and commands scoped to the
+  selected desk.
+- Desk kinds are part of the local `Workspace` contract:
+  `hedge-fund`, `command-hub`, `project`, and `ops`. The required `Command Hub`
+  desk uses the user's home/Documents area as a neutral cwd for shells, AI
+  runtimes, tunnels, and quick commands; it must not inherit hedge fund command
+  defaults.
 - The `Workspace` IPC/type remains the desk model only. Do not put trading
   lifecycle state, strategy truth, or live execution authority into it.
 
@@ -116,7 +124,8 @@ The visible product navigation should remain:
 - `/liquidations`
 - `/portfolio`
 - `/data`
-- `/workbench`
+- `/workbench` active desk space: browser, stats, agents, terminal evidence,
+  and saved commands for the selected desk
 - `/settings`
 
 Internal routes such as `/calendar` and `/polymarket` may remain when they are
