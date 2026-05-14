@@ -52,12 +52,26 @@ function isRuntimeFailure(value: string): boolean {
 }
 
 function isLikelyShellPrompt(value: string): boolean {
-  return getNormalizedLines(value).some((line) => (
+  return getNormalizedLines(value).slice(-5).some((line) => (
     /^PS [A-Za-z]:\\.+>\s*$/.test(line)
     || /^[A-Za-z]:\\.+>\s*$/.test(line)
     || /^Microsoft PowerShell/i.test(line)
     || /^PowerShell \d/i.test(line)
+    || isLikelyUnixShellPromptLine(line)
   ));
+}
+
+function isLikelyUnixShellPromptLine(line: string): boolean {
+  if (line.length > 180) {
+    return false;
+  }
+
+  return /^➜\s+/.test(line)
+    || /^[\w.-]+@[\w.-]+(?:\s|:).+[%$#]\s*$/.test(line)
+    || /(?:^|[\s:])(?:~|\/|\.{1,2}\/)[^\n]*[%$#]\s*$/.test(line)
+    || /(?:^|\s)git:\([^)]+\).*(?:[%$#]|[✗*+])\s*$/.test(line)
+    || /^(?:bash|zsh|sh|fish)(?:[-\w. ]*)?[%$#>]\s*$/.test(line)
+    || /^[%$#>]\s*$/.test(line);
 }
 
 function isLikelyCommandEcho(value: string, command?: string): boolean {
@@ -93,6 +107,7 @@ interface TerminalPaneProps {
   onRuntimeStateChange?: (state: TerminalRuntimeState, detail?: string) => void;
   onActivity?: () => void;
   onRuntimeRetry?: (detail?: string) => void;
+  onOpenDiagnostics?: () => void;
   isActive?: boolean;
 }
 
@@ -119,6 +134,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   onRuntimeStateChange,
   onActivity,
   onRuntimeRetry,
+  onOpenDiagnostics,
   isActive = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -426,13 +442,31 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }
   });
 
-  // Initialize terminal
+  const handleManualRuntimeRetry = React.useCallback(() => {
+    if (!runtimeProvider || !autoCommand || hasExitedRef.current) {
+      return;
+    }
+
+    autoRetryRef.current = false;
+    missionDispatchRef.current = false;
+    approvalPendingRef.current = false;
+    onRuntimeRetry?.(`Manual retrying ${autoCommand}`);
+
+    window.setTimeout(() => {
+      startRuntimeAttempt(`Retrying ${autoCommand}`);
+      write(`${autoCommand}\r`);
+    }, 120);
+  }, [autoCommand, onRuntimeRetry, runtimeProvider, startRuntimeAttempt, write]);
+
   useEffect(() => {
     if (runtimeAttempts <= 1) {
       autoRetryRef.current = false;
     }
   }, [runtimeAttempts]);
 
+  // Initialize xterm once for this PTY. Runtime and PTY status props can change
+  // often, so this effect must not depend on those values or typing will remount
+  // the terminal surface.
   useEffect(() => {
     if (!containerRef.current || terminalRef.current) return;
 
@@ -542,7 +576,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       // NO llamar kill() aquí - los PTY deben sobrevivir hot reload
       // Solo se matan cuando el usuario cierra explícitamente (ver onClose)
     };
-  }, [id, autoCommand, write, armRuntimeMonitor, getSnapshot, runtimeProvider]);
+  }, [id, write, getSnapshot]);
 
   // Handle resize
   useEffect(() => {
@@ -644,6 +678,26 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       setIsEditingLabel(false);
       setEditLabel(label);
     }
+  };
+
+  const hasRuntimeAttention = Boolean(runtimeProvider && (runtimeState === 'failed' || runtimeState === 'stalled'));
+  const statusDetail = ptyState !== 'ready' ? (ptyDetail || runtimeDetail) : runtimeDetail;
+  const shouldShowStatusFooter = Boolean(
+    hasRuntimeAttention
+    || (runtimeProvider && runtimeDetail && !hasExited)
+    || (!hasExited && ptyDetail && ptyState !== 'ready')
+  );
+  const footerButtonStyle: React.CSSProperties = {
+    height: '22px',
+    padding: '2px 8px',
+    borderRadius: '5px',
+    border: '1px solid rgba(148, 163, 184, 0.18)',
+    background: 'rgba(15, 23, 42, 0.92)',
+    color: '#cbd5e1',
+    fontSize: '10px',
+    fontWeight: 700,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
   };
 
   return (
@@ -978,6 +1032,32 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
               opacity: isActive ? 0.9 : 0.6
             }}>{cwd}</span>
 
+            {ptyState && !hasExited ? (
+              <>
+                <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
+                <span style={{
+                  fontSize: '9px',
+                  fontWeight: '700',
+                  color: ptyState === 'ready'
+                    ? '#67e8f9'
+                    : ptyState === 'failed'
+                      ? '#fca5a5'
+                      : '#fbbf24',
+                  background: ptyState === 'ready'
+                    ? 'rgba(6, 182, 212, 0.12)'
+                    : ptyState === 'failed'
+                      ? 'rgba(239, 68, 68, 0.12)'
+                      : 'rgba(245, 158, 11, 0.12)',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  whiteSpace: 'nowrap'
+                }}>
+                  pty: {ptyState}
+                </span>
+              </>
+            ) : null}
+
             {/* Show current command if available */}
             {currentCommand && !hasExited && (
               <>
@@ -1114,7 +1194,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         tabIndex={0}
       />
 
-      {(runtimeProvider && runtimeDetail && !hasExited) || (!hasExited && ptyDetail && ptyState !== 'ready') ? (
+      {shouldShowStatusFooter ? (
         <div style={{
           padding: '4px 10px',
           borderTop: '1px solid rgba(148, 163, 184, 0.08)',
@@ -1122,11 +1202,65 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
           fontSize: '10px',
           background: 'rgba(2, 6, 23, 0.95)',
           minHeight: '24px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          {ptyState !== 'ready' ? (ptyDetail || runtimeDetail) : runtimeDetail}
+          <span style={{
+            minWidth: 0,
+            flex: 1,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {statusDetail || 'Runtime needs attention'}
+          </span>
+          {hasRuntimeAttention ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleManualRuntimeRetry();
+                }}
+                disabled={hasExited || !autoCommand}
+                title={hasExited ? 'Terminal process exited; open a new console to retry' : 'Retry runtime in this terminal'}
+                style={{
+                  ...footerButtonStyle,
+                  opacity: hasExited || !autoCommand ? 0.45 : 1,
+                  cursor: hasExited || !autoCommand ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Retry runtime
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenDiagnostics?.();
+                }}
+                style={footerButtonStyle}
+              >
+                Diagnostics
+              </button>
+              {onClose ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onClose();
+                  }}
+                  style={{
+                    ...footerButtonStyle,
+                    border: '1px solid rgba(248, 113, 113, 0.24)',
+                    color: '#fca5a5'
+                  }}
+                >
+                  Close
+                </button>
+              ) : null}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -1150,5 +1284,6 @@ export const TerminalPane = memo(TerminalPaneComponent, (prev, next) => (
   prev.runtimeState === next.runtimeState &&
   prev.runtimeDetail === next.runtimeDetail &&
   prev.runtimeAttempts === next.runtimeAttempts &&
+  prev.onOpenDiagnostics === next.onOpenDiagnostics &&
   prev.isActive === next.isActive
 ));

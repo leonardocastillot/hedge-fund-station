@@ -20,6 +20,7 @@ import {
   resetAppSettings,
   saveAppSettings
 } from '@/utils/appSettings';
+import { getTerminalShellOptions, resolveTerminalShell } from '@/utils/terminalShell';
 import { alphaEngineApi, type AiStatus, type AiTestResult } from '@/services/alphaEngineApi';
 import { hyperliquidService, type HyperliquidAgentRuntimeStatus } from '@/services/hyperliquidService';
 
@@ -44,6 +45,8 @@ const PERFORMANCE_PROFILE_OPTIONS: Array<{
     detail: 'Maximum restraint for weak batteries, heat, or long sessions.'
   }
 ];
+
+const SHELL_OPTIONS = getTerminalShellOptions();
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
@@ -100,8 +103,12 @@ export default function SettingsPage() {
   }, []);
 
   const updateSettings = (nextSettings: AppSettings) => {
-    setSettings(nextSettings);
-    applyAppTheme(nextSettings.theme);
+    const normalizedSettings = {
+      ...nextSettings,
+      defaultShell: resolveTerminalShell(nextSettings.defaultShell).shell
+    };
+    setSettings(normalizedSettings);
+    applyAppTheme(normalizedSettings.theme);
   };
 
   const handleAiTest = async () => {
@@ -291,10 +298,12 @@ export default function SettingsPage() {
               onChange={(event) => updateSettings({ ...settings, defaultShell: event.target.value })}
               style={controlStyle}
             >
-              <option value="/bin/zsh">Zsh</option>
-              <option value="/bin/bash">Bash</option>
-              <option value="powershell.exe">PowerShell</option>
-              <option value="cmd.exe">Command Prompt</option>
+              {SHELL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+              {SHELL_OPTIONS.some((option) => option.value === settings.defaultShell) ? null : (
+                <option value={settings.defaultShell}>{settings.defaultShell}</option>
+              )}
             </select>
 
             <div style={{ height: '20px' }} />

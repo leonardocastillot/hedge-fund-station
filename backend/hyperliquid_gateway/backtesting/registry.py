@@ -18,6 +18,8 @@ try:
     from ..strategies.btc_crowding_scalper.paper import paper_candidate as btc_crowding_scalper_paper_candidate
     from ..strategies.btc_adaptive_cycle_trend.backtest import run_backtest as btc_adaptive_cycle_trend_run_backtest
     from ..strategies.btc_adaptive_cycle_trend.paper import paper_candidate as btc_adaptive_cycle_trend_paper_candidate
+    from ..strategies.btc_convex_cycle_trend.backtest import run_backtest as btc_convex_cycle_trend_run_backtest
+    from ..strategies.btc_convex_cycle_trend.paper import paper_candidate as btc_convex_cycle_trend_paper_candidate
     from ..strategies.btc_guarded_cycle_trend.backtest import run_backtest as btc_guarded_cycle_trend_run_backtest
     from ..strategies.btc_guarded_cycle_trend.paper import paper_candidate as btc_guarded_cycle_trend_paper_candidate
     from ..strategies.btc_fee_aware_failed_impulse_scalp.backtest import run_backtest as btc_fee_aware_failed_impulse_scalp_run_backtest
@@ -52,6 +54,8 @@ except ImportError:
     from strategies.btc_crowding_scalper.paper import paper_candidate as btc_crowding_scalper_paper_candidate
     from strategies.btc_adaptive_cycle_trend.backtest import run_backtest as btc_adaptive_cycle_trend_run_backtest
     from strategies.btc_adaptive_cycle_trend.paper import paper_candidate as btc_adaptive_cycle_trend_paper_candidate
+    from strategies.btc_convex_cycle_trend.backtest import run_backtest as btc_convex_cycle_trend_run_backtest
+    from strategies.btc_convex_cycle_trend.paper import paper_candidate as btc_convex_cycle_trend_paper_candidate
     from strategies.btc_guarded_cycle_trend.backtest import run_backtest as btc_guarded_cycle_trend_run_backtest
     from strategies.btc_guarded_cycle_trend.paper import paper_candidate as btc_guarded_cycle_trend_paper_candidate
     from strategies.btc_fee_aware_failed_impulse_scalp.backtest import run_backtest as btc_fee_aware_failed_impulse_scalp_run_backtest
@@ -190,6 +194,20 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
         validation_policy=ValidationPolicy(
             min_trades=10,
             min_return_pct=90.0,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=20.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_convex_cycle_trend": StrategyDefinition(
+        strategy_id="btc_convex_cycle_trend",
+        backtest_runner=btc_convex_cycle_trend_run_backtest,
+        paper_candidate_builder=btc_convex_cycle_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=10,
+            min_return_pct=95.0,
             min_profit_factor=2.0,
             min_win_rate_pct=40.0,
             max_drawdown_pct=20.0,

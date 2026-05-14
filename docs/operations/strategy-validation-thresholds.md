@@ -14,6 +14,7 @@ production routing.
 | `bb_squeeze_adx` | 3 | 0.50% | 1.05 | 30.00% | 20.00% | OHLCV CSV | donor-compatible smoke/paper example |
 | `breakout_oi_confirmation` | 20 | 0.15% | 1.15 | 40.00% | 6.00% | gateway snapshot DB | research/backtest candidate |
 | `btc_adaptive_cycle_trend` | 10 | 90.00% | 2.00 | 40.00% | 20.00% | BTC USD daily history | daily trend paper candidate |
+| `btc_convex_cycle_trend` | 10 | 95.00% | 2.00 | 40.00% | 20.00% | BTC USD daily history | daily trend paper candidate |
 | `btc_crowding_scalper` | 60 | 0.00% | 1.30 | 40.00% | 3.50% | gateway snapshot DB | scalper validation candidate |
 | `btc_guarded_cycle_trend` | 10 | 50.00% | 2.00 | 40.00% | 25.00% | BTC USD daily history | daily trend paper candidate |
 | `btc_fee_aware_failed_impulse_scalp` | 60 | 0.00% | 1.30 | 40.00% | 3.50% | gateway snapshot DB | fee-aware scalper validation candidate |

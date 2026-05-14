@@ -1,6 +1,7 @@
 import type { LaunchProfile, Workspace } from '../types/electron';
 import type { AgentProvider } from '../types/agents';
 import { getProviderMeta, resolveAgentAwareCommand } from './agentRuntime';
+import { resolveTerminalShell } from './terminalShell';
 
 export function buildTerminalLabel(workspace: Workspace, command?: string): string {
   if (!command) {
@@ -95,7 +96,8 @@ export function launchProfileSequence(
   onTerminalCreated?: (terminalId: string) => void
 ) {
   const runtimeProvider = terminalMetadata?.runtimeProvider;
-  const commands = profile.steps.map((step) => resolveAgentAwareCommand(step.command, runtimeProvider || 'claude', workspace.shell));
+  const workspaceShell = resolveTerminalShell(workspace.shell).shell;
+  const commands = profile.steps.map((step) => resolveAgentAwareCommand(step.command, runtimeProvider || 'claude', workspaceShell));
 
   profile.steps.forEach((step, index) => {
     window.setTimeout(() => {
@@ -103,7 +105,7 @@ export function launchProfileSequence(
       const runtimeMeta = runtimeProvider ? getProviderMeta(runtimeProvider) : null;
       const terminalId = createTerminal(
         workspace.path,
-        workspace.shell,
+        workspaceShell,
         runtimeMeta && index === 0
           ? `${workspace.name}: ${runtimeMeta.label}`
           : buildTerminalLabel(workspace, resolvedCommand),

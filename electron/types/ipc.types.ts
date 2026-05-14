@@ -35,6 +35,14 @@ export interface TerminalCreateParams {
   autoCommand?: string;
 }
 
+export interface TerminalCreateResult {
+  success: boolean;
+  error?: string;
+  shell?: string;
+  cwd?: string;
+  normalizedShell?: boolean;
+}
+
 export interface TerminalWriteParams {
   id: string;
   data: string;

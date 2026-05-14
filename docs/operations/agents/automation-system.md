@@ -28,10 +28,13 @@ Recurring Hedge Fund Station automations should start with:
 
 ```bash
 rtk npm run agent:brief
+rtk npm run hf:doctor
 rtk npm run graph:status
 ```
 
-Use the brief to choose the active task or safe next improvement. Use Graphify
+Use the brief to choose the active task or safe next improvement. Use
+`hf:doctor` to confirm strategy count, artifact folders, and local Hyperliquid
+SQLite replay readiness before attempting replay-style backtests. Use Graphify
 only when `graph:status` says the artifacts are fresh enough for navigation.
 When Graphify is dirty or stale, treat it as a hint and prefer source files,
 canonical docs, and stable command output.
@@ -138,26 +141,36 @@ Expected output:
 
 The current approved cadence for this repo is:
 
-- daily at 02:30: Daily Hedge Fund Strategy Factory, which may create at most
-  one backend-first strategy candidate from existing wins, losses, blockers, and
-  lessons.
-- daily at 03:30: one small verified improvement, biased toward validation,
-  paper-readiness, data quality, or the agent operating system around the
-  strategy factory output.
+- daily at 02:30: Daily Hedge Fund Strategy Factory, an implementation-first
+  loop that should create or materially improve exactly one backend-first
+  strategy candidate, test it, validate it, compare it with the current
+  comparable champion, and carry it as far toward paper/live-gate readiness as
+  evidence allows.
+- daily at 03:30: follow-through improvement on the latest factory output or
+  highest-upside validation-blocked strategy, biased toward fixing one concrete
+  blocker, generating missing evidence, strengthening paper-readiness, or
+  preparing a blocked live-gate package.
 - weekly on Sunday at 09:00: read-only health report covering harness, memory,
   Graphify, Obsidian, strategy status, and next recommended task.
 
 Use these recurring checks inside that cadence:
 
-- daily factory: harness, Graphify status, `hf:status`, local evidence mining,
-  duplicate-strategy check, and report-only fallback when the worktree is risky.
-- daily improvement: harness, Graphify status, strategy/paper artifact status,
-  and one focused improvement when safe.
+- daily factory: harness, `hf:doctor`, Graphify status, `hf:status`, local
+  evidence mining, duplicate-strategy check, comparable champion selection,
+  backend implementation, focused tests, backtest, validation, paper candidate
+  when eligible, and a handoff. Report-only is reserved for hard blockers such
+  as unsafe overlapping source changes, missing replay data, unavailable
+  services, or duplicated theses.
+- daily improvement: harness, `hf:doctor`, Graphify status, strategy/paper
+  artifact status, latest factory handoff, and one focused improvement when
+  safe.
 - weekly: data quality, strategy validation gaps, UI review-speed gaps, memory
   cleanup needs, and automation health.
 
-Do not auto-merge or auto-promote strategy changes. Strategy promotion requires
-human review.
+Do not auto-merge or auto-promote strategy changes. Strategy promotion to live
+requires human review, paper evidence, risk limits, monitoring/kill-switches,
+rollback plan, production runbook, and explicit operator sign-off. Automations
+may prepare a blocked live-gate package; they must not route live orders.
 
 ## Weekly Health Report Format
 

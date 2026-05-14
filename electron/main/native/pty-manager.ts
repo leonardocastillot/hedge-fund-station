@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createRequire } from 'module';
-import type { TerminalSnapshot, TerminalSmokeTestResult } from '../../types/ipc.types';
+import type { TerminalCreateResult, TerminalSnapshot, TerminalSmokeTestResult } from '../../types/ipc.types';
+import { normalizeRuntimeCommandForShell, resolveTerminalShell } from '../../../src/utils/terminalShell';
 
 const MAX_TERMINAL_BUFFER = 200_000;
 const SMOKE_MARKER = 'HEDGE_STATION_PTY_OK';
@@ -256,13 +257,21 @@ export class PTYManager {
     };
   }
 
-  createTerminal(id: string, cwd: string, shell?: string, autoCommand?: string): void {
+  createTerminal(id: string, cwd: string, shell?: string, autoCommand?: string): TerminalCreateResult {
     if (this.terminals.has(id)) {
       console.warn(`Terminal ${id} already exists`);
-      return;
+      const existing = this.terminals.get(id);
+      return {
+        success: true,
+        shell: existing?.shell,
+        cwd: existing?.cwd,
+        normalizedShell: false
+      };
     }
 
-    const shellPath = shell || this.getDefaultShell();
+    const shellResolution = resolveTerminalShell(shell, this.getDefaultShell(), os.platform());
+    const shellPath = shellResolution.shell;
+    const normalizedAutoCommand = normalizeRuntimeCommandForShell(autoCommand, shellPath);
     const launch = this.getShellLaunch(shellPath);
 
     try {
@@ -284,7 +293,7 @@ export class PTYManager {
         flushTimer: null,
         cwd: validatedCwd,
         shell: shellPath,
-        autoCommand,
+        autoCommand: normalizedAutoCommand,
         cols: 80,
         rows: 24
       });
@@ -322,18 +331,25 @@ export class PTYManager {
 
       console.log(`Terminal ${id} created with shell: ${shellPath} in ${validatedCwd}`);
 
-      if (!autoCommand) {
+      if (!normalizedAutoCommand) {
         this.initializeShellPrompt(id, ptyProcess, shellPath);
       }
 
-      if (autoCommand) {
+      if (normalizedAutoCommand) {
         setTimeout(() => {
           if (!this.terminals.has(id)) {
             return;
           }
-          ptyProcess.write(`${autoCommand}\r`);
+          ptyProcess.write(`${normalizedAutoCommand}\r`);
         }, 500);
       }
+
+      return {
+        success: true,
+        shell: shellPath,
+        cwd: validatedCwd,
+        normalizedShell: shellResolution.normalizedShell
+      };
     } catch (error) {
       console.error(`Failed to create terminal ${id}:`, error);
       throw this.normalizeSpawnError(error);
@@ -369,7 +385,7 @@ export class PTYManager {
   }
 
   async smokeTest(cwd: string, shell?: string): Promise<TerminalSmokeTestResult> {
-    const shellPath = shell || this.getDefaultShell();
+    const shellPath = resolveTerminalShell(shell, this.getDefaultShell(), os.platform()).shell;
 
     try {
       this.ensureNodePtyHelperExecutable();

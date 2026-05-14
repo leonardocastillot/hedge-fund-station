@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { v4 as uuidv4 } from 'uuid';
 import type { AgentProvider } from '../types/agents';
 import type { MissionConsoleEvidenceRef, MissionConsoleMissionKind } from '../types/missionConsole';
+import { normalizeRuntimeCommandForShell, resolveTerminalShell } from '../utils/terminalShell';
 
 export type TerminalColor = 'red' | 'green' | 'blue' | 'yellow' | 'purple' | 'cyan' | 'orange' | 'pink';
 export type TerminalRuntimeState =
@@ -79,6 +80,8 @@ interface TerminalContextValue {
 const TerminalContext = createContext<TerminalContextValue | undefined>(undefined);
 
 const STORAGE_KEY = 'hedge-station:terminal-sessions';
+const STALE_RUNTIME_LAUNCH_MS = 45_000;
+const TERMINAL_ACTIVITY_UPDATE_MS = 5_000;
 
 function loadPersistedSessions(): TerminalSession[] {
   try {
@@ -86,22 +89,7 @@ function loadPersistedSessions(): TerminalSession[] {
     if (stored) {
       const sessions = JSON.parse(stored) as TerminalSession[];
       return Array.isArray(sessions)
-        ? sessions.map((session) => ({
-            ...session,
-            currentCommand: session.currentCommand === 'codex.cmd'
-              ? 'codex'
-              : session.currentCommand === 'claude.exe'
-                ? 'claude'
-                : session.currentCommand === 'gemini.cmd'
-                  ? 'gemini'
-                  : session.currentCommand,
-            runtimeState: normalizeRuntimeState(session.runtimeState),
-            runtimeDetail: session.runtimeDetail && /launching (codex\.cmd|claude\.exe|gemini\.cmd)/i.test(session.runtimeDetail)
-              ? 'Reattached terminal session'
-              : session.runtimeDetail,
-            lastOutputAt: typeof session.lastOutputAt === 'number' ? session.lastOutputAt : undefined,
-            lastStateChangeAt: typeof session.lastStateChangeAt === 'number' ? session.lastStateChangeAt : undefined
-          }))
+        ? sessions.map(normalizePersistedSession)
         : [];
     }
   } catch (error) {
@@ -118,6 +106,50 @@ function normalizeRuntimeState(state: TerminalSession['runtimeState'] | 'pending
     return 'ready';
   }
   return state;
+}
+
+function getPersistedSessionAgeMs(session: TerminalSession): number {
+  const stamp = typeof session.lastStateChangeAt === 'number'
+    ? session.lastStateChangeAt
+    : typeof session.createdAt === 'number'
+      ? session.createdAt
+      : 0;
+
+  return stamp > 0 ? Date.now() - stamp : Number.POSITIVE_INFINITY;
+}
+
+function normalizePersistedSession(session: TerminalSession): TerminalSession {
+  const shellResolution = resolveTerminalShell(session.shell);
+  const normalizedAutoCommand = normalizeRuntimeCommandForShell(session.autoCommand, shellResolution.shell);
+  const normalizedCurrentCommand = normalizeRuntimeCommandForShell(session.currentCommand, shellResolution.shell);
+  const normalizedRuntimeState = normalizeRuntimeState(session.runtimeState);
+  const staleLaunching =
+    normalizedRuntimeState === 'launching'
+    && getPersistedSessionAgeMs(session) > STALE_RUNTIME_LAUNCH_MS;
+  const nextRuntimeState = staleLaunching
+    ? (session.runtimeProvider ? 'stalled' : 'shell')
+    : normalizedRuntimeState;
+  const staleWindowsLaunchDetail = session.runtimeDetail
+    && /launching (codex\.cmd|claude\.exe|gemini\.cmd)/i.test(session.runtimeDetail);
+
+  return {
+    ...session,
+    shell: shellResolution.shell,
+    autoCommand: normalizedAutoCommand,
+    currentCommand: normalizedCurrentCommand,
+    runtimeState: nextRuntimeState,
+    runtimeDetail: staleLaunching
+      ? 'Reattached terminal session; runtime launch state was stale'
+      : staleWindowsLaunchDetail
+        ? 'Reattached terminal session'
+        : session.runtimeDetail,
+    lastOutputAt: typeof session.lastOutputAt === 'number' ? session.lastOutputAt : undefined,
+    lastStateChangeAt: staleLaunching
+      ? Date.now()
+      : typeof session.lastStateChangeAt === 'number'
+        ? session.lastStateChangeAt
+        : undefined
+  };
 }
 
 function saveSessionsToStorage(sessions: TerminalSession[]): void {
@@ -209,31 +241,35 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const id = `terminal-${uuidv4()}`;
     const colors: TerminalColor[] = ['red', 'green', 'blue', 'yellow', 'purple', 'cyan', 'orange', 'pink'];
     const nextColor = colors[terminals.length % colors.length];
+    const shellResolution = resolveTerminalShell(shell);
+    const resolvedShell = shellResolution.shell;
+    const resolvedAutoCommand = normalizeRuntimeCommandForShell(autoCommand, resolvedShell);
+    const now = Date.now();
 
     const terminal: TerminalSession = {
       id,
       label: label || `Terminal ${terminals.length + 1}`,
       cwd,
-      shell,
+      shell: resolvedShell,
       workspaceId: metadata?.workspaceId,
       color: nextColor,
-      createdAt: Date.now(),
-      autoCommand,
+      createdAt: now,
+      autoCommand: resolvedAutoCommand,
       missionPrompt: metadata?.missionPrompt,
       missionTitle: metadata?.missionTitle,
       missionKind: metadata?.missionKind,
       handoffSummary: metadata?.handoffSummary,
       evidenceRefs: metadata?.evidenceRefs,
-      currentCommand: autoCommand || undefined,
+      currentCommand: resolvedAutoCommand || undefined,
       agentId: metadata?.agentId,
       agentName: metadata?.agentName,
       terminalPurpose: metadata?.terminalPurpose,
       runId: metadata?.runId,
       runtimeProvider: metadata?.runtimeProvider,
-      runtimeState: metadata?.runtimeProvider && autoCommand ? 'launching' : 'shell',
-      runtimeDetail: metadata?.runtimeProvider && autoCommand ? 'Launching runtime process' : 'Interactive shell',
-      runtimeAttempts: metadata?.runtimeProvider && autoCommand ? 1 : 0,
-      lastStateChangeAt: Date.now(),
+      runtimeState: metadata?.runtimeProvider && resolvedAutoCommand ? 'launching' : 'shell',
+      runtimeDetail: metadata?.runtimeProvider && resolvedAutoCommand ? 'Launching runtime process' : 'Interactive shell',
+      runtimeAttempts: metadata?.runtimeProvider && resolvedAutoCommand ? 1 : 0,
+      lastStateChangeAt: now,
       ptyState: 'creating',
       ptyDetail: 'Creating terminal process'
     };
@@ -241,7 +277,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setTerminals(prev => [...prev, terminal]);
     setActiveTerminalId(id);
 
-    void window.electronAPI.terminal.create(id, cwd, shell, autoCommand)
+    void window.electronAPI.terminal.create(id, cwd, resolvedShell, resolvedAutoCommand)
       .then((result) => {
         if (result?.success === false) {
           const detail = formatTerminalCreateError(result.error);
@@ -252,7 +288,8 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   ptyState: 'failed',
                   ptyDetail: detail,
                   runtimeState: item.runtimeProvider ? 'failed' : item.runtimeState,
-                  runtimeDetail: detail || item.runtimeDetail
+                  runtimeDetail: detail || item.runtimeDetail,
+                  lastStateChangeAt: Date.now()
                 }
               : item
           )));
@@ -263,8 +300,13 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           item.id === id
             ? {
                 ...item,
+                shell: result?.shell || item.shell,
+                cwd: result?.cwd || item.cwd,
                 ptyState: 'ready',
-                ptyDetail: 'Terminal process ready'
+                ptyDetail: result?.normalizedShell && result.shell
+                  ? `Terminal process ready (${result.shell})`
+                  : 'Terminal process ready',
+                lastStateChangeAt: Date.now()
               }
             : item
         )));
@@ -278,7 +320,8 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 ptyState: 'failed',
                 ptyDetail: message,
                 runtimeState: item.runtimeProvider ? 'failed' : item.runtimeState,
-                runtimeDetail: message
+                runtimeDetail: message,
+                lastStateChangeAt: Date.now()
               }
             : item
         )));
@@ -359,7 +402,11 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const updateTerminalCommand = useCallback((id: string, command: string) => {
-    setTerminals(prev => prev.map(t => (t.id === id ? { ...t, currentCommand: command } : t)));
+    setTerminals(prev => prev.map(t => (
+      t.id === id
+        ? { ...t, currentCommand: normalizeRuntimeCommandForShell(command, t.shell) }
+        : t
+    )));
   }, []);
 
   const updateTerminalRuntimeState = useCallback((id: string, state: TerminalRuntimeState, detail?: string) => {
@@ -389,14 +436,27 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const touchTerminalActivity = useCallback((id: string) => {
-    setTerminals(prev => prev.map(t => (
-      t.id === id
-        ? {
-            ...t,
-            lastOutputAt: Date.now()
-          }
-        : t
-    )));
+    const now = Date.now();
+    setTerminals(prev => {
+      let changed = false;
+      const next = prev.map(t => {
+        if (t.id !== id) {
+          return t;
+        }
+
+        if (typeof t.lastOutputAt === 'number' && now - t.lastOutputAt < TERMINAL_ACTIVITY_UPDATE_MS) {
+          return t;
+        }
+
+        changed = true;
+        return {
+          ...t,
+          lastOutputAt: now
+        };
+      });
+
+      return changed ? next : prev;
+    });
   }, []);
 
   const retryTerminalRuntime = useCallback((id: string, detail?: string) => {
@@ -404,6 +464,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       t.id === id
         ? {
             ...t,
+            currentCommand: normalizeRuntimeCommandForShell(t.currentCommand || t.autoCommand, t.shell),
             runtimeState: 'launching',
             runtimeAttempts: (t.runtimeAttempts ?? 0) + 1,
             runtimeDetail: detail || `Retrying ${t.currentCommand || 'runtime'}`,

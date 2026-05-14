@@ -17,15 +17,15 @@ import {
   type HyperliquidAgentRuntimeStatus,
   type HyperliquidLatestAgentRunResponse
 } from '@/services/hyperliquidService';
-import type { AgentProfile, AgentProvider, AgentRole } from '@/types/agents';
-import type { ApprovedMission, MissionBackendAction, MissionDraft, MissionPacket } from '@/types/tasks';
-import { getProviderMeta, inferRequestedProvider } from '@/utils/agentRuntime';
-import { launchAgentRun } from '@/utils/agentOrchestration';
+import type { AgentRole } from '@/types/agents';
+import type { MissionDraft, MissionPacket } from '@/types/tasks';
+import { getProviderMeta } from '@/utils/agentRuntime';
+import { buildCodexPrompt, buildMissionDraftInput } from '@/utils/missionDrafts';
+import { launchApprovedMissionDraft } from '@/utils/missionDraftLaunch';
 import { runMissionAction } from '@/utils/missionActions';
 import {
   buildMissionMetadata,
   formatRoleLabel,
-  inferAgentRoles,
   inferMissionMode,
   MISSION_MODE_CONFIG,
   type MissionMode
@@ -69,55 +69,6 @@ function formatTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function getProposedCommands(mode: MissionMode): string[] {
-  switch (mode) {
-    case 'strategy-lab':
-      return ['npm run hf:status', 'npm run hf:agent:research -- --strategy <strategy_id>', 'npm run hf:backtest', 'npm run hf:validate'];
-    case 'flow-radar':
-      return ['npm run gateway:probe', 'npm run hf:status'];
-    case 'risk-watch':
-      return ['npm run backend:health', 'npm run gateway:probe'];
-    case 'execution-prep':
-      return ['npm run hf:status', 'npm run gateway:health'];
-    case 'build-fix':
-      return ['git status --short', 'npx tsc --noEmit', 'npm run build'];
-    case 'market-scan':
-    default:
-      return ['npm run backend:health', 'npm run gateway:probe'];
-  }
-}
-
-function extractStrategyId(goal: string): string | undefined {
-  const patterns = [
-    /--strategy\s+([a-zA-Z0-9_-]+)/,
-    /\bstrategy(?:\s+id)?[:=]\s*([a-zA-Z0-9_-]+)/i,
-    /\bestrategia(?:\s+id)?[:=]?\s+([a-zA-Z0-9_-]+)/i
-  ];
-  for (const pattern of patterns) {
-    const match = goal.match(pattern);
-    if (match?.[1]) {
-      return match[1].trim().replace(/-/g, '_').toLowerCase();
-    }
-  }
-  return undefined;
-}
-
-function buildBackendActions(mode: MissionMode, strategyId?: string): MissionBackendAction[] {
-  if (!strategyId || !['strategy-lab', 'risk-watch', 'flow-radar', 'market-scan'].includes(mode)) {
-    return [];
-  }
-  const kind = mode === 'risk-watch' ? 'agent-audit' : 'agent-research';
-  const subcommand = kind === 'agent-audit' ? 'audit' : 'research';
-  return [{
-    id: `${kind}:${strategyId}`,
-    kind,
-    label: kind === 'agent-audit' ? 'Research OS audit preflight' : 'Research OS research preflight',
-    command: `npm run hf:agent:${subcommand} -- --strategy ${strategyId} --runtime auto`,
-    strategyId,
-    status: 'proposed'
-  }];
-}
-
 function getProposalDetail(proposal: GeminiLiveProposal): string {
   if (proposal.type === 'propose_terminal_command') {
     return `Command: ${proposal.command || proposal.goal}`;
@@ -153,88 +104,6 @@ function getProposalApproveLabel(proposal: GeminiLiveProposal): string {
     default:
       return 'Create Draft';
   }
-}
-
-function buildRuntimePlan(params: {
-  preferredRuntime: AgentProvider;
-  runtimeStatus: HyperliquidAgentRuntimeStatus | null;
-  claudeAvailable: boolean;
-}): MissionPacket['runtimePlan'] {
-  const backendRuntime = params.runtimeStatus?.runtimeMode || 'auto';
-  const codexConnected = Boolean(params.runtimeStatus?.codexAuthenticated);
-  const apiProviderAvailable = Boolean(params.runtimeStatus?.apiProviderAvailable);
-  const parts = [
-    `Frontier: ${getProviderMeta(params.preferredRuntime).label}`,
-    `Research OS: ${backendRuntime}`,
-    codexConnected ? 'Codex connected' : 'Codex login pending',
-    params.claudeAvailable ? 'Claude CLI available' : 'Claude CLI not detected'
-  ];
-  return {
-    preferredRuntime: params.preferredRuntime,
-    backendRuntime,
-    codexConnected,
-    claudeAvailable: params.claudeAvailable,
-    apiProviderAvailable,
-    defaultModel: params.runtimeStatus?.defaultModel || null,
-    summary: parts.join(' | ')
-  };
-}
-
-function getRiskNotes(mode: MissionMode): string[] {
-  const base = [
-    'Do not place live trades or change credentials.',
-    'Ask before mutating source files, services, data, or long-running processes.'
-  ];
-
-  if (mode === 'strategy-lab') {
-    return [...base, 'Do not claim edge without backtest, replay, or paper-validation evidence.'];
-  }
-
-  if (mode === 'execution-prep') {
-    return [...base, 'Treat output as operator planning only; no order routing.'];
-  }
-
-  return [...base, 'Prefer read-only inspection until the operator approves a concrete action.'];
-}
-
-function buildCodexPrompt(params: {
-  goal: string;
-  mode: MissionMode;
-  suggestedRoles: AgentRole[];
-  proposedCommands: string[];
-  risks: string[];
-  missionPacket?: MissionPacket;
-}): string {
-  const config = MISSION_MODE_CONFIG[params.mode];
-
-  return [
-    `You are ${params.missionPacket ? getProviderMeta(params.missionPacket.frontierRuntime).label : 'Codex'} inside Hedge Fund Station.`,
-    'Read AGENTS.md first and follow the hedge fund workspace constitution.',
-    '',
-    `Mission mode: ${config.title}`,
-    `Goal: ${params.goal}`,
-    `Suggested specialist lens: ${params.suggestedRoles.map(formatRoleLabel).join(', ') || 'Commander'}`,
-    params.missionPacket?.strategyId ? `Strategy ID: ${params.missionPacket.strategyId}` : '',
-    params.missionPacket ? `Runtime plan: ${params.missionPacket.runtimePlan.summary}` : '',
-    '',
-    params.missionPacket?.evidenceRefs.length ? 'Evidence refs:' : '',
-    ...(params.missionPacket?.evidenceRefs.map((ref) => `- ${ref.label}: ${ref.path || ref.runId || ref.summary || ref.id}`) || []),
-    params.missionPacket?.backendActions.length ? 'Research OS backend actions:' : '',
-    ...(params.missionPacket?.backendActions.map((action) => `- ${action.label}: ${action.command} (${action.status})${action.path ? ` -> ${action.path}` : ''}`) || []),
-    '',
-    'Guardrails:',
-    ...params.risks.map((risk) => `- ${risk}`),
-    '- Keep heavy market logic, replay, validation, and paper evidence in backend/scripts, not React.',
-    '- Use stable hf:* commands and documented backend probes before ad hoc commands.',
-    '',
-    'Operator-approved command shortlist:',
-    ...params.proposedCommands.map((command) => `- ${command}`),
-    '',
-    'Deliverable:',
-    `- ${config.deliverables.join('\n- ')}`,
-    '',
-    'Return a concise operator brief with files inspected, commands run, evidence found, blockers, and next action.'
-  ].join('\n');
 }
 
 function getDraftTone(status: MissionDraft['approvalStatus']) {
@@ -605,33 +474,12 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
       return;
     }
 
-    const mode = inferMissionMode(goal);
-    const suggestedRoles = Array.from(new Set([...MISSION_MODE_CONFIG[mode].routeRoles, ...inferAgentRoles(goal)]));
-    const strategyId = extractStrategyId(goal);
-    const requestedProvider = inferRequestedProvider(goal);
-    const preferredRuntime = requestedProvider || 'codex';
-    const backendActions = buildBackendActions(mode, strategyId);
-    const proposedCommands = [
-      ...backendActions.map((action) => action.command),
-      ...getProposedCommands(mode).map((command) => strategyId ? command.replace('<strategy_id>', strategyId) : command)
-    ].filter((command, index, commands) => !command.includes('<strategy_id>') && commands.indexOf(command) === index);
-    const risks = getRiskNotes(mode);
-    const title = `${MISSION_MODE_CONFIG[mode].title}: ${goal.slice(0, 56)}`;
-    const missionPacket: MissionPacket = {
-      missionId: `mission-${Date.now()}`,
+    const draftInput = buildMissionDraftInput({
       workspaceId: workspace.id,
-      mode,
       goal,
-      strategyId,
-      runtimePlan: buildRuntimePlan({ preferredRuntime, runtimeStatus, claudeAvailable }),
-      frontierRuntime: preferredRuntime,
-      backendActions,
-      evidenceRefs: [],
-      guardrails: risks,
-      approvalState: 'awaiting-approval',
-      outputs: []
-    };
-    const finalPrompt = buildCodexPrompt({ goal, mode, suggestedRoles, proposedCommands, risks, missionPacket });
+      runtimeStatus,
+      claudeAvailable
+    });
 
     addMissionMessage({
       workspaceId: workspace.id,
@@ -639,30 +487,27 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
       content: goal
     });
 
-    const draft = createMissionDraft({
-      workspaceId: workspace.id,
-      title,
-      goal,
-      mode,
-      suggestedRoles,
-      proposedCommands,
-      risks,
-      finalPrompt,
-      missionPacket,
-      approvalStatus: 'awaiting-approval'
-    });
+    const draft = createMissionDraft(draftInput);
 
     addMissionMessage({
       workspaceId: workspace.id,
       draftId: draft.id,
       role: 'assistant',
-      content: `Draft ready for approval: ${title}. Codex will launch only after approval.`
+      content: `Draft ready for approval: ${draftInput.title}. Codex will launch only after approval.`
     });
 
     setInput('');
+    const strategyId = draftInput.missionPacket?.strategyId;
     if (strategyId) {
       void hyperliquidService.getLatestAgentRun(strategyId).then((latest) => {
-        updateDraftWithLatestAgentRun(draft.id, missionPacket, latest, suggestedRoles, proposedCommands, updateMissionDraft);
+        updateDraftWithLatestAgentRun(
+          draft.id,
+          draftInput.missionPacket as MissionPacket,
+          latest,
+          draftInput.suggestedRoles,
+          draftInput.proposedCommands,
+          updateMissionDraft
+        );
       }).catch(() => undefined);
     }
   }, [addMissionMessage, claudeAvailable, createMissionDraft, runtimeStatus, updateMissionDraft, workspace]);
@@ -734,48 +579,21 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
     }
 
     if (editingDraftId) {
-      const mode = inferMissionMode(goal);
-      const suggestedRoles = Array.from(new Set([...MISSION_MODE_CONFIG[mode].routeRoles, ...inferAgentRoles(goal)]));
-      const strategyId = extractStrategyId(goal);
-      const requestedProvider = inferRequestedProvider(goal);
-      const preferredRuntime = requestedProvider || 'codex';
-      const backendActions = buildBackendActions(mode, strategyId);
-      const proposedCommands = [
-        ...backendActions.map((action) => action.command),
-        ...getProposedCommands(mode).map((command) => strategyId ? command.replace('<strategy_id>', strategyId) : command)
-      ].filter((command, index, commands) => !command.includes('<strategy_id>') && commands.indexOf(command) === index);
-      const risks = getRiskNotes(mode);
-      const title = `${MISSION_MODE_CONFIG[mode].title}: ${goal.slice(0, 56)}`;
-      const missionPacket: MissionPacket = {
-        missionId: `mission-${Date.now()}`,
+      const draftInput = buildMissionDraftInput({
         workspaceId: workspace?.id || '',
-        mode,
         goal,
-        strategyId,
-        runtimePlan: buildRuntimePlan({ preferredRuntime, runtimeStatus, claudeAvailable }),
-        frontierRuntime: preferredRuntime,
-        backendActions,
-        evidenceRefs: [],
-        guardrails: risks,
-        approvalState: 'awaiting-approval',
-        outputs: []
-      };
+        runtimeStatus,
+        claudeAvailable
+      });
       updateMissionDraft(editingDraftId, {
-        title,
-        goal,
-        mode,
-        suggestedRoles,
-        proposedCommands,
-        risks,
-        finalPrompt: buildCodexPrompt({ goal, mode, suggestedRoles, proposedCommands, risks, missionPacket }),
-        missionPacket,
+        ...draftInput,
         approvalStatus: 'awaiting-approval'
       });
       addMissionMessage({
         workspaceId: workspace?.id || '',
         draftId: editingDraftId,
         role: 'assistant',
-        content: `Draft updated and waiting for approval: ${title}.`
+        content: `Draft updated and waiting for approval: ${draftInput.title}.`
       });
       setEditingDraftId(null);
       setInput('');
@@ -784,32 +602,6 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
 
     buildDraft(goal);
   }, [addMissionMessage, buildDraft, claudeAvailable, editingDraftId, input, runtimeStatus, updateMissionDraft, workspace?.id]);
-
-  const getFrontierAgent = React.useCallback((draft: MissionDraft): AgentProfile | null => {
-    if (!workspace) {
-      return null;
-    }
-
-    const preferredRole = draft.suggestedRoles[0] || 'commander';
-    const provider = draft.missionPacket?.frontierRuntime || inferRequestedProvider(draft.goal) || 'codex';
-    const existing = workspaceAgents.find((agent) => agent.role === preferredRole) || workspaceAgents.find((agent) => agent.role === 'commander') || workspaceAgents[0];
-
-    if (existing) {
-      return { ...existing, provider };
-    }
-
-    return {
-      id: `${workspace.id}:${provider}-mission-chat`,
-      name: `${getProviderMeta(provider).label} Mission Chat`,
-      role: preferredRole,
-      provider,
-      workspaceId: workspace.id,
-      promptTemplate: 'Frontier mission runtime for the trading workbench.',
-      objective: 'Turn approved mission chat into auditable terminal execution.',
-      accentColor: '#38bdf8',
-      autoAssignTerminalPurpose: 'mission-chat'
-    };
-  }, [workspace, workspaceAgents]);
 
   const runResearchOsPreflight = React.useCallback(async (draft: MissionDraft): Promise<MissionDraft> => {
     const packet = draft.missionPacket;
@@ -956,56 +748,52 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
       return;
     }
 
-    const approvedMission: ApprovedMission = {
-      draftId: draft.id,
-      workspaceId: workspace.id,
-      title: launchDraft.title,
-      goal: launchDraft.goal,
-      finalPrompt: launchDraft.finalPrompt,
-      suggestedRoles: launchDraft.suggestedRoles,
-      proposedCommands: launchDraft.proposedCommands
-    };
-    const agent = getFrontierAgent(launchDraft);
-    if (!agent) {
-      updateTaskStatus(task.id, 'failed');
-      updateMissionDraft(draft.id, {
-        taskId: task.id,
-        approvalStatus: 'failed',
-        error: 'No frontier agent could be resolved for this workspace.'
-      });
-      return;
-    }
-
-    const run = launchAgentRun(
+    const launchResult = launchApprovedMissionDraft(
       {
         workspace,
+        workspaceAgents,
+        createTask,
+        updateTaskStatus,
         createTerminal,
         createRun,
         updateRun
       },
       {
+        draft: launchDraft,
         task,
-        agent,
-        approvedMission,
-        summaryPrefix: 'Approved mission launching',
-        forceDirectLaunch: true
+        summaryPrefix: 'Approved mission launching'
       }
     );
 
-    updateTaskStatus(task.id, 'running');
+    if (!launchResult.ok) {
+      updateMissionDraft(draft.id, {
+        taskId: launchResult.task.id,
+        approvalStatus: 'failed',
+        error: launchResult.error
+      });
+      addMissionMessage({
+        workspaceId: workspace.id,
+        taskId: launchResult.task.id,
+        draftId: draft.id,
+        role: 'system',
+        content: `Mission launch failed: ${launchResult.error}`
+      });
+      return;
+    }
+
     updateMissionDraft(draft.id, {
-      taskId: task.id,
-      runId: run.id,
-      terminalIds: run.terminalIds,
+      taskId: launchResult.task.id,
+      runId: launchResult.run.id,
+      terminalIds: launchResult.run.terminalIds,
       approvalStatus: 'running',
       approvedAt: Date.now()
     });
     addMissionMessage({
       workspaceId: workspace.id,
-      taskId: task.id,
+      taskId: launchResult.task.id,
       draftId: draft.id,
       role: 'system',
-      content: `Approved. ${getProviderMeta(agent.provider).label} launched for "${draft.title}" with Research OS evidence attached.`
+      content: `Approved. ${getProviderMeta(launchResult.agent.provider).label} launched for "${draft.title}" with Research OS evidence attached.`
     });
   }, [
     addMissionMessage,
@@ -1013,13 +801,12 @@ export const MissionChatWorkbench: React.FC<{ workspaceId?: string | null; varia
     createTask,
     createTerminal,
     ensureWorkspaceAgents,
-    getFrontierAgent,
     runResearchOsPreflight,
     updateMissionDraft,
     updateRun,
     updateTaskStatus,
     workspace,
-    workspaceAgents.length
+    workspaceAgents
   ]);
 
   const cancelDraft = React.useCallback((draft: MissionDraft) => {

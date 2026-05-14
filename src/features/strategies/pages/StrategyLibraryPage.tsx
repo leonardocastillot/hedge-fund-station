@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LayoutList, Library, RefreshCw, ShieldCheck } from 'lucide-react';
+import { LayoutList, Library, PlusCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { StrategyFactoryModal } from '../components/StrategyFactoryModal';
 import { StrategyInventory } from '../components/StrategyInventory';
 import { StrategyPipelineBoard } from '../components/StrategyPipelineBoard';
 import {
@@ -45,6 +46,7 @@ export default function StrategyLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [runningAction, setRunningAction] = useState<string | null>(null);
+  const [factoryOpen, setFactoryOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +159,14 @@ export default function StrategyLibraryPage() {
           </div>
 
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            <button
+              type="button"
+              onClick={() => setFactoryOpen(true)}
+              className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-emerald-300/30 bg-emerald-400/15 px-3 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-400/25 sm:flex-none"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Create Strategy
+            </button>
             <Link
               to="/strategy-audit"
               className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-500/25 sm:flex-none"
@@ -179,6 +189,12 @@ export default function StrategyLibraryPage() {
         {warning ? <div className="mt-4 rounded-md border border-amber-400/25 bg-amber-500/10 p-3 text-sm text-amber-100">{warning}</div> : null}
         {error ? <div className="mt-4 rounded-md border border-rose-500/25 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</div> : null}
       </section>
+
+      <StrategyFactoryModal
+        open={factoryOpen}
+        strategies={strategies}
+        onClose={() => setFactoryOpen(false)}
+      />
 
       <section className="grid min-w-0 gap-3" style={summaryGridStyle}>
         <SummaryMetric label="Pipeline Rows" value={String(summary.actionableCount)} detail={`${summary.inventoryOnly} in inventory only`} />

@@ -1,3 +1,5 @@
+import { getDefaultTerminalShell, resolveTerminalShell } from './terminalShell';
+
 export type AppThemeId =
   | 'obsidian-red'
   | 'aurora-cyan'
@@ -191,7 +193,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'obsidian-red',
   performanceProfile: 'daily-light',
   fontSize: 14,
-  defaultShell: 'powershell.exe',
+  defaultShell: getDefaultTerminalShell(),
   apiUrl: 'http://127.0.0.1:18001',
   enableNotifications: true,
   enableSounds: true,
@@ -212,11 +214,17 @@ export function normalizeAppSettings(settings: Partial<AppSettings>): AppSetting
     ? legacyTheme as AppThemeId
     : DEFAULT_APP_SETTINGS.theme;
 
+  const defaultShell = resolveTerminalShell(
+    settings.defaultShell,
+    DEFAULT_APP_SETTINGS.defaultShell
+  ).shell;
+
   return {
     ...DEFAULT_APP_SETTINGS,
     ...settings,
     theme,
-    performanceProfile: normalizePerformanceProfile(settings.performanceProfile)
+    performanceProfile: normalizePerformanceProfile(settings.performanceProfile),
+    defaultShell
   };
 }
 
@@ -227,7 +235,12 @@ export function loadAppSettings(): AppSettings {
       return DEFAULT_APP_SETTINGS;
     }
 
-    return normalizeAppSettings(JSON.parse(saved));
+    const parsed = JSON.parse(saved) as Partial<AppSettings>;
+    const normalized = normalizeAppSettings(parsed);
+    if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
   } catch (error) {
     console.error('Failed to load app settings:', error);
     return DEFAULT_APP_SETTINGS;
@@ -242,9 +255,10 @@ export function saveAppSettings(settings: AppSettings): AppSettings {
 }
 
 export function resetAppSettings(): AppSettings {
+  const normalizedDefaults = normalizeAppSettings(DEFAULT_APP_SETTINGS);
   localStorage.removeItem(SETTINGS_STORAGE_KEY);
-  window.dispatchEvent(new CustomEvent(APP_SETTINGS_CHANGED_EVENT, { detail: DEFAULT_APP_SETTINGS }));
-  return DEFAULT_APP_SETTINGS;
+  window.dispatchEvent(new CustomEvent(APP_SETTINGS_CHANGED_EVENT, { detail: normalizedDefaults }));
+  return normalizedDefaults;
 }
 
 export function applyAppTheme(themeId: AppThemeId) {

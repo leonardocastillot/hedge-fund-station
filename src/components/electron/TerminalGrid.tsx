@@ -1,16 +1,21 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TerminalPane } from './TerminalPane';
 import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useCommanderTasksContext } from '../../contexts/CommanderTasksContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { loadAppSettings } from '../../utils/appSettings';
+import { resolveAgentRuntimeCommand } from '../../utils/agentRuntime';
+import { resolveTerminalShell } from '../../utils/terminalShell';
 import type { TaskStatus } from '../../types/tasks';
 import type { TerminalSession } from '../../contexts/TerminalContext';
+import type { AgentProvider } from '../../types/agents';
 
 const MAX_TERMINALS = 6;
-const VoiceCommandBar = React.lazy(() => import('./VoiceCommandBar').then((module) => ({ default: module.VoiceCommandBar })));
+type QuickTerminalType = 'shell' | 'codex' | 'claude' | 'gemini' | 'dev' | 'git' | 'python';
 
 export const TerminalGrid: React.FC = () => {
+  const navigate = useNavigate();
   const {
     terminals,
     activeTerminalId,
@@ -30,7 +35,17 @@ export const TerminalGrid: React.FC = () => {
   const { activeWorkspace } = useWorkspaceContext();
   const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>('grid');
   const [handoffNotice, setHandoffNotice] = React.useState<string | null>(null);
-  const [isVoiceBarOpen, setIsVoiceBarOpen] = React.useState(false);
+  const terminalLimitReached = terminals.length >= MAX_TERMINALS;
+  const quickLaunches = React.useMemo<Array<{ type: QuickTerminalType; label: string }>>(() => [
+    { type: 'shell', label: 'Shell' },
+    { type: 'codex', label: 'Codex' },
+    { type: 'claude', label: 'Claude' },
+    { type: 'gemini', label: 'Gemini' },
+    { type: 'dev', label: 'Dev' }
+  ], []);
+  const handleOpenDiagnostics = React.useCallback(() => {
+    navigate('/diagnostics');
+  }, [navigate]);
   const missionTerminals = React.useMemo(
     () => terminals.filter((terminal) => Boolean(terminal.missionTitle || terminal.terminalPurpose === 'mission-console')),
     [terminals]
@@ -204,24 +219,37 @@ export const TerminalGrid: React.FC = () => {
     return () => onLayoutUpdateNeeded(null);
   }, [onLayoutUpdateNeeded]);
 
-  const handleNewTerminal = (type: 'cmd' | 'claude' | 'npm' | 'git' | 'python' = 'cmd') => {
-    if (terminals.length >= MAX_TERMINALS) {
+  const handleNewTerminal = (type: QuickTerminalType = 'shell') => {
+    if (terminalLimitReached) {
       alert(`Maximum ${MAX_TERMINALS} terminals reached. Close one before opening another.`);
       return;
     }
 
     const defaultCwd = activeWorkspace?.path || '/Users/optimus/Documents/New project 9';
-    const shell = loadAppSettings().defaultShell || activeWorkspace?.shell || '/bin/zsh';
+    const settings = loadAppSettings();
+    const shell = resolveTerminalShell(activeWorkspace?.shell, settings.defaultShell).shell;
 
     let label = 'Terminal';
     let autoCommand: string | undefined;
+    let runtimeProvider: AgentProvider | undefined;
 
     switch (type) {
-      case 'claude':
-        label = 'Claude AI';
-        autoCommand = 'claude';
+      case 'codex':
+        label = 'Codex';
+        runtimeProvider = 'codex';
+        autoCommand = resolveAgentRuntimeCommand('codex', shell);
         break;
-      case 'npm':
+      case 'claude':
+        label = 'Claude';
+        runtimeProvider = 'claude';
+        autoCommand = resolveAgentRuntimeCommand('claude', shell);
+        break;
+      case 'gemini':
+        label = 'Gemini';
+        runtimeProvider = 'gemini';
+        autoCommand = resolveAgentRuntimeCommand('gemini', shell);
+        break;
+      case 'dev':
         label = 'NPM Dev';
         autoCommand = 'npm run dev';
         break;
@@ -233,14 +261,20 @@ export const TerminalGrid: React.FC = () => {
         label = 'Python';
         autoCommand = 'python';
         break;
-      case 'cmd':
+      case 'shell':
       default:
         label = 'Shell';
         autoCommand = undefined;
         break;
     }
 
-    createTerminal(defaultCwd, shell, label, autoCommand);
+    createTerminal(
+      defaultCwd,
+      shell,
+      label,
+      autoCommand,
+      runtimeProvider ? { runtimeProvider, terminalPurpose: 'agent-runtime' } : undefined
+    );
   };
 
   const handleCloseTerminal = (terminalId: string) => {
@@ -320,32 +354,23 @@ export const TerminalGrid: React.FC = () => {
             This is the Hedge Fund Station command hub for your primary hedge fund desk and bot/dev/side project workspaces.
             Launch saved commands and profiles here so output stays visible in the center panel.
           </div>
-          <button
-            onClick={() => handleNewTerminal()}
-            style={{
-              padding: '14px 32px',
-              background: 'linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-2) 100%)',
-              color: '#fff',
-              border: '1px solid var(--app-border-strong)',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: '600',
-              boxShadow: '0 4px 16px var(--app-glow)',
-              transition: 'all 0.2s ease',
-              marginTop: '8px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px var(--app-glow)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 16px var(--app-glow)';
-            }}
-          >
-            + New Console
-          </button>
+          <div style={quickLaunchBarStyle}>
+            {quickLaunches.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => handleNewTerminal(item.type)}
+                style={{
+                  ...quickLaunchButtonStyle,
+                  minWidth: '72px',
+                  height: '34px',
+                  fontSize: '12px'
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -384,13 +409,13 @@ export const TerminalGrid: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ color: 'var(--app-accent)', fontSize: '13px', fontWeight: '600' }}>Terminales / CLI</span>
             <div style={{
-              background: terminals.length >= MAX_TERMINALS ? 'var(--app-negative-soft)' : 'var(--app-accent-soft)',
+              background: terminalLimitReached ? 'var(--app-negative-soft)' : 'var(--app-accent-soft)',
               padding: '2px 8px',
               borderRadius: '10px',
               fontSize: '10px',
-              color: terminals.length >= MAX_TERMINALS ? 'var(--app-negative)' : 'var(--app-accent)',
+              color: terminalLimitReached ? 'var(--app-negative)' : 'var(--app-accent)',
               fontWeight: '600',
-              border: `1px solid ${terminals.length >= MAX_TERMINALS ? 'var(--app-negative)' : 'var(--app-border-strong)'}`
+              border: `1px solid ${terminalLimitReached ? 'var(--app-negative)' : 'var(--app-border-strong)'}`
             }}>
               {terminals.length}/{MAX_TERMINALS}
             </div>
@@ -425,68 +450,26 @@ export const TerminalGrid: React.FC = () => {
             </button>
           </div>
 
-          {isVoiceBarOpen ? (
-            <React.Suspense fallback={<VoiceBarFallback />}>
-              <VoiceCommandBar activeTerminalId={activeTerminalId} />
-            </React.Suspense>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setIsVoiceBarOpen(true)}
-              title="Load voice terminal input"
-              style={{
-                height: '28px',
-                padding: '3px 10px',
-                borderRadius: '6px',
-                border: '1px solid var(--app-border-strong)',
-                background: 'var(--app-panel-muted)',
-                color: 'var(--app-subtle)',
-                fontSize: '10px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase'
-              }}
-            >
-              Voice
-            </button>
-          )}
         </div>
 
-        <button
-          onClick={() => handleNewTerminal()}
-          disabled={terminals.length >= MAX_TERMINALS}
-          style={{
-            padding: '4px 10px',
-            background: terminals.length >= MAX_TERMINALS
-              ? 'var(--app-panel-muted)'
-              : 'linear-gradient(135deg, var(--app-positive) 0%, var(--app-accent) 100%)',
-            color: terminals.length >= MAX_TERMINALS ? 'var(--app-subtle)' : '#fff',
-            border: `1px solid ${terminals.length >= MAX_TERMINALS ? 'var(--app-border)' : 'var(--app-terminal-border)'}`,
-            borderRadius: '6px',
-            cursor: terminals.length >= MAX_TERMINALS ? 'not-allowed' : 'pointer',
-            fontSize: '10px',
-            fontWeight: '600',
-            boxShadow: terminals.length >= MAX_TERMINALS ? 'none' : '0 2px 8px var(--app-glow)',
-            transition: 'all 0.15s ease',
-            opacity: terminals.length >= MAX_TERMINALS ? 0.5 : 1
-          }}
-          onMouseEnter={(e) => {
-            if (terminals.length < MAX_TERMINALS) {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 4px 12px var(--app-glow)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (terminals.length < MAX_TERMINALS) {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 2px 8px var(--app-glow)';
-            }
-          }}
-          title={terminals.length >= MAX_TERMINALS ? `Terminal limit ${MAX_TERMINALS} reached` : 'Add CLI console'}
-        >
-          + New Shell
-        </button>
+        <div style={quickLaunchBarStyle}>
+          {quickLaunches.map((item) => (
+            <button
+              key={item.type}
+              type="button"
+              onClick={() => handleNewTerminal(item.type)}
+              disabled={terminalLimitReached}
+              title={terminalLimitReached ? `Terminal limit ${MAX_TERMINALS} reached` : `Launch ${item.label}`}
+              style={{
+                ...quickLaunchButtonStyle,
+                opacity: terminalLimitReached ? 0.5 : 1,
+                cursor: terminalLimitReached ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {missionTerminals.length > 0 ? (
@@ -584,6 +567,7 @@ export const TerminalGrid: React.FC = () => {
                 onRuntimeStateChange={(state, detail) => updateTerminalRuntimeState(terminal.id, state, detail)}
                 onActivity={() => touchTerminalActivity(terminal.id)}
                 onRuntimeRetry={(detail) => retryTerminalRuntime(terminal.id, detail)}
+                onOpenDiagnostics={handleOpenDiagnostics}
                 isActive={activeTerminalId === terminal.id}
               />
             </div>
@@ -603,6 +587,29 @@ const missionTinyButtonStyle: React.CSSProperties = {
   fontSize: '10px',
   fontWeight: 800,
   cursor: 'pointer'
+};
+
+const quickLaunchBarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: '6px',
+  flexWrap: 'wrap'
+};
+
+const quickLaunchButtonStyle: React.CSSProperties = {
+  height: '28px',
+  padding: '4px 10px',
+  background: 'var(--app-panel-muted)',
+  color: 'var(--app-text)',
+  border: '1px solid var(--app-border-strong)',
+  borderRadius: '6px',
+  fontSize: '10px',
+  fontWeight: '700',
+  cursor: 'pointer',
+  boxShadow: '0 1px 6px var(--app-glow)',
+  transition: 'all 0.15s ease',
+  whiteSpace: 'nowrap'
 };
 
 function deriveRunState(
@@ -678,24 +685,6 @@ function deriveRunState(
 
   return null;
 }
-
-const VoiceBarFallback: React.FC = () => (
-  <div style={{
-    height: '28px',
-    display: 'flex',
-    alignItems: 'center',
-    padding: '3px 10px',
-    borderRadius: '6px',
-    border: '1px solid var(--app-border)',
-    color: 'var(--app-muted)',
-    fontSize: '10px',
-    fontWeight: 700,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase'
-  }}>
-    Loading voice...
-  </div>
-);
 
 function deriveTaskStatus(
   task: { mission?: { executionMode?: string; workflow?: Array<{ role: string }> } },

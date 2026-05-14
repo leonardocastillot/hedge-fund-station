@@ -74,12 +74,16 @@ needs status, date, decision, and reason.
 
 - Status: accepted
 - Date: 2026-05-13
-- Decision: Hedge Fund Station uses a daily 02:30 Strategy Factory to generate
-  at most one backend-first strategy candidate from existing wins/losses, a
-  daily 03:30 small-improvement automation, and a Sunday 09:00 read-only health
-  report for harness, memory, Graphify, Obsidian, and strategy status.
-- Reason: agents need compounding improvement without turning recurring work
-  into noisy broad rewrites or unsafe trading promotion.
+- Decision: Hedge Fund Station uses a daily 02:30 implementation-first Strategy
+  Factory to create or materially improve exactly one backend-first strategy
+  candidate and carry it through tests, backtest, validation, paper candidate
+  when eligible, and blocked live-gate prep when evidence supports it. A daily
+  03:30 improvement automation follows up on the latest factory output or
+  highest-upside validation blocker. The Sunday 09:00 health report remains
+  read-only for harness, memory, Graphify, Obsidian, and strategy status.
+- Reason: agents need compounding strategy R&D and evidence generation without
+  turning recurring work into noisy broad rewrites, fake edge claims, or unsafe
+  live-trading promotion.
 
 ## VM Owns Heavy Runtime Evidence
 

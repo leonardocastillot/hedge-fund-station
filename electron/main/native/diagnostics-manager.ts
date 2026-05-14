@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ObsidianManager } from './obsidian-manager';
+import { normalizeRuntimeCommandForShell, resolveTerminalShell } from '../../../src/utils/terminalShell';
 import type {
   DiagnosticsCheckCommandsParams,
   DiagnosticsCommandStatus,
@@ -77,9 +78,17 @@ export class DiagnosticsManager {
   constructor(private readonly obsidianManager = new ObsidianManager()) {}
 
   async checkCommands(params: DiagnosticsCheckCommandsParams): Promise<DiagnosticsCommandStatus[]> {
-    const unique = Array.from(new Set(params.commands.map((command) => command.trim()).filter(Boolean)));
     const isWindows = os.platform() === 'win32';
-    const shell = params.shell || (isWindows ? 'powershell.exe' : process.env.SHELL || '/bin/bash');
+    const shell = resolveTerminalShell(
+      params.shell,
+      isWindows ? 'powershell.exe' : process.env.SHELL || '/bin/zsh',
+      os.platform()
+    ).shell;
+    const unique = Array.from(new Set(
+      params.commands
+        .map((command) => normalizeRuntimeCommandForShell(command, shell)?.trim() || '')
+        .filter(Boolean)
+    ));
 
     return Promise.all(unique.map(async (command) => {
       const executable = getExecutable(command);
@@ -127,7 +136,11 @@ export class DiagnosticsManager {
   }
 
   async shellSmokeTest(params: DiagnosticsShellSmokeTestParams): Promise<DiagnosticsShellSmokeTestResult> {
-    const shell = params.shell || (os.platform() === 'win32' ? 'powershell.exe' : '/bin/bash');
+    const shell = resolveTerminalShell(
+      params.shell,
+      os.platform() === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/zsh',
+      os.platform()
+    ).shell;
     const normalized = shell.toLowerCase();
 
     try {

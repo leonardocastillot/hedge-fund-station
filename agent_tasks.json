@@ -18,6 +18,60 @@
   },
   "tasks": [
     {
+      "id": "btc_convex_cycle_trend",
+      "title": "Manual factory smoke: build BTC Convex Cycle Trend against the current BTC daily champion",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_btc_convex_cycle_trend.md",
+        "docs/strategies/btc-convex-cycle-trend.md",
+        "docs/operations/strategy-validation-thresholds.md",
+        "docs/operations/strategy-readiness-matrix.md",
+        "backend/hyperliquid_gateway/strategies/btc_convex_cycle_trend/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_btc_convex_cycle_trend.py",
+        "tests/test_strategy_catalog.py"
+      ],
+      "acceptance": [
+        "A new backend-first BTC daily strategy is documented and registered as btc_convex_cycle_trend.",
+        "The official 500 USD taker-fee backtest is compared against btc_adaptive_cycle_trend's 94.39% champion benchmark.",
+        "Validation reaches ready-for-paper only if the new strategy returns more than 95.0% and passes the robust gate.",
+        "Paper candidate evidence is generated only after validation is ready-for-paper.",
+        "Any future live or production path remains blocked behind research, backtest, validation, paper evidence, risk review, and operator sign-off.",
+        "Official artifact paths, verification, risks, and next actions are recorded in a handoff."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk python3 -m unittest tests.test_strategy_catalog tests.test_btc_convex_cycle_trend",
+        "rtk npm run hf:backtest -- --strategy btc_adaptive_cycle_trend --dataset backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json --fee-model taker --risk-fraction 0.20 --equity 500",
+        "rtk npm run hf:backtest -- --strategy btc_convex_cycle_trend --dataset backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json --fee-model taker --risk-fraction 0.25 --equity 500",
+        "rtk npm run hf:validate -- --strategy btc_convex_cycle_trend --report backend/hyperliquid_gateway/data/backtests/btc_convex_cycle_trend-btc_usd_daily_yahoo-20260514T145140Z.json",
+        "rtk npm run hf:paper -- --strategy btc_convex_cycle_trend --report backend/hyperliquid_gateway/data/backtests/btc_convex_cycle_trend-btc_usd_daily_yahoo-20260514T145140Z.json --validation backend/hyperliquid_gateway/data/validations/btc_convex_cycle_trend-20260514T145222Z.json",
+        "rtk npm run hf:doubling:stability -- --strategy btc_convex_cycle_trend --report backend/hyperliquid_gateway/data/backtests/btc_convex_cycle_trend-btc_usd_daily_yahoo-20260514T145140Z.json --validation backend/hyperliquid_gateway/data/validations/btc_convex_cycle_trend-20260514T145222Z.json",
+        "rtk npm run hf:status",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/btc-convex-cycle-trend.md",
+        "backend/hyperliquid_gateway/strategies/btc_convex_cycle_trend/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_btc_convex_cycle_trend.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_adaptive_cycle_trend-btc_usd_daily_yahoo-20260514T145140Z.json",
+        "backend/hyperliquid_gateway/data/backtests/btc_convex_cycle_trend-btc_usd_daily_yahoo-20260514T145140Z.json",
+        "backend/hyperliquid_gateway/data/validations/btc_convex_cycle_trend-20260514T145222Z.json",
+        "backend/hyperliquid_gateway/data/paper/btc_convex_cycle_trend-20260514T145241Z.json",
+        "backend/hyperliquid_gateway/data/audits/btc_convex_cycle_trend-doubling-stability-20260514T145241Z.json",
+        "progress/impl_btc_convex_cycle_trend.md"
+      ],
+      "notes": "Done. Manual factory smoke created BTC Convex Cycle Trend as a backend-first daily BTC strategy. Official 500 USD taker-fee backtest returned 115.78% net, ending at 1,078.89 USD, beating btc_adaptive_cycle_trend's 94.39% champion benchmark by 21.39 percentage points. Validation reached ready-for-paper, hf:paper generated a paper candidate, and doubling stability was stable. No live routing, credentials, production promotion, leverage, or non-dry-run supervisor start occurred."
+    },
+    {
       "id": "btc_adaptive_cycle_trend",
       "title": "Build BTC Adaptive Cycle Trend to beat the 500 USD paper-ready benchmark",
       "mission_class": "strategy research",

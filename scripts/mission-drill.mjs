@@ -144,7 +144,7 @@ async function main() {
   const args = resolveArgs(process.argv.slice(2));
   const workspacePath = path.resolve(args.get('workspace') || process.cwd());
   const workspaceName = args.get('name') || path.basename(workspacePath);
-  const shell = args.get('shell') || (os.platform() === 'win32' ? 'powershell.exe' : '/bin/bash');
+  const shell = args.get('shell') || (os.platform() === 'win32' ? 'powershell.exe' : process.env.SHELL || '/bin/zsh');
   const configuredVaultPath = args.get('vault') || resolveVaultFromWorkspaceConfig(workspacePath);
   const vaultPath = resolveVaultPath(workspacePath, configuredVaultPath);
   const commands = os.platform() === 'win32'

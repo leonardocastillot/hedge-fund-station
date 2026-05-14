@@ -1433,8 +1433,6 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Backend trading logic, strategy logic, paper runtime,
   credentials, IPC trading contracts, and order routing were not changed.
 
----
-
 ## 2026-05-13 - BTC Adaptive Cycle Trend
 
 - Agent: Codex
@@ -1660,3 +1658,118 @@ entries unless the human explicitly asks for cleanup.
   GPU, network utility, and renderer at `0.0%` CPU.
 - Status: done. Backend trading logic, strategy logic, paper runtime,
   credentials, IPC trading contracts, and order routing were not changed.
+
+---
+
+## 2026-05-14 - Daily Strategy Factory Automation Review
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Reviewed the active `Daily Hedge Fund Strategy Factory`
+  automation, its first scheduled report-only run, and the `hf:strategy:new`
+  scaffold boundary. Confirmed the automation is active at daily 02:30 with
+  `gpt-5.5` and `xhigh`, and that the first run correctly avoided creating a
+  strategy when replay data readiness was uncertain.
+- Changes: added read-only Hyperliquid SQLite replay readiness checks to
+  `hf:doctor`; updated the local Codex automation prompt to run `hf:doctor`
+  before SQLite replay backtests; aligned
+  `docs/operations/agents/automation-system.md`; wrote
+  `progress/review_daily_strategy_factory_automation.md`.
+- Evidence:
+  `backend/hyperliquid_gateway/cli.py`,
+  `docs/operations/agents/automation-system.md`,
+  `/Users/optimus/.codex/automations/daily-hedge-fund-strategy-factory/automation.toml`,
+  `/Users/optimus/.codex/automations/daily-hedge-fund-strategy-factory/memory.md`,
+  and `progress/review_daily_strategy_factory_automation.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run hf:doctor`,
+  `rtk python3 -m py_compile backend/hyperliquid_gateway/cli.py`,
+  `rtk python3 -m unittest tests.test_strategy_catalog`,
+  `rtk npm run hf:status`, and `rtk git diff --check` passed.
+- Status: done. No live trading, order routing, credential changes, production
+  promotion, or new strategy scaffold was created.
+
+---
+
+## 2026-05-14 - Strategy Factory Full-Cycle Automation
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Hardened the daily strategy automation cadence so the 02:30 factory
+  defaults to creating or materially improving one backend-first strategy
+  candidate end-to-end, then testing, backtesting, validating, comparing against
+  the comparable champion, generating paper candidate evidence when eligible,
+  and preparing only a blocked live-gate package if evidence later supports
+  live review. Hardened the 03:30 automation to follow up on the latest factory
+  output or highest-upside validation blocker instead of drifting to generic
+  cleanup.
+- Evidence:
+  `/Users/optimus/.codex/automations/daily-hedge-fund-strategy-factory/automation.toml`,
+  `/Users/optimus/.codex/automations/nightly-hedge-fund-station-improvement/automation.toml`,
+  `docs/operations/agents/automation-system.md`,
+  `docs/operations/agents/memory/decisions.md`,
+  `progress/current.md`, and
+  `progress/impl_strategy_factory_full_cycle_automation.md`.
+- Verification: automation configs were inspected after update. Final harness
+  and diff checks are recorded in the handoff. No live routing, credential
+  change, non-dry-run supervisor start, or production promotion occurred.
+
+---
+
+## 2026-05-14 - BTC Convex Cycle Trend Factory Smoke
+
+- Agent: Codex
+- Mission class: strategy research
+- Summary: Ran a manual implementation-first factory smoke and created
+  `btc_convex_cycle_trend` as a backend-first BTC daily strategy candidate. The
+  strategy uses larger partial exposure only when BTC daily trend, RSI,
+  drawdown, and 30-day momentum filters align.
+- Evidence:
+  `docs/strategies/btc-convex-cycle-trend.md`,
+  `backend/hyperliquid_gateway/strategies/btc_convex_cycle_trend/`,
+  `backend/hyperliquid_gateway/backtesting/registry.py`,
+  `tests/test_btc_convex_cycle_trend.py`,
+  `backend/hyperliquid_gateway/data/backtests/btc_convex_cycle_trend-btc_usd_daily_yahoo-20260514T145140Z.json`,
+  `backend/hyperliquid_gateway/data/validations/btc_convex_cycle_trend-20260514T145222Z.json`,
+  `backend/hyperliquid_gateway/data/paper/btc_convex_cycle_trend-20260514T145241Z.json`,
+  `backend/hyperliquid_gateway/data/audits/btc_convex_cycle_trend-doubling-stability-20260514T145241Z.json`,
+  and `progress/impl_btc_convex_cycle_trend.md`.
+- Verification: focused tests passed. Official 500 USD taker-fee backtest
+  returned `115.78%` net return, final equity `1,078.89 USD`, `48` trades,
+  `41.67%` win rate, `2.39` profit factor, `13.63%` max drawdown, and robust
+  gate `passes`. It beat `btc_adaptive_cycle_trend` by `21.39` percentage
+  points. Validation returned `ready-for-paper`, paper candidate was generated,
+  and doubling stability returned `stable`.
+- Status: ready for paper review. No live routing, credential change,
+  production promotion, leverage, or non-dry-run supervisor start occurred.
+
+---
+
+## 2026-05-14 - Mac Terminal Stabilization
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Stabilized the macOS terminal/consoles stack by adding shared
+  platform-aware shell normalization, migrating stale Windows defaults away from
+  `powershell.exe`/`cmd.exe`, normalizing PTY creation and runtime commands,
+  preventing stale restored `launching` states, recognizing zsh/bash/fish
+  prompts, adding one-auto-retry behavior, and separating PTY readiness from AI
+  runtime launch status in Terminales / CLI. Follow-up fixed visible refresh
+  while typing by throttling terminal activity state writes and keeping xterm
+  mounted across PTY/runtime status updates.
+- Evidence:
+  `src/utils/terminalShell.ts`, `electron/main/native/pty-manager.ts`,
+  `electron/main/native/diagnostics-manager.ts`,
+  `electron/main/ipc/ipc-handlers.ts`,
+  `src/contexts/TerminalContext.tsx`,
+  `src/components/electron/TerminalPane.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/features/settings/pages/SettingsPage.tsx`,
+  `src/utils/appSettings.ts`, `src/utils/agentRuntime.ts`,
+  `src/utils/workspaceLaunch.ts`, `scripts/mission-drill.mjs`, and
+  `progress/impl_mac_terminal_stabilization.md`.
+- Verification: `rtk npm run terminal:doctor`, `rtk npm run hf:agent:runtime`,
+  `rtk npm run build`, `rtk git diff --check`, and
+  `rtk npm run agent:check` passed.
+- Status: done. Manual Electron `/terminals` smoke remains the next visual
+  confirmation step; no live trading, credentials, or backend trading behavior
+  changed.

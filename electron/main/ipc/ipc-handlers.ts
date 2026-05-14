@@ -47,11 +47,10 @@ export function registerTerminalHandlers(ptyManager: PTYManager): void {
   ipcMain.handle('terminal:create', async (_event, params: TerminalCreateParams) => {
     const { id, cwd, shell, autoCommand } = params;
     try {
-      ptyManager.createTerminal(id, cwd, shell, autoCommand);
-      return { success: true };
+      return ptyManager.createTerminal(id, cwd, shell, autoCommand);
     } catch (error) {
       console.error('Failed to create terminal:', error);
-      return { success: false, error: String(error) };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });
 

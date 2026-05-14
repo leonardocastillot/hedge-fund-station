@@ -4,11 +4,13 @@ import argparse
 import json
 import os
 import platform
+import sqlite3
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -183,6 +185,7 @@ def command_doctor(_: argparse.Namespace) -> int:
     PAPER_ROOT.mkdir(parents=True, exist_ok=True)
 
     donor_files = list_csv_files(DONOR_BACKTEST_ROOT / "data")
+    runtime_db = _runtime_db_audit()
     audit_payload = {
         "generated_at": now_iso(),
         "repo_root": str(REPO_ROOT),
@@ -199,7 +202,11 @@ def command_doctor(_: argparse.Namespace) -> int:
             "paper_root_exists": PAPER_ROOT.exists(),
             "strategy_count": len(available_strategies()),
             "donor_csv_count": len(donor_files),
+            "hyperliquid_db_exists": runtime_db["exists"],
+            "market_snapshots_table_exists": runtime_db["market_snapshots_table_exists"],
+            "market_snapshots_has_rows": runtime_db["market_snapshot_count"] > 0,
         },
+        "runtime_db": runtime_db,
         "donor_csv_files": [str(path) for path in donor_files],
         "donor_scripts": _harvard_script_audit(),
     }
@@ -207,6 +214,44 @@ def command_doctor(_: argparse.Namespace) -> int:
     write_json(audit_path, audit_payload)
     print(json.dumps({"ok": True, "audit_path": str(audit_path), "summary": audit_payload["checks"]}, indent=2))
     return 0
+
+
+def _runtime_db_audit() -> dict[str, Any]:
+    db_path = Path(os.getenv("HYPERLIQUID_DB_PATH", str(DATA_ROOT / "hyperliquid.db"))).expanduser()
+    audit: dict[str, Any] = {
+        "path": str(db_path),
+        "exists": db_path.exists(),
+        "market_snapshots_table_exists": False,
+        "market_snapshot_count": 0,
+        "latest_market_snapshot": None,
+        "error": None,
+    }
+    if not db_path.exists():
+        return audit
+
+    try:
+        uri = f"file:{urllib.parse.quote(str(db_path))}?mode=ro"
+        with sqlite3.connect(uri, uri=True) as connection:
+            table_exists = bool(
+                connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'market_snapshots'"
+                ).fetchone()
+            )
+            audit["market_snapshots_table_exists"] = table_exists
+            if table_exists:
+                row = connection.execute(
+                    "SELECT COUNT(*) AS snapshot_count, MAX(timestamp_ms) AS latest_timestamp_ms FROM market_snapshots"
+                ).fetchone()
+                snapshot_count = int(row[0] or 0)
+                latest_timestamp_ms = int(row[1] or 0) if row[1] is not None else None
+                audit["market_snapshot_count"] = snapshot_count
+                if latest_timestamp_ms is not None:
+                    audit["latest_market_snapshot"] = datetime.fromtimestamp(
+                        latest_timestamp_ms / 1000, tz=timezone.utc
+                    ).isoformat()
+    except sqlite3.Error as exc:
+        audit["error"] = str(exc)
+    return audit
 
 
 def command_strategy_new(args: argparse.Namespace) -> int:

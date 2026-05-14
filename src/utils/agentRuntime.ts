@@ -1,4 +1,5 @@
 import type { AgentProvider, AgentRole } from '../types/agents';
+import { isWindowsTerminalShell, resolveTerminalShell } from './terminalShell';
 
 export interface ProviderMeta {
   id: AgentProvider;
@@ -77,17 +78,8 @@ export function getProviderMeta(provider?: AgentProvider | null): ProviderMeta {
   return PROVIDER_META[provider && isAgentProvider(provider) ? provider : 'claude'];
 }
 
-function isWindowsShell(shell?: string): boolean {
-  const normalizedShell = shell?.toLowerCase() ?? '';
-  return normalizedShell.includes('powershell')
-    || normalizedShell.endsWith('pwsh.exe')
-    || normalizedShell === 'pwsh'
-    || normalizedShell.includes('cmd.exe')
-    || normalizedShell === 'cmd';
-}
-
 export function resolveAgentRuntimeCommand(provider: AgentProvider, shell?: string): string {
-  const windowsShell = isWindowsShell(shell);
+  const windowsShell = isWindowsTerminalShell(shell);
 
   if (provider === 'codex') {
     return windowsShell ? 'codex.cmd' : 'codex';
@@ -101,15 +93,7 @@ export function resolveAgentRuntimeCommand(provider: AgentProvider, shell?: stri
 }
 
 export function resolveAgentRuntimeShell(shell?: string): string | undefined {
-  if (shell?.trim()) {
-    return shell;
-  }
-
-  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows')) {
-    return 'powershell.exe';
-  }
-
-  return undefined;
+  return resolveTerminalShell(shell).shell;
 }
 
 export function resolveAgentAwareCommand(

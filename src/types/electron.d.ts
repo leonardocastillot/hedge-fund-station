@@ -381,9 +381,17 @@ export interface TerminalSmokeTestResult {
   error?: string;
 }
 
+export interface TerminalCreateResult {
+  success: boolean;
+  error?: string;
+  shell?: string;
+  cwd?: string;
+  normalizedShell?: boolean;
+}
+
 export interface ElectronAPI {
   terminal: {
-    create: (id: string, cwd: string, shell?: string, autoCommand?: string) => Promise<{ success: boolean; error?: string }>;
+    create: (id: string, cwd: string, shell?: string, autoCommand?: string) => Promise<TerminalCreateResult>;
     write: (id: string, data: string) => void;
     resize: (id: string, cols: number, rows: number) => void;
     kill: (id: string) => void;
