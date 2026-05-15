@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Palette, Sparkles, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../../hooks/useTerminal';
 import { TerminalColor } from '@/contexts/TerminalContext';
@@ -9,6 +10,7 @@ import type { TerminalPtyState } from '@/contexts/TerminalContext';
 import type { AgentProvider } from '../../types/agents';
 import { COLOR_SCHEMES } from './TerminalColorSchemes';
 import { loadAppSettings } from '../../utils/appSettings';
+import { getProviderMeta } from '../../utils/agentRuntime';
 
 function normalizeTerminalTitle(title: string): string {
   const trimmed = title.trim();
@@ -83,6 +85,112 @@ function isLikelyCommandEcho(value: string, command?: string): boolean {
   return getNormalizedLines(value).every((line) => line.toLowerCase() === normalizedCommand);
 }
 
+function getRuntimeDisplay(
+  runtimeState: TerminalRuntimeState,
+  ptyState: TerminalPtyState,
+  hasExited: boolean
+): { label: string; color: string; background: string; border: string } {
+  if (ptyState === 'failed' || runtimeState === 'failed') {
+    return {
+      label: 'Failed',
+      color: '#fca5a5',
+      background: 'rgba(239, 68, 68, 0.13)',
+      border: 'rgba(248, 113, 113, 0.24)'
+    };
+  }
+
+  if (hasExited || runtimeState === 'completed') {
+    return {
+      label: 'Completed',
+      color: '#93c5fd',
+      background: 'rgba(59, 130, 246, 0.12)',
+      border: 'rgba(96, 165, 250, 0.22)'
+    };
+  }
+
+  if (runtimeState === 'stalled' || runtimeState === 'awaiting-approval') {
+    return {
+      label: 'Attention',
+      color: '#fbbf24',
+      background: 'rgba(245, 158, 11, 0.13)',
+      border: 'rgba(251, 191, 36, 0.24)'
+    };
+  }
+
+  if (runtimeState === 'running') {
+    return {
+      label: 'Running',
+      color: '#34d399',
+      background: 'rgba(16, 185, 129, 0.13)',
+      border: 'rgba(52, 211, 153, 0.24)'
+    };
+  }
+
+  if (runtimeState === 'waiting-response') {
+    return {
+      label: 'Waiting',
+      color: '#67e8f9',
+      background: 'rgba(6, 182, 212, 0.12)',
+      border: 'rgba(103, 232, 249, 0.22)'
+    };
+  }
+
+  if (runtimeState === 'ready') {
+    return {
+      label: 'Ready',
+      color: '#86efac',
+      background: 'rgba(34, 197, 94, 0.12)',
+      border: 'rgba(134, 239, 172, 0.22)'
+    };
+  }
+
+  if (runtimeState === 'launching' || runtimeState === 'handoff' || ptyState === 'creating') {
+    return {
+      label: 'Launching',
+      color: '#fbbf24',
+      background: 'rgba(245, 158, 11, 0.12)',
+      border: 'rgba(251, 191, 36, 0.22)'
+    };
+  }
+
+  return {
+    label: ptyState === 'ready' ? 'Ready' : 'Launching',
+    color: ptyState === 'ready' ? '#cbd5e1' : '#fbbf24',
+    background: ptyState === 'ready' ? 'rgba(148, 163, 184, 0.10)' : 'rgba(245, 158, 11, 0.12)',
+    border: ptyState === 'ready' ? 'rgba(148, 163, 184, 0.18)' : 'rgba(251, 191, 36, 0.22)'
+  };
+}
+
+function getTerminalPurposeLabel(terminalPurpose?: string, runtimeProvider?: AgentProvider, autoCommand?: string): string {
+  if (runtimeProvider) {
+    return 'Agent runtime';
+  }
+
+  if (terminalPurpose === 'dev-server' || autoCommand === 'npm run dev') {
+    return 'Dev process';
+  }
+
+  if (terminalPurpose === 'mission-console') {
+    return 'Mission console';
+  }
+
+  return 'Workspace shell';
+}
+
+function compactPath(path: string): string {
+  if (!path) {
+    return 'cwd unavailable';
+  }
+
+  const normalized = path.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length <= 3) {
+    return path;
+  }
+
+  return `.../${parts.slice(-3).join('/')}`;
+}
+
 interface TerminalPaneProps {
   id: string;
   cwd: string;
@@ -92,6 +200,10 @@ interface TerminalPaneProps {
   rainbowEffect?: boolean;
   autoCommand?: string;
   missionPrompt?: string;
+  missionTitle?: string;
+  agentName?: string;
+  terminalPurpose?: string;
+  runId?: string;
   currentCommand?: string;
   runtimeProvider?: AgentProvider;
   runtimeState?: TerminalRuntimeState;
@@ -109,16 +221,52 @@ interface TerminalPaneProps {
   onRuntimeRetry?: (detail?: string) => void;
   onOpenDiagnostics?: () => void;
   isActive?: boolean;
+  compactChrome?: boolean;
 }
+
+const terminalMetaLineStyle: React.CSSProperties = {
+  minWidth: 0,
+  width: '100%',
+  color: '#94a3b8',
+  fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
+  fontSize: '9px',
+  fontWeight: 700,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+};
+
+const terminalToolButtonStyle: React.CSSProperties = {
+  width: '22px',
+  height: '22px',
+  padding: 0,
+  borderRadius: '6px',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  background: 'rgba(15, 23, 42, 0.82)',
+  color: '#cbd5e1',
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '11px',
+  fontWeight: 900,
+  lineHeight: 1,
+  transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease'
+};
 
 const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   id,
   cwd,
+  shell,
   label = 'Terminal',
   color = 'red',
   rainbowEffect = false,
   autoCommand,
   missionPrompt,
+  missionTitle,
+  agentName,
+  terminalPurpose,
+  runId,
   currentCommand,
   runtimeProvider,
   runtimeState = 'shell',
@@ -135,14 +283,15 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   onActivity,
   onRuntimeRetry,
   onOpenDiagnostics,
-  isActive = false
+  isActive = false,
+  compactChrome = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const hasExitedRef = useRef(false);
   const onTitleChangeRef = useRef(onTitleChange);
-  const resizeTimeoutRef = useRef<number | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasExited, setHasExited] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
@@ -183,8 +332,9 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
 
   useEffect(() => {
     return () => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current);
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
       }
       if (runtimeMonitorRef.current.timeoutId !== null) {
         window.clearTimeout(runtimeMonitorRef.current.timeoutId);
@@ -469,6 +619,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   // the terminal surface.
   useEffect(() => {
     if (!containerRef.current || terminalRef.current) return;
+    const container = containerRef.current;
 
     // Use conservative terminal settings for CLI stability.
     const terminal = new Terminal({
@@ -516,10 +667,12 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     terminal.loadAddon(fitAddon);
 
     // Open terminal in container
-    terminal.open(containerRef.current);
+    terminal.open(container);
 
-    // Fit terminal to container
-    fitAddon.fit();
+    const containerRect = container.getBoundingClientRect();
+    if (containerRect.width > 0 && containerRect.height > 0) {
+      fitAddon.fit();
+    }
 
     // CRITICAL: Focus terminal immediately
     if (isActive) {
@@ -583,32 +736,38 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     if (!fitAddonRef.current || !terminalRef.current || !isInitialized) return;
 
     const handleResize = () => {
-      if (fitAddonRef.current && terminalRef.current) {
-        fitAddonRef.current.fit();
-        const { cols, rows } = terminalRef.current;
-        const lastSize = lastSizeRef.current;
-        if (lastSize?.cols === cols && lastSize?.rows === rows) {
-          return;
-        }
-
-        lastSizeRef.current = { cols, rows };
-        resize(cols, rows);
+      if (!fitAddonRef.current || !terminalRef.current || !containerRef.current) {
+        return;
       }
+
+      const rect = containerRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      fitAddonRef.current.fit();
+      const { cols, rows } = terminalRef.current;
+      const lastSize = lastSizeRef.current;
+      if (lastSize?.cols === cols && lastSize?.rows === rows) {
+        return;
+      }
+
+      lastSizeRef.current = { cols, rows };
+      resize(cols, rows);
     };
 
     const scheduleResize = () => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current);
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
       }
 
-      resizeTimeoutRef.current = window.setTimeout(() => {
-        resizeTimeoutRef.current = null;
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null;
         handleResize();
-      }, 75);
+      });
     };
 
-    // Initial resize
-    handleResize();
+    scheduleResize();
 
     // Listen for window resize
     const resizeObserver = new ResizeObserver(() => {
@@ -620,9 +779,9 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }
 
     return () => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current);
-        resizeTimeoutRef.current = null;
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
       }
       resizeObserver.disconnect();
     };
@@ -699,25 +858,45 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     cursor: 'pointer',
     whiteSpace: 'nowrap'
   };
+  const providerMeta = runtimeProvider ? getProviderMeta(runtimeProvider) : null;
+  const runtimeDisplay = getRuntimeDisplay(runtimeState, ptyState, hasExited);
+  const providerAccent = providerMeta?.accent || colorScheme.primary;
+  const terminalIdentity = missionTitle || agentName || label;
+  const purposeLabel = getTerminalPurposeLabel(terminalPurpose, runtimeProvider, autoCommand);
+  const commandLabel = currentCommand || autoCommand || (runtimeProvider ? providerMeta?.label : undefined) || shell || 'interactive shell';
+  const ptyLabel = hasExited ? 'exited' : ptyState;
+  const detailLabel = statusDetail || (runId ? `run ${runId.slice(0, 8)}` : undefined);
+  const metaParts = [
+    purposeLabel,
+    `cmd ${commandLabel}`,
+    compactPath(cwd),
+    `pty ${ptyLabel}`,
+    runtimeProvider && runtimeAttempts > 1 && !hasExited ? `retry ${runtimeAttempts - 1}` : null,
+    detailLabel
+  ].filter(Boolean);
 
   return (
     <div style={{
       width: '100%',
       height: '100%',
+      minHeight: 0,
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--app-terminal-bg)',
       border: isActive
-        ? `1.5px solid ${colorScheme.primary}`
+        ? `1.5px solid ${providerAccent}`
         : `1px solid ${colorScheme.border}`,
-      borderRadius: '12px',
+      borderRadius: compactChrome ? '8px' : '12px',
       overflow: 'hidden',
       boxShadow: isActive
-        ? `0 0 20px ${colorScheme.glow}25`
+        ? compactChrome
+          ? `0 0 0 1px ${providerAccent}38, 0 8px 18px rgba(0, 0, 0, 0.28)`
+          : (providerMeta ? `0 0 22px ${providerMeta.glow}` : colorScheme.shadowActive)
         : colorScheme.shadow,
       position: 'relative',
-      zIndex: isActive ? 100 : 1,
-      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      zIndex: isActive ? 2 : 1,
+      isolation: 'isolate',
+      transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
       // Remove transform scale which causes blurriness
       transform: 'none'
     }}>
@@ -804,373 +983,275 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         `}
       </style>
 
-      {/* Terminal header - ultra compact */}
+      {/* Terminal header */}
       <div style={{
-        display: 'flex',
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) auto',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '4px 10px',
+        gap: compactChrome ? '6px' : '8px',
+        padding: compactChrome ? '4px 6px' : '5px 8px',
         background: isActive
-          ? 'var(--app-surface-raised)'
-          : 'var(--app-surface)',
-        borderBottom: isActive ? '1px solid var(--app-border-strong)' : '1px solid var(--app-terminal-border)',
+          ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.96))'
+          : 'rgba(15, 23, 42, 0.92)',
+        borderBottom: isActive ? `1px solid ${providerAccent}55` : '1px solid var(--app-terminal-border)',
         fontSize: '10px',
         color: isActive ? 'var(--app-text)' : 'var(--app-muted)',
-        fontWeight: isActive ? '700' : '500',
         position: 'relative',
         zIndex: 10,
-        boxShadow: isActive ? '0 2px 10px var(--app-glow)' : 'inset 0 1px 1px rgba(255, 255, 255, 0.05)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-          {/* Color Picker Button */}
-          <div style={{ position: 'relative', zIndex: 2000 }} data-color-picker>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowColorPicker(!showColorPicker);
-              }}
-              style={{
-                background: colorScheme.badge,
-                border: `1px solid ${colorScheme.badgeBorder}`,
-                borderRadius: '6px',
-                padding: '4px 8px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.15s ease',
-                boxShadow: `0 0 10px ${colorScheme.glow}`,
-                position: 'relative',
-                zIndex: 2001
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = colorScheme.primary + '40';
-                e.currentTarget.style.borderColor = colorScheme.borderActive;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = colorScheme.badge;
-                e.currentTarget.style.borderColor = colorScheme.badgeBorder;
-              }}
-              title="Change terminal color"
-            >
-              <span>{colorScheme.icon}</span>
-            </button>
-
-            {/* Color Picker Dropdown */}
-            {showColorPicker && (
-              <div style={{
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                background: 'rgba(0, 0, 0, 0.95)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '12px',
-                padding: '16px',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '12px',
-                zIndex: 99999,
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
-              }}>
-                {Object.entries(COLOR_SCHEMES).map(([colorKey, scheme]) => (
-                  <button
-                    key={colorKey}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (onColorChange) {
-                        onColorChange(colorKey as TerminalColor);
-                      }
-                      setShowColorPicker(false);
-                    }}
-                    style={{
-                      background: scheme.badge,
-                      border: `2px solid ${color === colorKey ? scheme.primary : scheme.badgeBorder}`,
-                      borderRadius: '8px',
-                      padding: '12px',
-                      cursor: 'pointer',
-                      fontSize: '20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 0.15s ease',
-                      boxShadow: color === colorKey ? `0 0 20px ${scheme.glow}` : 'none'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'scale(1.15)';
-                      e.currentTarget.style.boxShadow = `0 0 20px ${scheme.glow}`;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.boxShadow = color === colorKey ? `0 0 20px ${scheme.glow}` : 'none';
-                    }}
-                    title={scheme.name}
-                  >
-                    {scheme.icon}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Rainbow Effect Toggle */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onToggleRainbow) onToggleRainbow();
-            }}
-            style={{
-              background: rainbowEffect ? 'linear-gradient(90deg, #ef4444, #f97316, #eab308, #10b981, #06b6d4, #3b82f6, #a855f7, #ec4899)' : 'rgba(100, 100, 100, 0.2)',
-              backgroundSize: '400% 100%',
-              animation: rainbowEffect ? 'borderFlow 3s linear infinite' : 'none',
-              border: `1px solid ${rainbowEffect ? 'rgba(255, 255, 255, 0.3)' : 'rgba(100, 100, 100, 0.3)'}`,
+        boxShadow: isActive ? `0 4px 14px ${providerMeta?.glow || colorScheme.glow}` : 'inset 0 1px 1px rgba(255, 255, 255, 0.04)'
+      }}
+      title={compactChrome ? metaParts.join(' / ') : undefined}
+      >
+        <div style={{ display: 'grid', gap: compactChrome ? 0 : '2px', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <span style={{
+              width: compactChrome ? '26px' : '28px',
+              height: compactChrome ? '20px' : '22px',
               borderRadius: '6px',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              display: 'flex',
+              border: `1px solid ${providerAccent}4f`,
+              background: `${providerAccent}17`,
+              color: providerAccent,
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
-              transition: 'all 0.15s ease',
-              color: rainbowEffect ? '#fff' : '#888',
-              fontWeight: '600',
-              boxShadow: rainbowEffect ? '0 0 15px rgba(255, 255, 255, 0.3)' : 'none',
-              opacity: isActive && !rainbowEffect ? 0.7 : 1
-            }}
-            onMouseEnter={(e) => {
-              if (!rainbowEffect && !isActive) {
-                e.currentTarget.style.background = 'rgba(100, 100, 100, 0.3)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!rainbowEffect && !isActive) {
-                e.currentTarget.style.background = 'rgba(100, 100, 100, 0.2)';
-              }
-            }}
-            title={isActive ? "Rainbow active (In Use)" : (rainbowEffect ? "Disable rainbow effect" : "Enable rainbow effect")}
-          >
-            <span>*</span>
-          </button>
+              justifyContent: 'center',
+              fontSize: '10px',
+              fontWeight: 900,
+              letterSpacing: 0,
+              flexShrink: 0
+            }}>
+              {providerMeta?.shortLabel || (terminalPurpose === 'dev-server' ? 'DEV' : 'SH')}
+            </span>
 
-          {/* Editable Label */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            minWidth: 0,
-            flex: 1
-          }}>
-            {isEditingLabel ? (
-              <input
-                ref={labelInputRef}
-                type="text"
-                value={editLabel}
-                onChange={(e) => setEditLabel(e.target.value)}
-                onBlur={handleLabelSave}
-                onKeyDown={handleLabelKeyDown}
-                onClick={(e) => e.stopPropagation()}
+            <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center' }}>
+              {isEditingLabel ? (
+                <input
+                  ref={labelInputRef}
+                  type="text"
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  onBlur={handleLabelSave}
+                  onKeyDown={handleLabelKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    background: 'rgba(2, 6, 23, 0.92)',
+                    border: `1px solid ${providerAccent}80`,
+                    borderRadius: '6px',
+                    padding: '2px 6px',
+                    fontSize: '11px',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    outline: 'none',
+                    minWidth: '110px',
+                    maxWidth: '220px'
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    handleLabelDoubleClick();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Double-click to edit terminal name"
+                  style={{
+                    minWidth: 0,
+                    width: 'fit-content',
+                    maxWidth: '100%',
+                    border: '0',
+                    background: 'transparent',
+                    color: isActive ? 'var(--app-text)' : '#cbd5e1',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: '11px',
+                    fontWeight: 900,
+                    textAlign: 'left',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {terminalIdentity}
+                </button>
+              )}
+            </div>
+
+            {!compactChrome && isActive ? (
+              <span style={{
+                color: providerAccent,
+                background: `${providerAccent}18`,
+                border: `1px solid ${providerAccent}3d`,
+                borderRadius: '999px',
+                padding: '2px 6px',
+                fontSize: '8px',
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                flexShrink: 0
+              }}>
+                Active
+              </span>
+            ) : null}
+
+            {compactChrome ? (
+              <span
+                title={runtimeDisplay.label}
                 style={{
-                  background: 'rgba(0, 0, 0, 0.5)',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  borderRadius: '4px',
-                  padding: '2px 6px',
-                  fontSize: '10px',
-                  color: '#ffffff',
-                  fontWeight: '600',
-                  outline: 'none',
-                  minWidth: '100px',
-                  maxWidth: '200px'
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '999px',
+                  background: runtimeDisplay.color,
+                  boxShadow: `0 0 10px ${runtimeDisplay.color}66`,
+                  flexShrink: 0
                 }}
               />
             ) : (
-              <span
-                onDoubleClick={(e) => {
-                  e.stopPropagation();
-                  handleLabelDoubleClick();
-                }}
-                style={{
-                  fontSize: '11px',
-                  color: colorScheme.primary,
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  background: colorScheme.badge,
-                  border: `1px solid ${colorScheme.badgeBorder}`,
-                  transition: 'all 0.15s ease',
-                  userSelect: 'none',
-                  boxShadow: `0 0 8px ${colorScheme.glow}`,
-                  textShadow: `0 0 10px ${colorScheme.glow}`
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = colorScheme.primary + '40';
-                  e.currentTarget.style.borderColor = colorScheme.borderActive;
-                  e.currentTarget.style.boxShadow = `0 0 15px ${colorScheme.glow}`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = colorScheme.badge;
-                  e.currentTarget.style.borderColor = colorScheme.badgeBorder;
-                  e.currentTarget.style.boxShadow = `0 0 8px ${colorScheme.glow}`;
-                }}
-                title="Double-click to edit label"
-              >
-                {label}
+              <span style={{
+              color: runtimeDisplay.color,
+              background: runtimeDisplay.background,
+              border: `1px solid ${runtimeDisplay.border}`,
+              borderRadius: '999px',
+              padding: '2px 6px',
+              fontSize: '8px',
+              fontWeight: 900,
+              textTransform: 'uppercase',
+              flexShrink: 0
+            }}>
+              {runtimeDisplay.label}
               </span>
             )}
-
-            <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
-            <span style={{
-              fontFamily: 'monospace',
-              fontSize: '9px',
-              color: isActive ? '#ffffff' : '#8b9dc3',
-              maxWidth: '300px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              opacity: isActive ? 0.9 : 0.6
-            }}>{cwd}</span>
-
-            {ptyState && !hasExited ? (
-              <>
-                <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
-                <span style={{
-                  fontSize: '9px',
-                  fontWeight: '700',
-                  color: ptyState === 'ready'
-                    ? '#67e8f9'
-                    : ptyState === 'failed'
-                      ? '#fca5a5'
-                      : '#fbbf24',
-                  background: ptyState === 'ready'
-                    ? 'rgba(6, 182, 212, 0.12)'
-                    : ptyState === 'failed'
-                      ? 'rgba(239, 68, 68, 0.12)'
-                      : 'rgba(245, 158, 11, 0.12)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  whiteSpace: 'nowrap'
-                }}>
-                  pty: {ptyState}
-                </span>
-              </>
-            ) : null}
-
-            {/* Show current command if available */}
-            {currentCommand && !hasExited && (
-              <>
-                <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
-                <span style={{
-                  fontFamily: 'monospace',
-                  fontSize: '9px',
-                  color: '#10b981',
-                  fontWeight: '600',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(16, 185, 129, 0.2)',
-                  textShadow: '0 0 8px rgba(16, 185, 129, 0.4)',
-                  maxWidth: '150px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>▶ {currentCommand}</span>
-              </>
-            )}
-
-            {runtimeProvider && !hasExited && (
-              <>
-                <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
-                <span style={{
-                  fontSize: '9px',
-                  fontWeight: '700',
-                  color: runtimeState === 'ready' || runtimeState === 'waiting-response' || runtimeState === 'running' || runtimeState === 'completed'
-                    ? '#34d399'
-                    : runtimeState === 'failed'
-                      ? '#fca5a5'
-                      : runtimeState === 'launching' || runtimeState === 'handoff' || runtimeState === 'awaiting-approval' || runtimeState === 'stalled'
-                        ? '#fbbf24'
-                        : '#cbd5e1',
-                  background: runtimeState === 'ready' || runtimeState === 'waiting-response' || runtimeState === 'running' || runtimeState === 'completed'
-                    ? 'rgba(16, 185, 129, 0.12)'
-                    : runtimeState === 'failed'
-                      ? 'rgba(239, 68, 68, 0.12)'
-                      : runtimeState === 'launching' || runtimeState === 'handoff' || runtimeState === 'awaiting-approval' || runtimeState === 'stalled'
-                        ? 'rgba(245, 158, 11, 0.12)'
-                        : 'rgba(148, 163, 184, 0.12)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  maxWidth: '220px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>{runtimeState}</span>
-              </>
-            )}
-
-            {runtimeProvider && runtimeAttempts > 1 && !hasExited ? (
-              <>
-                <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
-                <span style={{
-                  fontSize: '9px',
-                  fontWeight: '700',
-                  color: '#93c5fd',
-                  background: 'rgba(59, 130, 246, 0.12)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(59, 130, 246, 0.18)'
-                }}>
-                  retry {runtimeAttempts - 1}
-                </span>
-              </>
-            ) : null}
-
-            {hasExited && (
-              <>
-                <span style={{ opacity: 0.4, fontSize: '8px' }}>•</span>
-                <span style={{
-                  color: '#ff6b6b',
-                  fontSize: '9px',
-                  fontWeight: '600',
-                  textShadow: '0 0 8px rgba(255, 107, 107, 0.4)'
-                }}>● Exit</span>
-              </>
-            )}
           </div>
-        </div>
-        {onClose && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
+
+          {!compactChrome ? (
+            <div
             style={{
-              background: 'rgba(255, 107, 107, 0.15)',
-              border: '1px solid rgba(255, 107, 107, 0.25)',
-              color: '#ff8787',
-              cursor: 'pointer',
-              padding: '2px 6px',
-              fontSize: '11px',
-              borderRadius: '4px',
-              transition: 'all 0.15s ease',
-              fontWeight: '600'
+              ...terminalMetaLineStyle,
+              color: hasRuntimeAttention ? '#fbbf24' : '#94a3b8'
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 107, 107, 0.3)';
-              e.currentTarget.style.borderColor = 'rgba(255, 107, 107, 0.5)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 107, 107, 0.15)';
-              e.currentTarget.style.borderColor = 'rgba(255, 107, 107, 0.25)';
-            }}
-            title="Close terminal"
+            title={metaParts.join(' / ')}
           >
-            ×
-          </button>
-        )}
+            {metaParts.join(' · ')}
+            </div>
+          ) : null}
+        </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '3px',
+          position: 'relative',
+          zIndex: 2000
+        }}>
+          {!compactChrome ? (
+            <>
+              <div data-color-picker style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowColorPicker(!showColorPicker);
+                  }}
+                  style={{
+                    ...terminalToolButtonStyle,
+                    color: colorScheme.primary,
+                    background: colorScheme.badge,
+                    borderColor: colorScheme.badgeBorder
+                }}
+                title="Change terminal color"
+              >
+                  <Palette size={12} />
+                </button>
+
+                {showColorPicker && (
+                  <div style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: 'rgba(0, 0, 0, 0.95)',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: '12px',
+                    zIndex: 99999,
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.8)'
+                  }}>
+                    {Object.entries(COLOR_SCHEMES).map(([colorKey, scheme]) => (
+                      <button
+                        key={colorKey}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onColorChange?.(colorKey as TerminalColor);
+                          setShowColorPicker(false);
+                        }}
+                        style={{
+                          background: scheme.badge,
+                          border: `2px solid ${color === colorKey ? scheme.primary : scheme.badgeBorder}`,
+                          borderRadius: '8px',
+                          padding: '12px',
+                          cursor: 'pointer',
+                          fontSize: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.15s ease',
+                          boxShadow: color === colorKey ? `0 0 20px ${scheme.glow}` : 'none'
+                        }}
+                        title={scheme.name}
+                      >
+                        {scheme.icon}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleRainbow?.();
+                }}
+                style={{
+                  ...terminalToolButtonStyle,
+                  color: rainbowEffect ? '#ffffff' : '#94a3b8',
+                  background: rainbowEffect
+                    ? 'linear-gradient(90deg, #ef4444, #f97316, #eab308, #10b981, #06b6d4, #3b82f6, #a855f7, #ec4899)'
+                    : 'rgba(15, 23, 42, 0.82)',
+                  backgroundSize: '400% 100%',
+                  animation: rainbowEffect ? 'borderFlow 3s linear infinite' : 'none',
+                  borderColor: rainbowEffect ? 'rgba(255, 255, 255, 0.24)' : 'rgba(148, 163, 184, 0.16)'
+                }}
+                title={rainbowEffect ? 'Disable visual accent' : 'Enable visual accent'}
+              >
+                <Sparkles size={12} />
+              </button>
+            </>
+          ) : null}
+
+          {onClose ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              style={{
+                ...terminalToolButtonStyle,
+                color: '#fca5a5',
+                background: 'rgba(239, 68, 68, 0.10)',
+                borderColor: 'rgba(248, 113, 113, 0.22)'
+              }}
+              title="Close terminal"
+            >
+              <X size={13} />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {/* Terminal container - ultra translucent pro background */}
@@ -1183,6 +1264,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         }}
         style={{
           flex: 1,
+          minHeight: 0,
           width: '100%',
           overflow: 'hidden',
           padding: 0,
@@ -1285,5 +1367,6 @@ export const TerminalPane = memo(TerminalPaneComponent, (prev, next) => (
   prev.runtimeDetail === next.runtimeDetail &&
   prev.runtimeAttempts === next.runtimeAttempts &&
   prev.onOpenDiagnostics === next.onOpenDiagnostics &&
-  prev.isActive === next.isActive
+  prev.isActive === next.isActive &&
+  prev.compactChrome === next.compactChrome
 ));

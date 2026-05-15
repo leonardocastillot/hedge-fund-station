@@ -5,6 +5,36 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-15 - OpenCode Terminal Runtime
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added OpenCode as a first-class agent terminal runtime so the
+  workspace can launch `opencode` alongside Codex, Claude, Gemini, Shell, and
+  Dev. Provider metadata, command resolution, provider inference for
+  `opencode`/`open code`/`deepseek`, mission console provider typing, and
+  shell normalization for `opencode.cmd` were added.
+- Evidence:
+  `src/utils/agentRuntime.ts`, `src/components/electron/TerminalGrid.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/features/agents/components/MissionConsoleLauncher.tsx`, and
+  `progress/impl_opencode_terminal_runtime.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`, and
+  `rtk npm run dev:doctor` passed. Browser preview loaded `/workbench`, but it
+  had no Electron preload workspace/terminal API, so static bundle verification
+  confirmed OpenCode in the built chunks instead.
+- Follow-up: Installed official `opencode-ai@1.15.0` globally under
+  `/opt/homebrew`, verified `/opt/homebrew/bin/opencode`, confirmed
+  `opencode/deepseek-v4-flash-free` is available, and updated the OpenCode
+  launcher to start with that model by default.
+- Status: done. Renderer/Electron terminal-runtime integration only; no backend
+  strategy logic, gateway API, credentials, live routing, paper supervisor, or
+  production promotion behavior changed.
+
+---
+
 ## 2026-05-05 - File Harness Bootstrap
 
 - Agent: Codex
@@ -1852,3 +1882,373 @@ entries unless the human explicitly asks for cleanup.
   `rtk git diff --check` passed.
 - Status: done. Ready to commit and push; no live trading, credentials,
   backend strategy logic, or production routing changed.
+
+---
+
+## 2026-05-14 - Repair Runtime After Folder Move
+
+- Agent: Codex
+- Mission class: operations/runbook audit / UI review-speed audit
+- Summary: Recovered local runtime after the canonical checkout moved from
+  `New project 9` to `hedge_fund_stations`. Restarted the gateway from the new
+  checkout, restarted Electron dev, added `dev:doctor`, made Electron dev
+  status use localhost fallback, added stale old-folder gateway detection, and
+  hardened stale Obsidian vault migration.
+- Evidence:
+  `scripts/dev-doctor.mjs`,
+  `electron/main/index.ts`,
+  `electron/main/native/workspace-manager.ts`,
+  `src/features/diagnostics/pages/DiagnosticsPage.tsx`,
+  `package.json`, and
+  `progress/impl_repair_runtime_after_folder_move.md`.
+- Verification: `rtk npm run dev:doctor`, `rtk npm run gateway:probe`,
+  `rtk npm run backend:probe`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk npm run agent:check`, `rtk git diff --check`,
+  and `rtk npm run terminal:doctor` passed.
+- Status: done. No live trading, credentials, backend strategy logic, or
+  production routing changed.
+
+---
+
+## 2026-05-14 - Simplify Sidebar To Workspace
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced the wide left sidebar with a single flat Workspace
+  switcher. Removed duplicated Trading Stations, grouped desk sections, active
+  desk details, launch profiles, saved commands, and liquidation traps from that
+  panel. Updated nearby visible copy in layout, navigation, shortcuts, workspace
+  modal, and workbench empty state from desk-oriented labels to workspace
+  language.
+- Evidence:
+  `src/components/electron/Sidebar.tsx`,
+  `src/components/electron/WorkspaceModal.tsx`,
+  `src/components/electron/ElectronLayout.tsx`,
+  `src/features/cockpit/navigation.ts`,
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/App.tsx`, and
+  `progress/impl_simplify_sidebar_to_workspace.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and in-app browser smoke passed.
+- Status: done. No IPC, persistence schema, backend strategy logic, live
+  trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Workspace Conversation Chat
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added compact per-workspace conversations to `/workbench` so the
+  central surface behaves like a simple Codex-style chat. Messages and drafts
+  are scoped to the active conversation, old unscoped history migrates into
+  `Workspace history`, conversations can be closed by archiving, and archived
+  chats can be restored from history.
+- Evidence:
+  `src/types/tasks.ts`,
+  `src/contexts/CommanderTasksContext.tsx`,
+  `src/utils/missionDrafts.ts`,
+  `src/features/agents/components/MissionChatWorkbench.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`, and
+  `progress/impl_workspace_conversation_chat.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and browser smoke of
+  `http://localhost:5173/workbench` passed. The browser preview has no Electron
+  workspace bridge, so the full workspace-terminal interaction remains covered
+  by TypeScript/build verification instead of browser clicking.
+- Status: done. Renderer/localStorage only; no backend API, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Code-First Workbench Upgrade
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Made `/workbench` more code-first by removing the duplicated
+  full-chat `Active` side column, adding a compact `Work Queue` above the right
+  dock `Code` terminal grid, and reframing the old `Runs` tab as user-facing
+  `History` while preserving the internal `runs` dock mode.
+- Evidence:
+  `src/features/agents/components/MissionChatWorkbench.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`, and
+  `progress/impl_code_first_workbench_upgrade.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and browser smoke of `/workbench` passed. Browser
+  DOM confirmed `History` replaced the user-facing `Runs` tab label; Electron
+  terminal interactions remain covered by TypeScript/build/runtime checks.
+- Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Codex-Style Workspace App
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Converted `/workbench` into a chat-first workspace session. The
+  center now opens on `MissionChatWorkbench`, the right dock is contextual
+  `Code`/`Browser`/`Runs`, `/workbench` is the default route, and the left
+  workspace switcher is more compact and path-aware.
+- Evidence:
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/features/desks/workspaceDockEvents.ts`,
+  `src/features/agents/components/MissionChatWorkbench.tsx`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/components/electron/ElectronLayout.tsx`,
+  `src/features/cockpit/WidgetPanel.tsx`, and
+  `progress/impl_codex_style_workspace_app.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and headless Chrome `/workbench` smoke with an
+  Electron API mock passed.
+- Status: done. No backend API, persistence schema, strategy logic, live
+  trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-14 - Theme Couple Workspace Panels
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced hard-coded cyan/blue workbench colors with app theme
+  variables across workspace overview cards, tabs, action buttons, runtime
+  badges, embedded browser chrome, mission dock messages, draft chips, and agent
+  panel tabs/actions.
+- Evidence:
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/desks/components/DeskBrowserPanel.tsx`,
+  `src/features/agents/components/MissionChatWorkbench.tsx`,
+  `src/features/agents/panels/AgentsPanel.tsx`, and
+  `progress/impl_theme_couple_workspace_panels.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`, browser smoke, and scoped
+  static color sweep passed.
+- Status: done. Visual-only; no IPC, persistence schema, backend strategy
+  logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-14 - Workspace Dock Command Center
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Converted `/workbench` into a command-first center panel and moved
+  workspace tools into a right-side `Workspace Dock` with `Agent`, `Browser`,
+  and `Code` modes. Command launches and shortcuts now open the `Code` dock.
+  The compact browser now behaves more like Codex with back/forward/reload,
+  one URL/search bar, small tabs, and automatic URL/title persistence while
+  browsing.
+- Evidence:
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/features/desks/workspaceDockEvents.ts`,
+  `src/components/electron/ElectronLayout.tsx`,
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/desks/components/DeskBrowserPanel.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/CommandPalette.tsx`,
+  `src/App.tsx`, and
+  `progress/impl_workspace_dock_command_center.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and in-app browser DOM smoke on
+  `http://localhost:5173/workbench` passed. Screenshot capture timed out in the
+  browser tool; DOM confirmed the dock structure.
+- Status: done. No IPC, persistence schema, backend strategy logic, live
+  trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Professional Agent Code Panel
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+## 2026-05-15 - Agent View Raw Chat CLI
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed Agent View so the normal composer behaves like a real
+  workspace chat. Messages now go as raw input to a per-workspace main CLI
+  (`workspace-main-agent`) instead of creating a task through `launchAgentRun`
+  and sending the large mission capsule. Selected/roster launches remain
+  explicit controls and use only a short prompt that points the runtime at
+  `AGENTS.md`.
+- Evidence:
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/features/agents/utils/workspaceAgentViewModel.ts`,
+  `src/contexts/TerminalContext.tsx`, and
+  `progress/impl_agent_view_raw_chat_cli.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, `/workbench` HTTP smoke, and a static prompt-path
+  sweep passed.
+- Status: done. Renderer/UI only; no backend API, backend schema, strategy
+  logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Native Workspace Agent View
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added a provider-neutral Agent View as the default center
+  `/workbench` surface. It groups workspace runs, drafts, and agent terminal
+  sessions into Needs Input, Working, Completed, and Failed; supports Peek,
+  Reply, Attach, Retry, Stop, and Remove; and keeps Chat as a secondary center
+  tab.
+- Evidence:
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/features/agents/utils/workspaceAgentViewModel.ts`,
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/contexts/TerminalContext.tsx`,
+  `src/contexts/CommanderTasksContext.tsx`, and
+  `progress/impl_native_workspace_agent_view.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and `/workbench` HTTP smoke passed. In-app browser DOM
+  smoke cannot verify the Electron active workspace because the Vite browser
+  preview has no Electron preload workspace/terminal API.
+- Status: done. Renderer/UI only; no backend API, backend schema, strategy
+  logic, live trading, credentials, or production routing changed.
+
+---
+
+- Summary: Upgraded the right-side Code dock from loose launch buttons into a
+  compact Agent Launcher for Codex, Claude, Gemini, Shell, and Dev. Terminal
+  headers now foreground provider/session identity, active state, runtime
+  status, command, cwd, pty state, retry count, and last detail, while color and
+  visual-accent controls moved into secondary tools.
+- Evidence:
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/TerminalPane.tsx`, and
+  `progress/impl_professional_agent_code_panel.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and `curl` `/workbench` smoke passed. Interactive
+  browser launch smoke was skipped because browser automation was unavailable.
+- Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Minimal Agent Code Panel
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Compressed the Code dock after the agent panel pass. The launcher is
+  now a minimal `Agents` strip with provider badge, name, and status dot, while
+  detailed purpose/command/status moved into tooltips. Terminal headers now use
+  smaller badges and one subtle metadata line instead of multiple large pills.
+- Evidence:
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/TerminalPane.tsx`, and
+  `progress/impl_minimal_agent_code_panel.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and `curl` `/workbench` smoke passed.
+- Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - Terminal-First Code Panel
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Converted the right-side Code dock into a terminal-first surface.
+  Empty queue chrome no longer renders, active queue state is a compact strip,
+  agent launchers moved behind a single `+` menu, compact Code hides filters and
+  duplicate mission cards, and terminal headers now show only provider, name,
+  runtime state, and close by default.
+- Evidence:
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/TerminalPane.tsx`, and
+  `progress/impl_terminal_first_code_panel.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and `curl` `/workbench` smoke passed. Interactive
+  launch smoke was skipped because browser automation was unavailable.
+- Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+## 2026-05-15 - Compact Workspace Tools Panel
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Made the right Workspace Tools dock more terminal-first. Header and
+  large tabs became one compact toolbar, launch moved to the toolbar `+`, queue
+  status became a small badge, embedded Code lost its duplicate toolbar, and
+  compact xterm sizing now avoids the visible open-big-then-shrink behavior.
+- Evidence:
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/TerminalPane.tsx`, and
+  `progress/impl_compact_workspace_tools_panel.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`, `rtk git diff --check`,
+  and in-app browser `/workbench` toolbar smoke passed. Real Shell/Dev/Codex
+  launch smoke needs the Electron shell because the Vite browser preview has no
+  preload terminal/workspace API.
+- Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+
+---
+
+## 2026-05-15 - OpenHuman Memory Extraction
+
+- Agent: Codex
+- Mission class: architecture or agent workflow / memory update
+- Summary: Implemented a clean-room backend strategy memory index inspired by
+  OpenHuman architecture ideas without GPL code reuse or Rust migration. The
+  new index canonicalizes repo-owned evidence into bounded Markdown chunks,
+  stores deterministic chunks in SQLite/FTS, runs durable scoring/summary jobs,
+  exposes stable `hf:memory:*` commands and gateway endpoints, and feeds cited
+  snippets into `/memory` plus mission launch context.
+- Evidence:
+  `backend/hyperliquid_gateway/strategy_memory.py`,
+  `tests/test_strategy_memory_index.py`,
+  `src/features/memory/pages/MemoryGraphPage.tsx`,
+  `src/features/agents/components/CommanderConsoleV2.tsx`, and
+  `progress/impl_openhuman_memory_extraction.md`.
+- Verification: `rtk python3 -m unittest tests.test_strategy_memory_index`,
+  `rtk python3 -m unittest tests.test_strategy_memory_index
+  tests.test_strategy_learning_memory tests.test_graphify_memory_status`,
+  `rtk npm run hf:memory:sync -- --dry-run`, `rtk npm run hf:memory:sync`,
+  `rtk npm run hf:memory:query -- "what did we learn about btc adaptive cycle
+  trend"`, `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, `rtk git diff --check`, and
+  `rtk npm run hf:memory:status` passed.
+- Status: done. Backend memory index and review surfaces only; no live trading,
+  strategy promotion, credentials, GPL source reuse, or Rust migration.
+
+---
+## 2026-05-15 - Right Dock Terminal Grid
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed the right Code dock terminal layout so compact mode no longer
+  hides every terminal except the active one. The dock now renders all
+  active-workspace terminals in a responsive grid, splits two panes across the
+  available dock height, keeps 3+ panes scrollable with usable minimum row
+  height, and tightens compact terminal chrome with status dots, lucide
+  controls, and isolated stacking.
+- Evidence:
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/components/electron/TerminalPane.tsx`, and
+  `progress/impl_right_dock_terminal_grid.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run agent:check`, targeted `rtk git diff --check`,
+  `rtk npm run dev:doctor`, and `curl` `/workbench` smoke passed. Full
+  automated Electron PTY/browser interaction was skipped because browser
+  automation was unavailable and Node REPL could not import Playwright.
+- Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
+  strategy logic, live trading, credentials, or production routing changed.
+
+---
