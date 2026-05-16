@@ -11,6 +11,7 @@ import type {
   TerminalWriteParams,
   TerminalResizeParams,
   TerminalKillParams,
+  TerminalStopSessionParams,
   WorkspaceSetActiveParams,
   WorkspaceCreateParams,
   WorkspaceInferParams,
@@ -45,9 +46,14 @@ import { GeminiLiveVoiceManager } from '../native/gemini-live-voice';
 export function registerTerminalHandlers(ptyManager: PTYManager): void {
   // Terminal: Create
   ipcMain.handle('terminal:create', async (_event, params: TerminalCreateParams) => {
-    const { id, cwd, shell, autoCommand } = params;
+    const { id, cwd, shell, autoCommand, sessionBackend, sessionName, logPath, attachExisting } = params;
     try {
-      return ptyManager.createTerminal(id, cwd, shell, autoCommand);
+      return ptyManager.createTerminal(id, cwd, shell, autoCommand, {
+        sessionBackend,
+        sessionName,
+        logPath,
+        attachExisting
+      });
     } catch (error) {
       console.error('Failed to create terminal:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -70,6 +76,16 @@ export function registerTerminalHandlers(ptyManager: PTYManager): void {
   ipcMain.on('terminal:kill', (_event, params: TerminalKillParams) => {
     const { id } = params;
     ptyManager.killTerminal(id);
+  });
+
+  ipcMain.handle('terminal:stopSession', async (_event, params: TerminalStopSessionParams) => {
+    try {
+      ptyManager.stopTerminalSession(params.id, params.sessionName);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to stop terminal session:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   });
 
   // Terminal: Check if exists

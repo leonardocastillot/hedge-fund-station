@@ -3,11 +3,12 @@ import { isWorkspaceDockMode, type WorkspaceDockMode } from './workspaceDockEven
 
 export type DeskSpaceView = 'overview' | 'browser' | 'agents' | 'terminals';
 export type TerminalSortMode = 'manual' | 'status' | 'provider' | 'strategy' | 'recent';
+export type TerminalLayoutMode = 'grid' | 'list' | 'focus';
 
 export interface DeskSpaceState {
   activeView: DeskSpaceView;
   activeBrowserTabId?: string;
-  terminalLayout: 'grid' | 'vertical';
+  terminalLayout: TerminalLayoutMode;
   rightDockMode?: WorkspaceDockMode;
   terminalSortMode: TerminalSortMode;
   terminalOrder: string[];
@@ -51,10 +52,17 @@ function normalizeDeskState(state?: Partial<DeskSpaceState>): DeskSpaceState {
     ? state.terminalSortMode
     : defaultDeskState.terminalSortMode;
 
+  const rawTerminalLayout = (state as { terminalLayout?: unknown } | undefined)?.terminalLayout;
+  const terminalLayout: TerminalLayoutMode = rawTerminalLayout === 'focus'
+    ? 'focus'
+    : rawTerminalLayout === 'list' || rawTerminalLayout === 'vertical'
+      ? 'list'
+      : 'grid';
+
   return {
     activeView,
     activeBrowserTabId: typeof state?.activeBrowserTabId === 'string' ? state.activeBrowserTabId : undefined,
-    terminalLayout: state?.terminalLayout === 'vertical' ? 'vertical' : 'grid',
+    terminalLayout,
     rightDockMode: isWorkspaceDockMode(state?.rightDockMode) ? state.rightDockMode : undefined,
     terminalSortMode,
     terminalOrder: Array.isArray(state?.terminalOrder)

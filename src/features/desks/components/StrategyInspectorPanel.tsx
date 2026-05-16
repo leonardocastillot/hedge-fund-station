@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Clock3,
   FlaskConical,
+  FolderOpen,
   History,
   Loader2,
   Play,
@@ -30,6 +31,7 @@ import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import {
   hyperliquidService,
   type HyperliquidStrategyCatalogRow,
+  type HyperliquidStrategyClaim,
   type HyperliquidStrategyLabResponse
 } from '@/services/hyperliquidService';
 import {
@@ -108,6 +110,13 @@ function formatDate(value: unknown): string {
   return 'n/a';
 }
 
+function compactPath(pathValue?: string | null): string {
+  if (!pathValue) return 'repo-native';
+  const parts = pathValue.split('/').filter(Boolean);
+  if (parts.length <= 3) return pathValue;
+  return `.../${parts.slice(-3).join('/')}`;
+}
+
 function getSummaryMetric(summary: HyperliquidStrategyLabResponse['summary'], key: string): unknown {
   return summary ? summary[key] : undefined;
 }
@@ -158,9 +167,11 @@ export function StrategyInspectorPanel() {
   const [interval, setInterval] = useState('1d');
   const [pineInterval, setPineInterval] = useState('1h');
   const [lab, setLab] = useState<HyperliquidStrategyLabResponse | null>(null);
+  const [claims, setClaims] = useState<HyperliquidStrategyClaim[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [labLoading, setLabLoading] = useState(false);
   const [action, setAction] = useState<GatedAction | null>(null);
+  const [claimAction, setClaimAction] = useState<HyperliquidStrategyClaim['status'] | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [factoryOpen, setFactoryOpen] = useState(false);
   const [factoryFocus, setFactoryFocus] = useState<StrategyFactoryFocus>('auto');
@@ -170,6 +181,9 @@ export function StrategyInspectorPanel() {
     () => sortStrategies(catalog.filter((strategy) => strategyMatchesAsset(strategy, assetSymbol))),
     [assetSymbol, catalog]
   );
+  const assetWorkspaceDir = activeWorkspace?.asset_workspace_dir || (activeWorkspace ? `${activeWorkspace.path.replace(/\/$/, '')}/docs/assets/${assetSymbol}` : '');
+  const strategyIdeasDir = activeWorkspace?.strategy_ideas_dir || (activeWorkspace ? `${activeWorkspace.path.replace(/\/$/, '')}/docs/assets/${assetSymbol}/ideas` : '');
+  const strategyReviewsDir = activeWorkspace?.strategy_reviews_dir || (activeWorkspace ? `${activeWorkspace.path.replace(/\/$/, '')}/docs/assets/${assetSymbol}/reviews` : '');
   const selectedStrategy = useMemo(
     () => sortedStrategies.find((strategy) => strategy.strategyId === selectedStrategyId) || null,
     [selectedStrategyId, sortedStrategies]
@@ -194,6 +208,10 @@ export function StrategyInspectorPanel() {
         })
       : [],
     [activeWorkspace, assetSymbol, missionDrafts, runs, tasks, terminals]
+  );
+  const activeClaim = useMemo(
+    () => claims.find((claim) => claim.active && claim.assetSymbol.toUpperCase() === assetSymbol.toUpperCase()) || null,
+    [assetSymbol, claims]
   );
 
   const refreshCatalog = React.useCallback(async () => {
@@ -230,6 +248,15 @@ export function StrategyInspectorPanel() {
     }
   }, [artifactId, interval, selectedStrategyId]);
 
+  const refreshClaims = React.useCallback(async () => {
+    try {
+      const response = await hyperliquidService.getStrategyClaims({ assetSymbol, activeOnly: false });
+      setClaims(response.claims);
+    } catch {
+      setClaims([]);
+    }
+  }, [assetSymbol]);
+
   useEffect(() => {
     setSelectedStrategyId(activeWorkspace?.active_strategy_id || activeWorkspace?.strategy_id || '');
     setArtifactId('latest');
@@ -243,6 +270,10 @@ export function StrategyInspectorPanel() {
   useEffect(() => {
     void refreshLab();
   }, [refreshLab]);
+
+  useEffect(() => {
+    void refreshClaims();
+  }, [refreshClaims]);
 
   const updatePodStrategy = React.useCallback(async (strategy: HyperliquidStrategyCatalogRow | null) => {
     if (!activeWorkspace || activeWorkspace.kind !== 'strategy-pod' || !strategy) {
@@ -322,6 +353,29 @@ export function StrategyInspectorPanel() {
     }
     updateStrategySessionReview(session.sessionId, review);
   }, [updateStrategySessionReview, updateTaskReview]);
+
+  const releaseClaim = React.useCallback(async (claim: HyperliquidStrategyClaim, status: 'review' | 'done' | 'blocked') => {
+    setClaimAction(status);
+    setError(null);
+    try {
+      const result = await hyperliquidService.releaseStrategyClaim({
+        strategyId: claim.strategyId,
+        status,
+        handoffPath: claim.handoffPath || `progress/impl_${claim.strategyId}.md`,
+        notes: status === 'blocked'
+          ? 'Operator blocked this Strategy Mission Lock from the Strategy Inspector.'
+          : undefined,
+        owner: 'strategy-factory'
+      });
+      setActionResult(`Claim ${result.claim.strategyId}: ${result.claim.status}.`);
+      await refreshClaims();
+      await refreshCatalog();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not release strategy claim.');
+    } finally {
+      setClaimAction(null);
+    }
+  }, [refreshCatalog, refreshClaims]);
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-[var(--app-bg)] text-[var(--app-text)]">
@@ -403,6 +457,32 @@ export function StrategyInspectorPanel() {
           </div>
         ) : null}
 
+        {mode !== 'indicator' && activeWorkspace?.kind === 'strategy-pod' ? (
+          <div className="mb-3">
+            <AssetWorkspacePanel
+              assetSymbol={assetSymbol}
+              assetWorkspaceDir={assetWorkspaceDir}
+              strategyIdeasDir={strategyIdeasDir}
+              strategyReviewsDir={strategyReviewsDir}
+              strategyCount={sortedStrategies.length}
+              draftCount={draftSessions.length}
+              linkedCount={activeWorkspace.linked_strategy_ids?.length || 0}
+              onOpenCli={() => openDockMode('code')}
+              onCreate={() => setMode('create')}
+            />
+          </div>
+        ) : null}
+
+        {mode !== 'indicator' && activeClaim ? (
+          <div className="mb-3">
+            <ActiveStrategyClaimPanel
+              claim={activeClaim}
+              action={claimAction}
+              onRelease={releaseClaim}
+            />
+          </div>
+        ) : null}
+
         {mode === 'indicator' ? (
           <div className="h-full min-h-0">
             <BtcPineLabPanel
@@ -461,8 +541,133 @@ export function StrategyInspectorPanel() {
         open={factoryOpen}
         strategies={sortedStrategies}
         assetSymbol={assetSymbol}
-        onClose={() => setFactoryOpen(false)}
+        onClose={() => {
+          setFactoryOpen(false);
+          void refreshClaims();
+          void refreshCatalog();
+        }}
       />
+    </section>
+  );
+}
+
+function AssetWorkspacePanel({
+  assetSymbol,
+  assetWorkspaceDir,
+  strategyIdeasDir,
+  strategyReviewsDir,
+  strategyCount,
+  draftCount,
+  linkedCount,
+  onOpenCli,
+  onCreate
+}: {
+  assetSymbol: string;
+  assetWorkspaceDir: string;
+  strategyIdeasDir: string;
+  strategyReviewsDir: string;
+  strategyCount: number;
+  draftCount: number;
+  linkedCount: number;
+  onOpenCli: () => void;
+  onCreate: () => void;
+}) {
+  return (
+    <section className="rounded-md border border-cyan-300/20 bg-cyan-400/[0.06] p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200">
+            <FolderOpen size={14} />
+            Asset Workspace
+          </div>
+          <div className="mt-1 text-sm font-black text-white">{assetSymbol} strategy desk</div>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          <TinyCount label="catalog" value={strategyCount} />
+          <TinyCount label="linked" value={linkedCount} />
+          <TinyCount label="draft" value={draftCount} />
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <PathRow label="Index" pathValue={assetWorkspaceDir} />
+        <PathRow label="Ideas" pathValue={strategyIdeasDir} />
+        <PathRow label="Reviews" pathValue={strategyReviewsDir} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={onCreate} className={primaryButtonClass}>
+          <Sparkles size={14} />
+          New Idea
+        </button>
+        <button type="button" onClick={onOpenCli} className={secondaryButtonClass}>
+          <Terminal size={14} />
+          Asset CLI
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function TinyCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-[52px] rounded-md border border-white/10 bg-black/20 px-2 py-1 text-center">
+      <div className="text-sm font-black text-white">{value}</div>
+      <div className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</div>
+    </div>
+  );
+}
+
+function PathRow({ label, pathValue }: { label: string; pathValue: string }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[58px_minmax(0,1fr)] items-center gap-2 rounded-md border border-white/10 bg-black/20 px-2 py-1.5">
+      <div className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">{label}</div>
+      <div className="truncate font-mono text-[10px] leading-5 text-slate-300" title={pathValue}>
+        {compactPath(pathValue)}
+      </div>
+    </div>
+  );
+}
+
+function ActiveStrategyClaimPanel({
+  claim,
+  action,
+  onRelease
+}: {
+  claim: HyperliquidStrategyClaim;
+  action: HyperliquidStrategyClaim['status'] | null;
+  onRelease: (claim: HyperliquidStrategyClaim, status: 'review' | 'done' | 'blocked') => void;
+}) {
+  return (
+    <section className="rounded-md border border-emerald-300/25 bg-emerald-400/[0.08] p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-200">Active Strategy Claim</div>
+          <div className="mt-1 truncate text-sm font-black text-white">{claim.title}</div>
+          <div className="mt-1 font-mono text-[11px] text-emerald-100/65">{claim.assetSymbol} / {claim.strategyId} / {claim.status}</div>
+        </div>
+        <span className="rounded border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 text-[10px] font-black uppercase text-emerald-100">
+          locked
+        </span>
+      </div>
+      <div className="mt-3 grid gap-1 font-mono text-[10px] leading-5 text-emerald-100/60">
+        <div>{claim.docsPath}</div>
+        <div>{claim.backendDir}</div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={() => onRelease(claim, 'review')} disabled={Boolean(action)} className={secondaryButtonClass}>
+          {action === 'review' ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+          Move To Review
+        </button>
+        <button type="button" onClick={() => onRelease(claim, 'done')} disabled={Boolean(action)} className={secondaryButtonClass}>
+          {action === 'done' ? <Loader2 size={14} className="animate-spin" /> : <Rocket size={14} />}
+          Close Done
+        </button>
+        <button type="button" onClick={() => onRelease(claim, 'blocked')} disabled={Boolean(action)} className={secondaryButtonClass}>
+          {action === 'blocked' ? <Loader2 size={14} className="animate-spin" /> : <AlertTriangle size={14} />}
+          Block
+        </button>
+      </div>
     </section>
   );
 }

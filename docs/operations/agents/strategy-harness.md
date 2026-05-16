@@ -35,6 +35,21 @@ Use one strategy leader per `strategy_id`.
   at the same time unless the task is explicitly marked `parallelizable` and
   the leader records the split.
 
+## Strategy Mission Locks
+
+Strategy Factory and external CLI strategy missions reserve the strategy before
+launching a frontier LLM.
+
+- Use `rtk npm run hf:strategy:claim -- --asset <ASSET> --strategy-id <strategy_id> --title "<title>"`.
+- The claim creates or updates the scaffold, task queue, `progress/current.md`,
+  and `progress/strategy_claims.json`.
+- A second active claim for the same asset is blocked until the first claim is
+  released.
+- Release with `rtk npm run hf:strategy:release -- --strategy-id <strategy_id> --status review --handoff progress/impl_<strategy_id>.md`.
+- The LLM must create or modify exactly the assigned `strategy_id`; a better
+  alternate thesis is a blocker to report, not permission to create another
+  strategy in the same mission.
+
 ## Required Reads
 
 For any strategy creation, improvement, validation, or Strategy Factory mission,

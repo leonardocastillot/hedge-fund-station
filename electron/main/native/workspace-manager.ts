@@ -140,7 +140,7 @@ function isWorkspaceKind(value: unknown): value is WorkspaceKind {
 }
 
 function defaultIconForKind(kind: WorkspaceKind): string {
-  if (kind === 'strategy-pod') return 'chart';
+  if (kind === 'strategy-pod') return 'blocks';
   if (kind === 'hedge-fund') return 'chart';
   if (kind === 'command-hub') return 'terminal';
   if (kind === 'ops') return 'server';
@@ -190,6 +190,86 @@ function hasRealHedgeFundMarkers(workspacePath: string): boolean {
     || hasPath(workspacePath, 'docs', 'operations', 'hedge-fund-company-constitution.md')
     || hasPath(workspacePath, 'docs', 'hyperliquid-strategy-roadmap.md')
   );
+}
+
+function inferAssetWorkspacePaths(repoPath: string, assetSymbol: string): {
+  assetWorkspaceDir: string;
+  strategyIdeasDir: string;
+  strategyReviewsDir: string;
+} {
+  const normalizedAsset = normalizeAssetSymbol(assetSymbol);
+  const assetWorkspaceDir = path.join(repoPath, 'docs', 'assets', normalizedAsset);
+  return {
+    assetWorkspaceDir,
+    strategyIdeasDir: path.join(assetWorkspaceDir, 'ideas'),
+    strategyReviewsDir: path.join(assetWorkspaceDir, 'reviews')
+  };
+}
+
+function writeFileIfMissing(filePath: string, content: string): void {
+  if (fs.existsSync(filePath)) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content, 'utf-8');
+}
+
+function assetWorkspaceReadme(assetSymbol: string): string {
+  return [
+    `# ${assetSymbol} Asset Workspace`,
+    '',
+    'This folder is the ticker-level workspace for strategy ideas, reviews, and',
+    'operator context.',
+    '',
+    'Canonical strategy specs still live in `docs/strategies/` and backend logic',
+    'still lives in `backend/hyperliquid_gateway/strategies/`.',
+    '',
+    'Use this folder to keep the asset desk organized:',
+    '',
+    '- `ideas/` for raw or early strategy theses tied to this ticker.',
+    '- `reviews/` for human or agent review notes before a strategy becomes official.',
+    '- Link official strategy specs instead of duplicating them here.',
+    '',
+    '## Active Questions',
+    '',
+    '- What edge is worth testing next for this asset?',
+    '- Which existing strategy is the current benchmark?',
+    '- What evidence is missing before paper review?',
+    ''
+  ].join('\n');
+}
+
+function strategyIdeasReadme(assetSymbol: string): string {
+  return [
+    `# ${assetSymbol} Strategy Ideas`,
+    '',
+    'Use one short Markdown file per idea while it is still being shaped.',
+    '',
+    'When an idea graduates, create the official spec in `docs/strategies/` and',
+    'the backend package in `backend/hyperliquid_gateway/strategies/`.',
+    '',
+    'Suggested fields:',
+    '',
+    '- Hypothesis',
+    '- Regime where it should work',
+    '- Anti-regime where it should fail',
+    '- Inputs needed',
+    '- First validation command',
+    ''
+  ].join('\n');
+}
+
+function strategyReviewsReadme(assetSymbol: string): string {
+  return [
+    `# ${assetSymbol} Strategy Reviews`,
+    '',
+    'Use this folder for review notes scoped to this ticker pod.',
+    '',
+    'Generated backtests, validations, paper candidates, and agent run evidence',
+    'belong under `backend/hyperliquid_gateway/data/`, not here.',
+    ''
+  ].join('\n');
 }
 
 function inferWorkspaceKind(workspace: Pick<Workspace, 'id' | 'name' | 'path'> & Partial<Workspace>): WorkspaceKind {
@@ -432,6 +512,7 @@ function findHedgeFundRepoPath(workspaces: Workspace[]): string | undefined {
 }
 
 function createDefaultStrategyPodWorkspace(repoPath: string, shell: string): Workspace {
+  const assetPaths = inferAssetWorkspacePaths(repoPath, 'BTC');
   return {
     id: DEFAULT_STRATEGY_POD_ID,
     name: 'BTC',
@@ -463,6 +544,9 @@ function createDefaultStrategyPodWorkspace(repoPath: string, shell: string): Wor
     obsidian_vault_path: undefined,
     asset_symbol: 'BTC',
     asset_display_name: 'BTC',
+    asset_workspace_dir: assetPaths.assetWorkspaceDir,
+    strategy_ideas_dir: assetPaths.strategyIdeasDir,
+    strategy_reviews_dir: assetPaths.strategyReviewsDir,
     linked_strategy_ids: [DEFAULT_STRATEGY_ID],
     active_strategy_id: DEFAULT_STRATEGY_ID,
     strategy_id: DEFAULT_STRATEGY_ID,
@@ -676,6 +760,18 @@ export class WorkspaceManager {
         ? workspace.asset_display_name.trim()
         : assetSymbol
       : undefined;
+    const assetPaths = kind === 'strategy-pod'
+      ? inferAssetWorkspacePaths(fallbackPath, assetSymbol || 'BTC')
+      : undefined;
+    const assetWorkspaceDir = kind === 'strategy-pod'
+      ? assetPaths?.assetWorkspaceDir
+      : undefined;
+    const strategyIdeasDir = kind === 'strategy-pod'
+      ? assetPaths?.strategyIdeasDir
+      : undefined;
+    const strategyReviewsDir = kind === 'strategy-pod'
+      ? assetPaths?.strategyReviewsDir
+      : undefined;
     const defaultCommands = activeStrategyId
       ? [
           'rtk npm run agent:brief',
@@ -735,6 +831,9 @@ export class WorkspaceManager {
       obsidian_vault_path: normalizeObsidianVaultPath(fallbackPath, workspace.obsidian_vault_path),
       asset_symbol: kind === 'strategy-pod' ? assetSymbol : undefined,
       asset_display_name: kind === 'strategy-pod' ? assetDisplayName : undefined,
+      asset_workspace_dir: kind === 'strategy-pod' ? assetWorkspaceDir : undefined,
+      strategy_ideas_dir: kind === 'strategy-pod' ? strategyIdeasDir : undefined,
+      strategy_reviews_dir: kind === 'strategy-pod' ? strategyReviewsDir : undefined,
       linked_strategy_ids: kind === 'strategy-pod' ? linkedStrategyIds : undefined,
       active_strategy_id: kind === 'strategy-pod' ? activeStrategyId : undefined,
       strategy_id: kind === 'strategy-pod' ? activeStrategyId : undefined,
@@ -865,10 +964,24 @@ export class WorkspaceManager {
     this.saveConfig();
   }
 
+  private ensureAssetWorkspaceScaffold(workspace: Workspace): void {
+    if (workspace.kind !== 'strategy-pod' || !workspace.asset_symbol || !hasRealHedgeFundMarkers(workspace.path)) {
+      return;
+    }
+
+    const paths = inferAssetWorkspacePaths(workspace.path, workspace.asset_symbol);
+    fs.mkdirSync(paths.strategyIdeasDir, { recursive: true });
+    fs.mkdirSync(paths.strategyReviewsDir, { recursive: true });
+    writeFileIfMissing(path.join(paths.assetWorkspaceDir, 'README.md'), assetWorkspaceReadme(workspace.asset_symbol));
+    writeFileIfMissing(path.join(paths.strategyIdeasDir, 'README.md'), strategyIdeasReadme(workspace.asset_symbol));
+    writeFileIfMissing(path.join(paths.strategyReviewsDir, 'README.md'), strategyReviewsReadme(workspace.asset_symbol));
+  }
+
   private saveConfig(): void {
     if (!this.config) return;
 
     try {
+      this.config.workspaces.forEach((workspace) => this.ensureAssetWorkspaceScaffold(workspace));
       fs.writeFileSync(
         this.configPath,
         JSON.stringify(this.config, null, 2),

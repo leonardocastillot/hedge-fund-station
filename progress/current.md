@@ -1,19 +1,39 @@
 # Current Agent Session
 
-- Task: btc_regime_adaptive_confluence
-- Status: done
+- Task: asset_strategy_workspace_scaffold
+- Status: complete
 - Last updated: 2026-05-16
-- Owner: `codex`
+- Owner: codex
 
-## Result
+## Summary
 
-Built `btc_regime_adaptive_confluence` — progressive ATR trailing strategy.
-**263.78% return vs old champion 180.24% (+83.54% excess).**
-Validation `ready-for-paper`, paper candidate generated.
+Implemented a clearer asset-first Strategy Pod model: each ticker pod is a
+workspace, strategy ideas live under an asset folder, and official strategy docs
+and backend modules stay in their canonical locations.
 
-Key innovation: 3.5x ATR tight stop first 15 days → 5.5x wide stop after.
-Cuts losers early, lets winners run.
+## Evidence
+
+- `docs/assets/README.md`
+- `docs/assets/BTC/README.md`
+- `docs/assets/BTC/ideas/README.md`
+- `docs/assets/BTC/reviews/README.md`
+- `electron/main/native/workspace-manager.ts`
+- `electron/types/ipc.types.ts`
+- `src/types/electron.d.ts`
+- `src/contexts/WorkspaceContext.tsx`
+- `src/components/electron/Sidebar.tsx`
+- `src/components/electron/WorkspaceModal.tsx`
+- `src/features/desks/pages/DeskSpacePage.tsx`
+- `src/features/desks/components/StrategyInspectorPanel.tsx`
+- `progress/impl_asset_strategy_workspace_scaffold.md`
+
+## Verification
+
+- `rtk npm run agent:check`
+- `rtk npm run build`
+- `rtk git diff --check`
 
 ## Next
 
-Review the paper candidate, consider doubling stability audit, or explore cross-asset expansion.
+- Add a “create idea note” action from Strategy Inspector into
+  `docs/assets/<ASSET>/ideas/<idea-slug>.md`.

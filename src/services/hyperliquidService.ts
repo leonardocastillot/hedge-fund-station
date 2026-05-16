@@ -981,6 +981,42 @@ export interface HyperliquidStrategyScaffoldResult extends HyperliquidStrategySc
   skippedFiles: string[];
 }
 
+export type HyperliquidStrategyClaimStatus = 'in_progress' | 'review' | 'done' | 'blocked';
+
+export interface HyperliquidStrategyClaim {
+  claimId: string;
+  strategyId: string;
+  assetSymbol: string;
+  title: string;
+  status: HyperliquidStrategyClaimStatus;
+  owner: string;
+  taskId: string;
+  backendDir: string;
+  docsPath: string;
+  handoffPath: string | null;
+  evidencePaths: string[];
+  createdAt: string | null;
+  updatedAt: string | null;
+  releasedAt: string | null;
+  releaseNotes: string | null;
+  active: boolean;
+}
+
+export interface HyperliquidStrategyClaimResponse {
+  ok: boolean;
+  claim: HyperliquidStrategyClaim;
+  task?: Record<string, unknown>;
+  scaffold?: HyperliquidStrategyScaffoldResult;
+  idempotent?: boolean;
+}
+
+export interface HyperliquidStrategyClaimsResponse {
+  ok: boolean;
+  updatedAt: string | null;
+  activeCount: number;
+  claims: HyperliquidStrategyClaim[];
+}
+
 export interface HyperliquidValidationRunResponse {
   success: boolean;
   strategyId: string;
@@ -1283,6 +1319,38 @@ function booleanOrDefault(value: unknown, fallback = false): boolean {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
+}
+
+function claimStatus(value: unknown): HyperliquidStrategyClaimStatus {
+  return value === 'review' || value === 'done' || value === 'blocked' ? value : 'in_progress';
+}
+
+function normalizeStrategyClaim(value: unknown): HyperliquidStrategyClaim {
+  const row = isRecord(value) ? value : {};
+  const strategyId = stringOrNull(row.strategy_id) || stringOrNull(row.strategyId) || 'unknown_strategy';
+  const status = claimStatus(row.status);
+  return {
+    claimId: stringOrNull(row.claim_id) || stringOrNull(row.claimId) || strategyId,
+    strategyId,
+    assetSymbol: stringOrNull(row.asset_symbol) || stringOrNull(row.assetSymbol) || 'BTC',
+    title: stringOrNull(row.title) || strategyId.replace(/_/g, ' '),
+    status,
+    owner: stringOrNull(row.owner) || 'strategy-factory',
+    taskId: stringOrNull(row.task_id) || stringOrNull(row.taskId) || strategyId,
+    backendDir: stringOrNull(row.backend_dir) || stringOrNull(row.backendDir) || '',
+    docsPath: stringOrNull(row.docs_path) || stringOrNull(row.docsPath) || '',
+    handoffPath: stringOrNull(row.handoff_path) || stringOrNull(row.handoffPath),
+    evidencePaths: Array.isArray(row.evidence_paths)
+      ? row.evidence_paths.map(String).filter(Boolean)
+      : Array.isArray(row.evidencePaths)
+        ? row.evidencePaths.map(String).filter(Boolean)
+        : [],
+    createdAt: stringOrNull(row.created_at) || stringOrNull(row.createdAt),
+    updatedAt: stringOrNull(row.updated_at) || stringOrNull(row.updatedAt),
+    releasedAt: stringOrNull(row.released_at) || stringOrNull(row.releasedAt),
+    releaseNotes: stringOrNull(row.release_notes) || stringOrNull(row.releaseNotes),
+    active: typeof row.active === 'boolean' ? row.active : status === 'in_progress' || status === 'review'
+  };
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -1968,6 +2036,89 @@ class HyperliquidService {
       title: input.title,
       strategy_id: input.strategyId || undefined
     });
+  }
+
+  async claimStrategy(input: {
+    title: string;
+    strategyId: string;
+    assetSymbol?: string;
+    owner?: string;
+  }): Promise<HyperliquidStrategyClaimResponse> {
+    const response = await postJson<{
+      ok: boolean;
+      claim: unknown;
+      task?: Record<string, unknown>;
+      scaffold?: HyperliquidStrategyScaffoldResult;
+      idempotent?: boolean;
+    }>('/api/hyperliquid/strategies/claims', {
+      title: input.title,
+      strategy_id: input.strategyId,
+      asset_symbol: input.assetSymbol || 'BTC',
+      owner: input.owner || 'strategy-factory'
+    });
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    return {
+      ok: response.ok,
+      claim: normalizeStrategyClaim(response.claim),
+      task: response.task,
+      scaffold: response.scaffold,
+      idempotent: response.idempotent
+    };
+  }
+
+  async getStrategyClaims(options: {
+    assetSymbol?: string;
+    activeOnly?: boolean;
+  } = {}): Promise<HyperliquidStrategyClaimsResponse> {
+    const params = new URLSearchParams();
+    if (options.assetSymbol) {
+      params.set('asset_symbol', options.assetSymbol);
+    }
+    if (options.activeOnly) {
+      params.set('active_only', 'true');
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetchJson<{
+      ok: boolean;
+      updated_at?: string | null;
+      updatedAt?: string | null;
+      active_count?: number;
+      activeCount?: number;
+      claims: unknown[];
+    }>(`/api/hyperliquid/strategies/claims${suffix}`);
+    return {
+      ok: response.ok,
+      updatedAt: response.updated_at ?? response.updatedAt ?? null,
+      activeCount: Number(response.active_count ?? response.activeCount ?? 0),
+      claims: (response.claims || []).map(normalizeStrategyClaim)
+    };
+  }
+
+  async releaseStrategyClaim(input: {
+    strategyId: string;
+    status: 'review' | 'done' | 'blocked';
+    handoffPath?: string | null;
+    evidencePaths?: string[];
+    notes?: string | null;
+    owner?: string;
+  }): Promise<HyperliquidStrategyClaimResponse> {
+    const response = await postJson<{
+      ok: boolean;
+      claim: unknown;
+      task?: Record<string, unknown>;
+    }>(`/api/hyperliquid/strategies/claims/${encodeURIComponent(input.strategyId)}/release`, {
+      status: input.status,
+      handoff_path: input.handoffPath || undefined,
+      evidence_paths: input.evidencePaths || [],
+      notes: input.notes || undefined,
+      owner: input.owner || 'strategy-factory'
+    });
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    return {
+      ok: response.ok,
+      claim: normalizeStrategyClaim(response.claim),
+      task: response.task
+    };
   }
 
   async getStrategyLearning(strategyId?: string, limit = 200): Promise<HyperliquidStrategyLearningResponse> {

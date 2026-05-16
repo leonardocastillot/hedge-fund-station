@@ -6,6 +6,10 @@ Each strategy should have its own file:
 
 - `docs/strategies/<strategy-id>.md`
 
+Asset-level idea organization lives under `docs/assets/<ASSET>/`. Use asset
+folders as ticker workspaces for rough theses, idea inboxes, and review notes.
+Do not move canonical strategy specs out of `docs/strategies/`.
+
 Recommended template:
 
 ## Name

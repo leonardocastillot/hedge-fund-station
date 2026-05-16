@@ -5,14 +5,27 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   // Terminal operations - will be implemented in Phase 2
   terminal: {
-    create: (id: string, cwd: string, shell?: string, autoCommand?: string) =>
-      ipcRenderer.invoke('terminal:create', { id, cwd, shell, autoCommand }),
+    create: (
+      id: string,
+      cwd: string,
+      shell?: string,
+      autoCommand?: string,
+      options?: {
+        sessionBackend?: 'pty' | 'screen';
+        sessionName?: string;
+        logPath?: string;
+        attachExisting?: boolean;
+      }
+    ) =>
+      ipcRenderer.invoke('terminal:create', { id, cwd, shell, autoCommand, ...(options || {}) }),
     write: (id: string, data: string) =>
       ipcRenderer.send('terminal:write', { id, data }),
     resize: (id: string, cols: number, rows: number) =>
       ipcRenderer.send('terminal:resize', { id, cols, rows }),
     kill: (id: string) =>
       ipcRenderer.send('terminal:kill', { id }),
+    stopSession: (id: string, sessionName?: string) =>
+      ipcRenderer.invoke('terminal:stopSession', { id, sessionName }),
     exists: (id: string) =>
       ipcRenderer.invoke('terminal:exists', id),
     getAllIds: () =>

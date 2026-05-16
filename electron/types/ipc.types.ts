@@ -36,6 +36,9 @@ export interface Workspace {
   obsidian_vault_path?: string;
   asset_symbol?: string;
   asset_display_name?: string;
+  asset_workspace_dir?: string;
+  strategy_ideas_dir?: string;
+  strategy_reviews_dir?: string;
   linked_strategy_ids?: string[];
   active_strategy_id?: string;
   strategy_id?: string;
@@ -51,11 +54,17 @@ export interface WorkspaceConfig {
   active_workspace_id: string;
 }
 
+export type TerminalSessionBackend = 'pty' | 'screen';
+
 export interface TerminalCreateParams {
   id: string;
   cwd: string;
   shell?: string;
   autoCommand?: string;
+  sessionBackend?: TerminalSessionBackend;
+  sessionName?: string;
+  logPath?: string;
+  attachExisting?: boolean;
 }
 
 export interface TerminalCreateResult {
@@ -64,6 +73,11 @@ export interface TerminalCreateResult {
   shell?: string;
   cwd?: string;
   normalizedShell?: boolean;
+  sessionBackend?: TerminalSessionBackend;
+  sessionName?: string;
+  logPath?: string;
+  attachedExisting?: boolean;
+  autoCommandDispatched?: boolean;
 }
 
 export interface TerminalWriteParams {
@@ -79,6 +93,11 @@ export interface TerminalResizeParams {
 
 export interface TerminalKillParams {
   id: string;
+}
+
+export interface TerminalStopSessionParams {
+  id: string;
+  sessionName?: string;
 }
 
 export interface TerminalDataEvent {
@@ -97,6 +116,9 @@ export interface TerminalSnapshot {
   cwd?: string;
   shell?: string;
   autoCommand?: string;
+  sessionBackend?: TerminalSessionBackend;
+  sessionName?: string;
+  logPath?: string;
   cols: number;
   rows: number;
   exitCode?: number;

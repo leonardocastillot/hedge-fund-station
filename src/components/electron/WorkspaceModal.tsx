@@ -14,6 +14,7 @@ const ICONS = [
   { value: 'briefcase', label: 'Briefcase', code: 'BK' },
   { value: 'code', label: 'Code', code: '</>' },
   { value: 'folder', label: 'Folder', code: 'DIR' },
+  { value: 'blocks', label: 'Blocks', code: 'POD' },
   { value: 'rocket', label: 'Rocket', code: 'RUN' },
   { value: 'chart', label: 'Chart', code: 'MKT' },
   { value: 'database', label: 'Database', code: 'DB' },
@@ -55,6 +56,20 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return slug || 'tab';
+}
+
+function normalizeAssetSymbol(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+}
+
+function assetWorkspacePaths(repoPath: string, assetSymbol: string) {
+  const normalizedAsset = normalizeAssetSymbol(assetSymbol) || 'BTC';
+  const assetWorkspaceDir = `${repoPath.replace(/\/$/, '')}/docs/assets/${normalizedAsset}`;
+  return {
+    assetWorkspaceDir,
+    strategyIdeasDir: `${assetWorkspaceDir}/ideas`,
+    strategyReviewsDir: `${assetWorkspaceDir}/reviews`
+  };
 }
 
 function isSafeBrowserUrl(url: string): boolean {
@@ -123,6 +138,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [browserTabs, setBrowserTabs] = useState('');
   const [assetSymbol, setAssetSymbol] = useState('BTC');
   const [assetDisplayName, setAssetDisplayName] = useState('');
+  const [assetWorkspaceDir, setAssetWorkspaceDir] = useState('');
+  const [strategyIdeasDir, setStrategyIdeasDir] = useState('');
+  const [strategyReviewsDir, setStrategyReviewsDir] = useState('');
   const [linkedStrategyIds, setLinkedStrategyIds] = useState('');
   const [activeStrategyId, setActiveStrategyId] = useState('');
   const [strategyId, setStrategyId] = useState('');
@@ -153,6 +171,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setBrowserTabs(formatBrowserTabs(existingWorkspace.browser_tabs || []));
       setAssetSymbol(existingWorkspace.asset_symbol || existingWorkspace.strategy_symbol || 'BTC');
       setAssetDisplayName(existingWorkspace.asset_display_name || existingWorkspace.name || '');
+      setAssetWorkspaceDir(existingWorkspace.asset_workspace_dir || '');
+      setStrategyIdeasDir(existingWorkspace.strategy_ideas_dir || '');
+      setStrategyReviewsDir(existingWorkspace.strategy_reviews_dir || '');
       setLinkedStrategyIds((existingWorkspace.linked_strategy_ids || (existingWorkspace.strategy_id ? [existingWorkspace.strategy_id] : [])).join('\n'));
       setActiveStrategyId(existingWorkspace.active_strategy_id || existingWorkspace.strategy_id || '');
       setStrategyId(existingWorkspace.strategy_id || '');
@@ -177,6 +198,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setBrowserTabs('');
       setAssetSymbol('BTC');
       setAssetDisplayName('');
+      setAssetWorkspaceDir('');
+      setStrategyIdeasDir('');
+      setStrategyReviewsDir('');
       setLinkedStrategyIds('');
       setActiveStrategyId('');
       setStrategyId('');
@@ -189,6 +213,17 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     setIsAdvancedOpen(false);
     setError('');
   }, [existingWorkspace, isOpen]);
+
+  useEffect(() => {
+    if (!isStrategyPod || !path.trim()) {
+      return;
+    }
+
+    const paths = assetWorkspacePaths(path, assetSymbol);
+    setAssetWorkspaceDir(paths.assetWorkspaceDir);
+    setStrategyIdeasDir(paths.strategyIdeasDir);
+    setStrategyReviewsDir(paths.strategyReviewsDir);
+  }, [assetSymbol, isStrategyPod, path]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -227,6 +262,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
         browser_tabs: parseBrowserTabs(browserTabs),
         asset_symbol: kind === 'strategy-pod' ? assetSymbol.trim().toUpperCase() || undefined : undefined,
         asset_display_name: kind === 'strategy-pod' ? assetDisplayName.trim() || name.trim() : undefined,
+        asset_workspace_dir: kind === 'strategy-pod' ? assetWorkspaceDir.trim() || undefined : undefined,
+        strategy_ideas_dir: kind === 'strategy-pod' ? strategyIdeasDir.trim() || undefined : undefined,
+        strategy_reviews_dir: kind === 'strategy-pod' ? strategyReviewsDir.trim() || undefined : undefined,
         linked_strategy_ids: kind === 'strategy-pod'
           ? linkedStrategyIds.split('\n').map((item) => item.trim()).filter(Boolean)
           : undefined,
@@ -376,7 +414,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                             : current
                         ));
                         if (nextKind === 'strategy-pod') {
-                          setIcon('chart');
+                          setIcon('blocks');
                           setColor('#06b6d4');
                           setStrategyPodStatus((current) => current || 'draft');
                         }
@@ -408,6 +446,24 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     <Field label="Linked Strategy IDs">
                       <Textarea value={linkedStrategyIds} onChange={setLinkedStrategyIds} placeholder="btc_convex_cycle_trend" />
                     </Field>
+
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      <div>
+                        <div style={{ color: '#f9fafb', fontSize: '13px', fontWeight: 700 }}>Asset Workspace</div>
+                        <div style={{ color: '#9ca3af', fontSize: '11px', marginTop: '3px', lineHeight: 1.45 }}>
+                          Ticker-level folders for rough ideas and reviews. Official specs and backend packages stay in their canonical folders.
+                        </div>
+                      </div>
+                      <Field label="Asset Folder">
+                        <Input value={assetWorkspaceDir} onChange={() => undefined} placeholder="/Users/optimus/Documents/hedge_fund_stations/docs/assets/BTC" mono readOnly />
+                      </Field>
+                      <Field label="Idea Inbox">
+                        <Input value={strategyIdeasDir} onChange={() => undefined} placeholder="/Users/optimus/Documents/hedge_fund_stations/docs/assets/BTC/ideas" mono readOnly />
+                      </Field>
+                      <Field label="Review Notes">
+                        <Input value={strategyReviewsDir} onChange={() => undefined} placeholder="/Users/optimus/Documents/hedge_fund_stations/docs/assets/BTC/reviews" mono readOnly />
+                      </Field>
+                    </div>
 
                     <Field label="Active Strategy ID">
                       <Input value={activeStrategyId} onChange={setActiveStrategyId} placeholder="btc_convex_cycle_trend" mono />

@@ -39,6 +39,8 @@ export default function DeskSpacePage() {
   const assetSymbol = activeStrategyPod?.asset_symbol || activeStrategyPod?.strategy_symbol || 'BTC';
   const assetDisplayName = activeStrategyPod?.asset_display_name || assetSymbol;
   const activeStrategyId = activeStrategyPod?.active_strategy_id || activeStrategyPod?.strategy_id;
+  const assetWorkspaceDir = activeStrategyPod?.asset_workspace_dir || (activeStrategyPod ? `${activeStrategyPod.path.replace(/\/$/, '')}/docs/assets/${assetSymbol}` : null);
+  const strategyIdeasDir = activeStrategyPod?.strategy_ideas_dir || (activeStrategyPod ? `${activeStrategyPod.path.replace(/\/$/, '')}/docs/assets/${assetSymbol}/ideas` : null);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,8 +174,11 @@ export default function DeskSpacePage() {
                 <History size={12} />
                 Evidence
               </button>
-              <span className="inline-flex h-7 max-w-[260px] items-center rounded-md border border-white/10 bg-white/[0.025] px-2 text-[11px] font-bold text-slate-500" title={activeStrategyPod.strategy_backend_dir || activeStrategyPod.path}>
-                {compactPath(activeStrategyPod.strategy_backend_dir || activeStrategyPod.path)}
+              <span className="inline-flex h-7 max-w-[220px] items-center rounded-md border border-white/10 bg-white/[0.025] px-2 text-[11px] font-bold text-slate-500" title={assetWorkspaceDir || activeStrategyPod.path}>
+                Asset: {compactPath(assetWorkspaceDir || activeStrategyPod.path)}
+              </span>
+              <span className="inline-flex h-7 max-w-[220px] items-center rounded-md border border-white/10 bg-white/[0.025] px-2 text-[11px] font-bold text-slate-500" title={strategyIdeasDir || activeStrategyPod.path}>
+                Ideas: {compactPath(strategyIdeasDir || activeStrategyPod.path)}
               </span>
             </div>
           </div>

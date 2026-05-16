@@ -1,0 +1,396 @@
+{
+  "validation_suite": "btc_regime_adaptive_confluence",
+  "generated_at": "2026-05-16T02:51:07Z",
+  "elapsed_seconds": 294.2,
+  "overall_confidence": "moderate",
+  "checks_passed": 9,
+  "checks_total": 11,
+  "checks": {
+    "temporal_full_period": {
+      "passed": true,
+      "start": "2014-09-17",
+      "end": "2026-05-13",
+      "champion_return_pct": 180.24,
+      "new_return_pct": 263.78,
+      "excess_return_pct": 83.54,
+      "beats_champion": true
+    },
+    "temporal_train_period": {
+      "passed": true,
+      "start": "2014-09-17",
+      "end": "2021-12-31",
+      "champion_return_pct": 154.5,
+      "new_return_pct": 224.95,
+      "excess_return_pct": 70.45,
+      "beats_champion": true
+    },
+    "temporal_test_period_oos": {
+      "passed": true,
+      "start": "2022-01-01",
+      "end": "2026-05-13",
+      "champion_return_pct": 10.11,
+      "new_return_pct": 11.95,
+      "excess_return_pct": 1.84,
+      "beats_champion": true
+    },
+    "walkforward_wf_2015_2020": {
+      "passed": true,
+      "start": "2015-06-01",
+      "end": "2020-05-31",
+      "champion_return_pct": 56.15,
+      "new_return_pct": 64.55,
+      "excess_return_pct": 8.4,
+      "beats_champion": true
+    },
+    "walkforward_wf_2017_2022": {
+      "passed": true,
+      "start": "2017-06-01",
+      "end": "2022-05-31",
+      "champion_return_pct": 66.67,
+      "new_return_pct": 104.16,
+      "excess_return_pct": 37.49,
+      "beats_champion": true
+    },
+    "walkforward_wf_2019_2024": {
+      "passed": true,
+      "start": "2019-06-01",
+      "end": "2024-05-31",
+      "champion_return_pct": 72.65,
+      "new_return_pct": 120.2,
+      "excess_return_pct": 47.55,
+      "beats_champion": true
+    },
+    "walkforward_wf_2021_2026": {
+      "passed": true,
+      "start": "2021-06-01",
+      "end": "2026-05-13",
+      "champion_return_pct": 8.13,
+      "new_return_pct": 9.29,
+      "excess_return_pct": 1.16,
+      "beats_champion": true
+    },
+    "parameter_sweep": {
+      "passed": false,
+      "total": 24,
+      "max": {
+        "tight_mult": 2.5,
+        "wide_mult": 4.5,
+        "transition_day": 8,
+        "return_pct": 328.34,
+        "total_trades": 31,
+        "max_drawdown_pct": 13.87,
+        "profit_factor": 5.24
+      },
+      "min": {
+        "tight_mult": 4.5,
+        "wide_mult": 5.5,
+        "transition_day": 8,
+        "return_pct": 190.07,
+        "total_trades": 24,
+        "max_drawdown_pct": 17.07,
+        "profit_factor": 6.12
+      },
+      "optimal_ret": 263.78,
+      "optimal_rank": 14,
+      "top10_threshold": 322.26,
+      "opt_in_top10": false,
+      "plateau_90pct_count": 8,
+      "plateau_90pct_pct": 33.3,
+      "different_params_beat_default": true,
+      "all": [
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 4.5,
+          "transition_day": 8,
+          "return_pct": 328.34,
+          "total_trades": 31,
+          "max_drawdown_pct": 13.87,
+          "profit_factor": 5.24
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 6.5,
+          "transition_day": 22,
+          "return_pct": 322.26,
+          "total_trades": 29,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 5.35
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 6.5,
+          "transition_day": 8,
+          "return_pct": 317.45,
+          "total_trades": 20,
+          "max_drawdown_pct": 19.69,
+          "profit_factor": 5.73
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 6.5,
+          "transition_day": 22,
+          "return_pct": 312.49,
+          "total_trades": 21,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 8.43
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 4.5,
+          "transition_day": 22,
+          "return_pct": 309.88,
+          "total_trades": 39,
+          "max_drawdown_pct": 13.97,
+          "profit_factor": 4.36
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 6.5,
+          "transition_day": 15,
+          "return_pct": 307.13,
+          "total_trades": 26,
+          "max_drawdown_pct": 17.09,
+          "profit_factor": 4.91
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 4.5,
+          "transition_day": 15,
+          "return_pct": 296.54,
+          "total_trades": 37,
+          "max_drawdown_pct": 14.52,
+          "profit_factor": 3.99
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 6.5,
+          "transition_day": 15,
+          "return_pct": 295.81,
+          "total_trades": 19,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 8.5
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 5.5,
+          "transition_day": 22,
+          "return_pct": 295.01,
+          "total_trades": 33,
+          "max_drawdown_pct": 22.11,
+          "profit_factor": 5.23
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 6.5,
+          "transition_day": 8,
+          "return_pct": 288.66,
+          "total_trades": 19,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 7.95
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 5.5,
+          "transition_day": 8,
+          "return_pct": 283.01,
+          "total_trades": 25,
+          "max_drawdown_pct": 21.2,
+          "profit_factor": 4.78
+        },
+        {
+          "tight_mult": 2.5,
+          "wide_mult": 5.5,
+          "transition_day": 15,
+          "return_pct": 269.41,
+          "total_trades": 31,
+          "max_drawdown_pct": 23.68,
+          "profit_factor": 4.24
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 5.5,
+          "transition_day": 22,
+          "return_pct": 266.9,
+          "total_trades": 25,
+          "max_drawdown_pct": 20.92,
+          "profit_factor": 5.85
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 5.5,
+          "transition_day": 15,
+          "return_pct": 263.78,
+          "total_trades": 24,
+          "max_drawdown_pct": 19.66,
+          "profit_factor": 6.07
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 5.5,
+          "transition_day": 8,
+          "return_pct": 255.81,
+          "total_trades": 24,
+          "max_drawdown_pct": 19.66,
+          "profit_factor": 5.79
+        },
+        {
+          "tight_mult": 4.5,
+          "wide_mult": 6.5,
+          "transition_day": 22,
+          "return_pct": 254.24,
+          "total_trades": 20,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 9.91
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 4.5,
+          "transition_day": 15,
+          "return_pct": 252.3,
+          "total_trades": 29,
+          "max_drawdown_pct": 13.86,
+          "profit_factor": 5.92
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 4.5,
+          "transition_day": 22,
+          "return_pct": 250.07,
+          "total_trades": 30,
+          "max_drawdown_pct": 13.87,
+          "profit_factor": 5.5
+        },
+        {
+          "tight_mult": 4.5,
+          "wide_mult": 6.5,
+          "transition_day": 15,
+          "return_pct": 249.55,
+          "total_trades": 19,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 10.02
+        },
+        {
+          "tight_mult": 3.5,
+          "wide_mult": 4.5,
+          "transition_day": 8,
+          "return_pct": 248.33,
+          "total_trades": 29,
+          "max_drawdown_pct": 13.86,
+          "profit_factor": 5.65
+        },
+        {
+          "tight_mult": 4.5,
+          "wide_mult": 6.5,
+          "transition_day": 8,
+          "return_pct": 244.66,
+          "total_trades": 19,
+          "max_drawdown_pct": 15.97,
+          "profit_factor": 9.36
+        },
+        {
+          "tight_mult": 4.5,
+          "wide_mult": 5.5,
+          "transition_day": 15,
+          "return_pct": 193.9,
+          "total_trades": 24,
+          "max_drawdown_pct": 17.07,
+          "profit_factor": 6.37
+        },
+        {
+          "tight_mult": 4.5,
+          "wide_mult": 5.5,
+          "transition_day": 22,
+          "return_pct": 193.73,
+          "total_trades": 24,
+          "max_drawdown_pct": 17.07,
+          "profit_factor": 6.37
+        },
+        {
+          "tight_mult": 4.5,
+          "wide_mult": 5.5,
+          "transition_day": 8,
+          "return_pct": 190.07,
+          "total_trades": 24,
+          "max_drawdown_pct": 17.07,
+          "profit_factor": 6.12
+        }
+      ]
+    },
+    "cross_data_binance": {
+      "passed": true,
+      "dataset": "one_bitcoin_btc_usd_daily",
+      "champion_return_pct": 61.8,
+      "new_return_pct": 74.56,
+      "beats_champion": true
+    },
+    "bootstrap": {
+      "passed": true,
+      "iterations": 1000,
+      "original_trades": 24,
+      "original_return_pct": 263.78,
+      "median": 242.0,
+      "mean": 262.68,
+      "std": 172.0,
+      "pct_above_champ_180_24": 64.1,
+      "q25": 127.18,
+      "q75": 361.55
+    },
+    "buyhold_comparison": {
+      "passed": false,
+      "windows": 7,
+      "beaten": 0,
+      "win_rate_pct": 0.0,
+      "details": [
+        {
+          "window": "full",
+          "buyhold": 17328.59,
+          "strategy": 263.78,
+          "excess": -17064.81,
+          "beats": false
+        },
+        {
+          "window": "train",
+          "buyhold": 10025.3,
+          "strategy": 224.95,
+          "excess": -9800.35,
+          "beats": false
+        },
+        {
+          "window": "test_oos",
+          "buyhold": 67.15,
+          "strategy": 11.95,
+          "excess": -55.2,
+          "beats": false
+        },
+        {
+          "window": "wf_2015_2020",
+          "buyhold": 4144.04,
+          "strategy": 64.55,
+          "excess": -4079.49,
+          "beats": false
+        },
+        {
+          "window": "wf_2017_2022",
+          "buyhold": 1220.34,
+          "strategy": 104.16,
+          "excess": -1116.18,
+          "beats": false
+        },
+        {
+          "window": "wf_2019_2024",
+          "buyhold": 688.08,
+          "strategy": 120.2,
+          "excess": -567.88,
+          "beats": false
+        },
+        {
+          "window": "wf_2021_2026",
+          "buyhold": 117.27,
+          "strategy": 9.29,
+          "excess": -107.98,
+          "beats": false
+        }
+      ]
+    }
+  }
+}

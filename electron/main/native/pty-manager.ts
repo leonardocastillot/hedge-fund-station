@@ -1,13 +1,14 @@
 import { spawn, IPty } from 'node-pty';
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createRequire } from 'module';
-import type { TerminalCreateResult, TerminalSnapshot, TerminalSmokeTestResult } from '../../types/ipc.types';
+import type { TerminalCreateResult, TerminalSessionBackend, TerminalSnapshot, TerminalSmokeTestResult } from '../../types/ipc.types';
 import { normalizeRuntimeCommandForShell, resolveTerminalShell } from '../../../src/utils/terminalShell';
 
-const MAX_TERMINAL_BUFFER = 200_000;
+const MAX_TERMINAL_BUFFER = 2_000_000;
 const SMOKE_MARKER = 'HEDGE_STATION_PTY_OK';
 const UNIX_PATH_PREFIX = [
   '/opt/homebrew/bin',
@@ -27,6 +28,9 @@ interface TerminalRecord {
   cwd: string;
   shell?: string;
   autoCommand?: string;
+  sessionBackend: TerminalSessionBackend;
+  screenSessionName?: string;
+  screenLogPath?: string;
   cols: number;
   rows: number;
   exitCode?: number;
@@ -183,6 +187,75 @@ export class PTYManager {
     }
   }
 
+  private getScreenBinary(): string | null {
+    if (fs.existsSync('/usr/bin/screen')) {
+      return '/usr/bin/screen';
+    }
+
+    const result = spawnSync('screen', ['-v'], { encoding: 'utf8' });
+    return result.error ? null : 'screen';
+  }
+
+  private sanitizeScreenSessionName(value: string): string {
+    const safe = value
+      .trim()
+      .replace(/[^A-Za-z0-9_.-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 96);
+
+    return safe || `hedge-cli-${Date.now()}`;
+  }
+
+  private getDefaultScreenLogPath(sessionName: string): string {
+    return path.join(
+      app.getPath('userData'),
+      'terminal-sessions',
+      `${this.sanitizeScreenSessionName(sessionName)}.log`
+    );
+  }
+
+  private screenSessionExists(sessionName: string): boolean {
+    const screen = this.getScreenBinary();
+    if (!screen) {
+      return false;
+    }
+
+    const result = spawnSync(screen, ['-ls'], { encoding: 'utf8' });
+    const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+    return output.split('\n').some((line) => line.includes(`.${sessionName}`) || line.includes(`\t${sessionName}`));
+  }
+
+  private runScreenCommand(sessionName: string, command: string, value?: string): void {
+    const screen = this.getScreenBinary();
+    if (!screen) {
+      throw new Error('screen is not available. Install screen or use an ephemeral terminal.');
+    }
+
+    const args = ['-S', sessionName, '-X', command];
+    if (value !== undefined) {
+      args.push(value);
+    }
+    spawnSync(screen, args, { encoding: 'utf8' });
+  }
+
+  private readScreenLog(logPath?: string): string {
+    if (!logPath || !fs.existsSync(logPath)) {
+      return '';
+    }
+
+    try {
+      const stat = fs.statSync(logPath);
+      const start = Math.max(0, stat.size - MAX_TERMINAL_BUFFER);
+      const fd = fs.openSync(logPath, 'r');
+      const buffer = Buffer.alloc(stat.size - start);
+      fs.readSync(fd, buffer, 0, buffer.length, start);
+      fs.closeSync(fd);
+      return buffer.toString('utf8');
+    } catch {
+      return '';
+    }
+  }
+
   private getShellInitCommand(shellPath: string): string | null {
     const normalizedShell = shellPath.toLowerCase();
 
@@ -257,7 +330,18 @@ export class PTYManager {
     };
   }
 
-  createTerminal(id: string, cwd: string, shell?: string, autoCommand?: string): TerminalCreateResult {
+  createTerminal(
+    id: string,
+    cwd: string,
+    shell?: string,
+    autoCommand?: string,
+    options: {
+      sessionBackend?: TerminalSessionBackend;
+      sessionName?: string;
+      logPath?: string;
+      attachExisting?: boolean;
+    } = {}
+  ): TerminalCreateResult {
     if (this.terminals.has(id)) {
       console.warn(`Terminal ${id} already exists`);
       const existing = this.terminals.get(id);
@@ -265,8 +349,17 @@ export class PTYManager {
         success: true,
         shell: existing?.shell,
         cwd: existing?.cwd,
-        normalizedShell: false
+        normalizedShell: false,
+        sessionBackend: existing?.sessionBackend,
+        sessionName: existing?.screenSessionName,
+        logPath: existing?.screenLogPath,
+        attachedExisting: true,
+        autoCommandDispatched: true
       };
+    }
+
+    if (options.sessionBackend === 'screen') {
+      return this.createScreenTerminal(id, cwd, shell, autoCommand, options);
     }
 
     const shellResolution = resolveTerminalShell(shell, this.getDefaultShell(), os.platform());
@@ -294,6 +387,7 @@ export class PTYManager {
         cwd: validatedCwd,
         shell: shellPath,
         autoCommand: normalizedAutoCommand,
+        sessionBackend: 'pty',
         cols: 80,
         rows: 24
       });
@@ -348,12 +442,141 @@ export class PTYManager {
         success: true,
         shell: shellPath,
         cwd: validatedCwd,
-        normalizedShell: shellResolution.normalizedShell
+        normalizedShell: shellResolution.normalizedShell,
+        sessionBackend: 'pty',
+        autoCommandDispatched: Boolean(normalizedAutoCommand)
       };
     } catch (error) {
       console.error(`Failed to create terminal ${id}:`, error);
       throw this.normalizeSpawnError(error);
     }
+  }
+
+  private createScreenTerminal(
+    id: string,
+    cwd: string,
+    shell?: string,
+    autoCommand?: string,
+    options: {
+      sessionName?: string;
+      logPath?: string;
+      attachExisting?: boolean;
+    } = {}
+  ): TerminalCreateResult {
+    const screen = this.getScreenBinary();
+    if (!screen) {
+      throw new Error('Persistent CLI sessions require /usr/bin/screen, but screen was not found.');
+    }
+
+    const shellResolution = resolveTerminalShell(shell, this.getDefaultShell(), os.platform());
+    const shellPath = shellResolution.shell;
+    const normalizedAutoCommand = normalizeRuntimeCommandForShell(autoCommand, shellPath);
+    const launch = this.getShellLaunch(shellPath);
+    const validatedCwd = this.validateCwd(cwd);
+    const sessionName = this.sanitizeScreenSessionName(options.sessionName || id);
+    const logPath = options.logPath || this.getDefaultScreenLogPath(sessionName);
+    const existed = this.screenSessionExists(sessionName);
+
+    if (!existed) {
+      if (options.attachExisting) {
+        throw new Error(`Persistent screen session is not running: ${sessionName}`);
+      }
+
+      fs.mkdirSync(path.dirname(logPath), { recursive: true });
+      const start = spawnSync(screen, ['-dmS', sessionName, launch.file, ...launch.args], {
+        cwd: validatedCwd,
+        env: this.buildPtyEnv(validatedCwd),
+        encoding: 'utf8'
+      });
+
+      if (start.status !== 0) {
+        throw new Error(start.stderr || start.stdout || `Failed to start screen session ${sessionName}`);
+      }
+
+      this.runScreenCommand(sessionName, 'logfile', logPath);
+      this.runScreenCommand(sessionName, 'log', 'on');
+
+      if (normalizedAutoCommand) {
+        setTimeout(() => {
+          if (this.screenSessionExists(sessionName)) {
+            this.runScreenCommand(sessionName, 'stuff', `${normalizedAutoCommand}\r`);
+          }
+        }, 600);
+      } else {
+        setTimeout(() => {
+          if (this.screenSessionExists(sessionName)) {
+            this.runScreenCommand(sessionName, 'stuff', 'printf "\\033]0;%s\\007" "$PWD"\r');
+          }
+        }, 250);
+      }
+    }
+
+    const attachProcess = spawn(screen, ['-x', sessionName], {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      cwd: validatedCwd,
+      env: this.buildPtyEnv(validatedCwd)
+    });
+
+    const initialBuffer = this.readScreenLog(logPath).slice(-MAX_TERMINAL_BUFFER);
+    this.terminals.set(id, {
+      pty: attachProcess,
+      buffer: initialBuffer,
+      pendingData: '',
+      flushTimer: null,
+      cwd: validatedCwd,
+      shell: shellPath,
+      autoCommand: normalizedAutoCommand,
+      sessionBackend: 'screen',
+      screenSessionName: sessionName,
+      screenLogPath: logPath,
+      cols: 80,
+      rows: 24
+    });
+
+    attachProcess.onData((data: string) => {
+      this.appendToBuffer(id, data);
+      const terminal = this.terminals.get(id);
+      if (!terminal) {
+        return;
+      }
+
+      terminal.pendingData += data;
+      if (!terminal.flushTimer) {
+        terminal.flushTimer = setTimeout(() => this.flushTerminalData(id), 16);
+      }
+    });
+
+    attachProcess.onExit(({ exitCode }) => {
+      const terminal = this.terminals.get(id);
+      if (terminal) {
+        if (terminal.flushTimer) {
+          clearTimeout(terminal.flushTimer);
+          terminal.flushTimer = null;
+        }
+        if (terminal.pendingData) {
+          this.sendTerminalData(id, terminal.pendingData);
+          terminal.pendingData = '';
+        }
+        terminal.exitCode = exitCode;
+      }
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send(this.getExitChannel(id), { id, exitCode });
+      }
+    });
+
+    return {
+      success: true,
+      shell: shellPath,
+      cwd: validatedCwd,
+      normalizedShell: shellResolution.normalizedShell,
+      sessionBackend: 'screen',
+      sessionName,
+      logPath,
+      attachedExisting: existed,
+      autoCommandDispatched: Boolean(normalizedAutoCommand && !existed)
+    };
   }
 
   private getSmokeCommand(shellPath: string): string {
@@ -528,6 +751,28 @@ export class PTYManager {
     }
   }
 
+  stopTerminalSession(id: string, sessionName?: string): void {
+    const terminalRecord = this.terminals.get(id);
+    const targetSessionName = sessionName || terminalRecord?.screenSessionName;
+    if (!targetSessionName) {
+      this.killTerminal(id);
+      return;
+    }
+
+    this.runScreenCommand(targetSessionName, 'quit');
+    if (terminalRecord) {
+      try {
+        if (terminalRecord.flushTimer) {
+          clearTimeout(terminalRecord.flushTimer);
+        }
+        terminalRecord.pty.kill();
+      } catch {
+        // The screen client may already have exited after the session quit.
+      }
+      this.terminals.delete(id);
+    }
+  }
+
   killAllTerminals(): void {
     for (const [id, terminal] of this.terminals) {
       try {
@@ -556,12 +801,19 @@ export class PTYManager {
       return null;
     }
 
+    const screenLog = terminal.sessionBackend === 'screen'
+      ? this.readScreenLog(terminal.screenLogPath)
+      : '';
+
     return {
       id,
-      buffer: terminal.buffer,
+      buffer: screenLog || terminal.buffer,
       cwd: terminal.cwd,
       shell: terminal.shell,
       autoCommand: terminal.autoCommand,
+      sessionBackend: terminal.sessionBackend,
+      sessionName: terminal.screenSessionName,
+      logPath: terminal.screenLogPath,
       cols: terminal.cols,
       rows: terminal.rows,
       exitCode: terminal.exitCode

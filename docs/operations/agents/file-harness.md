@@ -17,6 +17,7 @@ external CLI, or an in-app mission runner.
 | `agent_tasks.json` | Canonical queue of scoped tasks. |
 | `CHECKPOINTS.md` | Objective review checklist. |
 | `progress/current.md` | Live session state. |
+| `progress/strategy_claims.json` | Active and closed Strategy Mission Locks. |
 | `progress/history.md` | Append-only session history. |
 | `progress/explore_<topic>.md` | Explorer reports. |
 | `progress/impl_<task>.md` | Implementation reports. |
@@ -60,6 +61,12 @@ For strategy work, `docs/operations/agents/strategy-harness.md` adds a
 write `progress/explore_strategy_<strategy_id>_<topic>.md`, implementers write
 `progress/impl_<strategy_id>.md` when no stable task id exists, and reviewers
 write `progress/review_<strategy_id>.md`.
+
+Strategy Factory and external CLI strategy missions must reserve a Strategy
+Mission Lock before implementation starts. The canonical file is
+`progress/strategy_claims.json`; the stable commands are
+`rtk npm run hf:strategy:claim`, `rtk npm run hf:strategy:claims`, and
+`rtk npm run hf:strategy:release`.
 
 ## Anti-Telephone Rule
 

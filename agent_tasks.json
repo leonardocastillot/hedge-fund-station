@@ -18,6 +18,73 @@
   },
   "tasks": [
     {
+      "id": "strategy_mission_locks",
+      "title": "Implement Strategy Mission Locks for one-strategy-per-LLM sessions",
+      "mission_class": "repo health audit",
+      "priority": 0,
+      "scope": [
+        "AGENTS.md",
+        "agent_tasks.json",
+        "docs/operations/agents/file-harness.md",
+        "docs/operations/agents/strategy-harness.md",
+        "package.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/strategy_claims.json",
+        "progress/impl_strategy_mission_locks.md",
+        "backend/hyperliquid_gateway/strategy_claims.py",
+        "backend/hyperliquid_gateway/cli.py",
+        "backend/hyperliquid_gateway/app.py",
+        "scripts/agent_harness.py",
+        "src/services/hyperliquidService.ts",
+        "src/utils/strategyFactoryMission.ts",
+        "src/utils/agentOrchestration.ts",
+        "src/utils/missionDraftLaunch.ts",
+        "src/types/tasks.ts",
+        "src/features/strategies/components/StrategyFactoryModal.tsx",
+        "src/features/desks/components/StrategyInspectorPanel.tsx",
+        "tests/test_strategy_claims.py"
+      ],
+      "acceptance": [
+        "Strategy Factory reserves a strategy_id before launching a frontier CLI.",
+        "The shared CLI/API claim flow creates or updates scaffold files, agent_tasks.json, progress/current.md, and progress/strategy_claims.json.",
+        "A second active strategy claim for the same asset is blocked unless the first claim is released.",
+        "Strategy Factory prompts force the LLM to create or modify exactly the assigned strategy_id.",
+        "The harness validates strategy claims, active task alignment, and claimed strategy scope.",
+        "Current harness debt is fixed so agent:check can pass.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk python3 -m unittest tests.test_strategy_catalog tests.test_strategy_claims",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "AGENTS.md",
+        "docs/operations/agents/file-harness.md",
+        "docs/operations/agents/strategy-harness.md",
+        "backend/hyperliquid_gateway/strategy_claims.py",
+        "backend/hyperliquid_gateway/cli.py",
+        "backend/hyperliquid_gateway/app.py",
+        "scripts/agent_harness.py",
+        "src/services/hyperliquidService.ts",
+        "src/utils/strategyFactoryMission.ts",
+        "src/utils/agentOrchestration.ts",
+        "src/utils/missionDraftLaunch.ts",
+        "src/types/tasks.ts",
+        "src/features/strategies/components/StrategyFactoryModal.tsx",
+        "src/features/desks/components/StrategyInspectorPanel.tsx",
+        "tests/test_strategy_claims.py",
+        "progress/strategy_claims.json",
+        "progress/impl_strategy_mission_locks.md"
+      ],
+      "notes": "Done. Strategy Mission Locks now reserve one strategy_id before Strategy Factory or external CLI implementation, block overlapping active claims per asset, expose claim/list/release through CLI and API, and show active claim controls in Strategy Inspector. No live trading, credentials, production routing, or strategy promotion changes were made; any future live path remains blocked behind research, backtest, validation, paper evidence, risk review, operator sign-off, and a production runbook."
+    },
+    {
       "id": "btc_convex_cycle_trend",
       "title": "Manual factory smoke: build BTC Convex Cycle Trend against the current BTC daily champion",
       "mission_class": "strategy research",
@@ -1092,7 +1159,7 @@
         "rtk npm run hf:status",
         "rtk git diff --check"
       ],
-      "status": "cancelled",
+      "status": "blocked",
       "owner": "codex",
       "parallelizable": false,
       "evidence_paths": [],
@@ -1137,7 +1204,46 @@
         "backend/hyperliquid_gateway/data/paper/btc_regime_adaptive_confluence-20260516T021419Z.json",
         "progress/impl_btc_regime_adaptive_confluence.md"
       ],
-      "notes": "Done. New champion: 263.78% vs old champion 180.24% (+83.54% excess). Progressive ATR trailing (tight 3.5x first 15d, then 5.5x) is the key innovation. Validation ready-for-paper, paper candidate generated. No live routing or production promotion."
+      "notes": "Done. New champion: 263.78% vs old champion 180.24% (+83.54% excess). Progressive ATR trailing (tight 3.5x first 15d, then 5.5x) is the key innovation. Validation ready-for-paper, paper candidate generated. No live routing or production promotion; any future live path remains blocked behind operator sign-off."
+    },
+    {
+      "id": "btc_multiframe_trend_ensemble",
+      "title": "BTC Multi-Timeframe Trend Ensemble (229.64%, anti-overfit)",
+      "mission_class": "strategy research",
+      "priority": 1,
+      "scope": [
+        "backend/hyperliquid_gateway/strategies/btc_multiframe_trend_ensemble/",
+        "docs/strategies/btc-multiframe-trend-ensemble.md",
+        "backend/hyperliquid_gateway/backtesting/registry.py"
+      ],
+      "acceptance": [
+        "Registered backend strategy package with deterministic logic, scoring, risk, paper, backtest, spec, and docs.",
+        "500 USD taker backtest returns > 180%.",
+        "Profit factor > 2.5, max drawdown < 22%.",
+        "Doubling stability shows > 0% positive slices (anti-overfit).",
+        "Validation is ready-for-paper and paper candidate generated."
+      ],
+      "verification": [
+        "rtk npm run hf:backtest -- --strategy btc_multiframe_trend_ensemble --equity 500 --fee-model taker",
+        "rtk npm run hf:validate -- --strategy btc_multiframe_trend_ensemble",
+        "rtk npm run hf:paper -- --strategy btc_multiframe_trend_ensemble",
+        "rtk npm run hf:doubling:stability -- --strategy btc_multiframe_trend_ensemble",
+        "rtk npm run agent:check"
+      ],
+      "status": "done",
+      "owner": "opencode",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/btc-multiframe-trend-ensemble.md",
+        "backend/hyperliquid_gateway/strategies/btc_multiframe_trend_ensemble/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_multiframe_trend_ensemble-btc_usd_daily_yahoo-20260516T030028Z.json",
+        "backend/hyperliquid_gateway/data/validations/btc_multiframe_trend_ensemble-20260516T030032Z.json",
+        "backend/hyperliquid_gateway/data/paper/btc_multiframe_trend_ensemble-20260516T030036Z.json",
+        "backend/hyperliquid_gateway/data/audits/btc_multiframe_trend_ensemble-doubling-stability-20260516T030041Z.json",
+        "progress/impl_btc_multiframe_trend_ensemble.md"
+      ],
+      "notes": "Done. 229.64% return, 5.85 profit factor, 19.8% max drawdown. Anti-overfit design: 4 MA pair ensemble voting (no single pair dominates), smooth vol scaling (no step functions), structure exit via consensus collapse. 100% positive doubling stability slices. Different approach from champion (ensemble vs single MA pair)."
     }
   ]
 }

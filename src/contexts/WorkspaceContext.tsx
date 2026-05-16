@@ -5,6 +5,16 @@ import { useAgentProfilesContext } from './AgentProfilesContext';
 const WORKSPACE_KINDS = new Set(['strategy-pod', 'hedge-fund', 'command-hub', 'project', 'ops']);
 const FALLBACK_REPO_PATH = '/Users/optimus/Documents/hedge_fund_stations';
 
+function assetWorkspacePaths(repoPath: string, assetSymbol: string) {
+  const normalizedAsset = assetSymbol.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '') || 'BTC';
+  const assetWorkspaceDir = `${repoPath.replace(/\/$/, '')}/docs/assets/${normalizedAsset}`;
+  return {
+    assetWorkspaceDir,
+    strategyIdeasDir: `${assetWorkspaceDir}/ideas`,
+    strategyReviewsDir: `${assetWorkspaceDir}/reviews`
+  };
+}
+
 function uniqueStrategyIds(values: Array<string | undefined | null>): string[] {
   return Array.from(new Set(values
     .flatMap((value) => Array.isArray(value) ? value : [value])
@@ -13,6 +23,7 @@ function uniqueStrategyIds(values: Array<string | undefined | null>): string[] {
 }
 
 function createFallbackStrategyPod(): Workspace {
+  const assetPaths = assetWorkspacePaths(FALLBACK_REPO_PATH, 'BTC');
   return {
     id: 'strategy-pod-btc-convex-cycle-trend',
     name: 'BTC',
@@ -21,7 +32,7 @@ function createFallbackStrategyPod(): Workspace {
     description: 'Asset pod for BTC strategy research sessions.',
     pinned: true,
     default_route: '/workbench',
-    icon: 'chart',
+    icon: 'blocks',
     color: '#22d3ee',
     default_commands: [
       'rtk npm run agent:brief',
@@ -45,6 +56,9 @@ function createFallbackStrategyPod(): Workspace {
     shell: '/bin/zsh',
     asset_symbol: 'BTC',
     asset_display_name: 'BTC',
+    asset_workspace_dir: assetPaths.assetWorkspaceDir,
+    strategy_ideas_dir: assetPaths.strategyIdeasDir,
+    strategy_reviews_dir: assetPaths.strategyReviewsDir,
     linked_strategy_ids: ['btc_convex_cycle_trend'],
     active_strategy_id: 'btc_convex_cycle_trend',
     strategy_id: 'btc_convex_cycle_trend',
@@ -80,6 +94,7 @@ function normalizeWorkspaces(workspaces: Workspace[]): Workspace[] {
     const assetDisplayName = typeof workspace.asset_display_name === 'string' && workspace.asset_display_name.trim()
       ? workspace.asset_display_name.trim()
       : assetSymbol;
+    const assetPaths = kind === 'strategy-pod' ? assetWorkspacePaths(workspace.path, assetSymbol || 'BTC') : undefined;
     return {
       ...workspace,
       kind,
@@ -93,6 +108,9 @@ function normalizeWorkspaces(workspaces: Workspace[]): Workspace[] {
       obsidian_vault_path: typeof workspace.obsidian_vault_path === 'string' ? workspace.obsidian_vault_path : undefined,
       asset_symbol: kind === 'strategy-pod' ? assetSymbol : undefined,
       asset_display_name: kind === 'strategy-pod' ? assetDisplayName : undefined,
+      asset_workspace_dir: kind === 'strategy-pod' ? assetPaths?.assetWorkspaceDir : undefined,
+      strategy_ideas_dir: kind === 'strategy-pod' ? assetPaths?.strategyIdeasDir : undefined,
+      strategy_reviews_dir: kind === 'strategy-pod' ? assetPaths?.strategyReviewsDir : undefined,
       linked_strategy_ids: kind === 'strategy-pod' ? linkedStrategyIds : undefined,
       active_strategy_id: kind === 'strategy-pod' ? activeStrategyId : undefined,
       strategy_id: kind === 'strategy-pod' ? activeStrategyId : undefined,

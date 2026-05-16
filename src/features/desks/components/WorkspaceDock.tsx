@@ -387,6 +387,7 @@ export function WorkspaceDock() {
         workspaceId: activeWorkspace.id,
         ...buildStrategySessionMetadata(activeWorkspace),
         terminalPurpose,
+        persistenceMode: terminalPurpose === 'dev-server' ? 'ephemeral' : 'screen',
         ...(runtimeProvider ? { runtimeProvider, agentName: `${label} Agent` } : {})
       }
     );

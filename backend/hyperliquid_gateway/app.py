@@ -48,6 +48,13 @@ try:
         strategy_memory_status,
         sync_strategy_memory,
     )
+    from .strategy_claims import (
+        StrategyClaimConflictError,
+        StrategyClaimError,
+        claim_strategy,
+        list_strategy_claims,
+        release_strategy_claim,
+    )
     from .strategy_scaffold import (
         StrategyScaffoldError,
         preview_strategy_scaffold,
@@ -95,6 +102,13 @@ except ImportError:
         query_strategy_memory,
         strategy_memory_status,
         sync_strategy_memory,
+    )
+    from strategy_claims import (
+        StrategyClaimConflictError,
+        StrategyClaimError,
+        claim_strategy,
+        list_strategy_claims,
+        release_strategy_claim,
     )
     from strategy_scaffold import (
         StrategyScaffoldError,
@@ -266,6 +280,21 @@ class StrategyScaffoldPreviewCreate(BaseModel):
 class StrategyScaffoldCreate(BaseModel):
     title: str = Field(min_length=2, max_length=180)
     strategy_id: Optional[str] = Field(default=None, max_length=160)
+
+
+class StrategyClaimCreate(BaseModel):
+    title: str = Field(min_length=2, max_length=180)
+    strategy_id: str = Field(min_length=2, max_length=160)
+    asset_symbol: str = Field(default="BTC", min_length=1, max_length=24)
+    owner: str = Field(default="strategy-factory", max_length=120)
+
+
+class StrategyClaimReleaseCreate(BaseModel):
+    status: Literal["review", "done", "blocked"]
+    handoff_path: Optional[str] = Field(default=None, max_length=260)
+    evidence_paths: list[str] = Field(default_factory=list)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+    owner: str = Field(default="strategy-factory", max_length=120)
 
 
 class StrategyLearningEventCreate(BaseModel):
@@ -6481,6 +6510,53 @@ async def strategy_scaffold(payload: StrategyScaffoldCreate) -> dict[str, Any]:
             docs_root=DOCS_STRATEGIES_ROOT,
         )
     except StrategyScaffoldError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/hyperliquid/strategies/claims")
+async def strategy_claims(
+    asset_symbol: Optional[str] = None,
+    active_only: bool = False,
+) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(
+            list_strategy_claims,
+            asset_symbol=asset_symbol,
+            include_closed=not active_only,
+        )
+    except StrategyClaimError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/hyperliquid/strategies/claims")
+async def strategy_claim(payload: StrategyClaimCreate) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(
+            claim_strategy,
+            strategy_id=payload.strategy_id,
+            title=payload.title,
+            asset_symbol=payload.asset_symbol,
+            owner=payload.owner,
+        )
+    except StrategyClaimConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (StrategyClaimError, StrategyScaffoldError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/hyperliquid/strategies/claims/{strategy_id}/release")
+async def strategy_claim_release(strategy_id: str, payload: StrategyClaimReleaseCreate) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(
+            release_strategy_claim,
+            strategy_id=strategy_id,
+            status=payload.status,
+            handoff_path=payload.handoff_path,
+            evidence_paths=payload.evidence_paths,
+            notes=payload.notes,
+            owner=payload.owner,
+        )
+    except StrategyClaimError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

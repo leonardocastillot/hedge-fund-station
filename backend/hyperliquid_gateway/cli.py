@@ -37,6 +37,13 @@ from .backtesting.workflow import (
 )
 from .agents import agent_runtime_status, list_agent_runs, run_agent_audit, run_agent_research
 from .strategy_memory import query_strategy_memory, strategy_memory_status, sync_strategy_memory
+from .strategy_claims import (
+    StrategyClaimConflictError,
+    StrategyClaimError,
+    claim_strategy,
+    list_strategy_claims,
+    release_strategy_claim,
+)
 from .strategy_scaffold import write_strategy_scaffold
 
 
@@ -63,6 +70,27 @@ def build_parser() -> argparse.ArgumentParser:
     strategy_new.add_argument("--strategy-id", required=True)
     strategy_new.add_argument("--title", default=None)
     strategy_new.set_defaults(func=command_strategy_new)
+
+    strategy_claim = strategy_subparsers.add_parser("claim", help="Reserve one strategy_id for one active Strategy Factory mission.")
+    strategy_claim.add_argument("--asset", "--asset-symbol", dest="asset_symbol", default="BTC")
+    strategy_claim.add_argument("--strategy-id", required=True)
+    strategy_claim.add_argument("--title", required=True)
+    strategy_claim.add_argument("--owner", default="strategy-factory")
+    strategy_claim.set_defaults(func=command_strategy_claim)
+
+    strategy_claims = strategy_subparsers.add_parser("claims", help="List Strategy Mission Locks.")
+    strategy_claims.add_argument("--asset", "--asset-symbol", dest="asset_symbol", default=None)
+    strategy_claims.add_argument("--active-only", action="store_true")
+    strategy_claims.set_defaults(func=command_strategy_claims)
+
+    strategy_release = strategy_subparsers.add_parser("release", help="Move a Strategy Mission Lock to review, done, or blocked.")
+    strategy_release.add_argument("--strategy-id", required=True)
+    strategy_release.add_argument("--status", choices=["review", "done", "blocked"], required=True)
+    strategy_release.add_argument("--handoff", default=None)
+    strategy_release.add_argument("--evidence", action="append", default=None)
+    strategy_release.add_argument("--notes", default=None)
+    strategy_release.add_argument("--owner", default="strategy-factory")
+    strategy_release.set_defaults(func=command_strategy_release)
 
     market_data_parser = subparsers.add_parser("market-data", help="Market data cache helpers for backend backtests.")
     market_data_subparsers = market_data_parser.add_subparsers(dest="market_data_command", required=True)
@@ -296,6 +324,54 @@ def command_strategy_new(args: argparse.Namespace) -> int:
             indent=2,
         )
     )
+    return 0
+
+
+def command_strategy_claim(args: argparse.Namespace) -> int:
+    try:
+        result = claim_strategy(
+            strategy_id=args.strategy_id,
+            title=args.title,
+            asset_symbol=args.asset_symbol,
+            owner=args.owner,
+        )
+    except StrategyClaimConflictError as exc:
+        print(json.dumps({"ok": False, "error": str(exc), "conflict": True}, indent=2))
+        return 2
+    except StrategyClaimError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+        return 1
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def command_strategy_claims(args: argparse.Namespace) -> int:
+    try:
+        result = list_strategy_claims(
+            asset_symbol=args.asset_symbol,
+            include_closed=not args.active_only,
+        )
+    except StrategyClaimError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+        return 1
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def command_strategy_release(args: argparse.Namespace) -> int:
+    try:
+        result = release_strategy_claim(
+            strategy_id=args.strategy_id,
+            status=args.status,
+            handoff_path=args.handoff,
+            evidence_paths=args.evidence or [],
+            notes=args.notes,
+            owner=args.owner,
+        )
+    except StrategyClaimError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+        return 1
+    print(json.dumps(result, indent=2))
     return 0
 
 

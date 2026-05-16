@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import {
   Activity,
   ArrowRight,
+  Blocks,
   CheckCircle2,
-  Bot,
   Database,
   FlaskConical,
   HeartPulse,
@@ -41,7 +41,7 @@ const MODULE_LINKS = [
   { label: 'Strategy Pipeline', to: '/strategies', icon: FlaskConical },
   { label: 'Audit Focus', to: '/strategy-audit', icon: ShieldCheck },
   { label: 'Paper', to: '/paper', icon: ListChecks },
-  { label: 'Desk Space', to: '/workbench', icon: Bot },
+  { label: 'Desk Space', to: '/workbench', icon: Blocks },
   { label: 'Data', to: '/data', icon: Database },
   { label: 'Terminals', to: '/terminals', icon: Terminal }
 ];

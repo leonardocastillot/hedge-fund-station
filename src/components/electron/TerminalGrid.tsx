@@ -5,7 +5,7 @@ import { TerminalPane } from './TerminalPane';
 import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useCommanderTasksContext } from '../../contexts/CommanderTasksContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
-import { useDeskSpaceContext, type TerminalSortMode } from '../../features/desks/DeskSpaceContext';
+import { useDeskSpaceContext, type TerminalLayoutMode, type TerminalSortMode } from '../../features/desks/DeskSpaceContext';
 import { loadAppSettings } from '../../utils/appSettings';
 import { getProviderMeta, resolveAgentRuntimeCommand } from '../../utils/agentRuntime';
 import { resolveTerminalShell } from '../../utils/terminalShell';
@@ -20,6 +20,11 @@ const TERMINAL_SORT_OPTIONS: Array<{ value: TerminalSortMode; label: string }> =
   { value: 'provider', label: 'Provider' },
   { value: 'strategy', label: 'Strategy' },
   { value: 'recent', label: 'Recent' }
+];
+const TERMINAL_LAYOUT_OPTIONS: Array<{ value: TerminalLayoutMode; label: string }> = [
+  { value: 'grid', label: 'Grid' },
+  { value: 'list', label: 'List' },
+  { value: 'focus', label: 'Focus' }
 ];
 type QuickTerminalType = 'shell' | 'codex' | 'opencode' | 'claude' | 'gemini' | 'dev' | 'git' | 'python';
 type AgentLauncherItem = {
@@ -250,17 +255,18 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
     toggleTerminalPinned,
     touchTerminalActivity,
     retryTerminalRuntime,
+    stopTerminalSession,
     toggleRainbowEffect,
     onLayoutUpdateNeeded
   } = useTerminalContext();
   const { runs, tasks, updateRun, updateTaskStatus } = useCommanderTasksContext();
   const { activeWorkspace, workspaces } = useWorkspaceContext();
   const { getDeskState, setDeskState } = useDeskSpaceContext();
-  const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>(compact ? 'vertical' : 'grid');
   const [deskFilter, setDeskFilter] = React.useState<TerminalDeskFilter>(defaultDeskFilter);
   const [handoffNotice, setHandoffNotice] = React.useState<string | null>(null);
   const minimalCodeChrome = embedded && compact;
   const deskState = React.useMemo(() => getDeskState(activeWorkspace?.id), [activeWorkspace?.id, getDeskState]);
+  const layoutMode = deskState.terminalLayout;
   const terminalLimitReached = terminals.length >= MAX_TERMINALS;
   const settings = React.useMemo(() => loadAppSettings(), []);
   const activeShell = React.useMemo(
@@ -595,6 +601,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
         workspaceId: activeWorkspace?.id,
         ...buildTerminalStrategySessionMetadata(activeWorkspace),
         terminalPurpose,
+        persistenceMode: terminalPurpose === 'dev-server' ? 'ephemeral' : 'screen',
         ...(runtimeProvider ? { runtimeProvider, agentName: `${label} Agent` } : {})
       }
     );
@@ -604,11 +611,22 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
     closeTerminal(terminalId);
   };
 
+  const handleStopTerminalSession = React.useCallback((terminalId: string) => {
+    void stopTerminalSession(terminalId);
+  }, [stopTerminalSession]);
+
   const handleSortModeChange = React.useCallback((mode: TerminalSortMode) => {
     if (!activeWorkspace?.id) {
       return;
     }
     setDeskState(activeWorkspace.id, { terminalSortMode: mode });
+  }, [activeWorkspace?.id, setDeskState]);
+
+  const handleLayoutModeChange = React.useCallback((mode: TerminalLayoutMode) => {
+    if (!activeWorkspace?.id) {
+      return;
+    }
+    setDeskState(activeWorkspace.id, { terminalLayout: mode });
   }, [activeWorkspace?.id, setDeskState]);
 
   const handleMoveTerminal = React.useCallback((terminal: TerminalSession, direction: 'up' | 'down') => {
@@ -708,10 +726,22 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
     return { cols: 2, rows: 3 };
   };
 
-  const gridLayout = getGridLayout(visibleTerminals.length);
+  const focusTerminal = React.useMemo(() => {
+    if (layoutMode !== 'focus') {
+      return null;
+    }
+
+    return visibleTerminals.find((terminal) => terminalKey(terminal) === deskState.activeTerminalKey)
+      || visibleTerminals.find((terminal) => terminal.id === activeTerminalId)
+      || visibleTerminals[0]
+      || null;
+  }, [activeTerminalId, deskState.activeTerminalKey, layoutMode, visibleTerminals]);
+  const layoutTerminals = focusTerminal ? [focusTerminal] : visibleTerminals;
+  const gridLayout = getGridLayout(layoutTerminals.length);
   const compactGridColumns = 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))';
   const compactGridRows = visibleTerminals.length <= 2 ? 'minmax(0, 1fr)' : 'minmax(180px, 1fr)';
-  const useStackLayout = !minimalCodeChrome && layoutMode === 'vertical';
+  const useListLayout = layoutMode === 'list';
+  const useFocusLayout = layoutMode === 'focus';
 
   if (visibleTerminals.length === 0 && minimalCodeChrome) {
     return (
@@ -790,13 +820,20 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
       gap: minimalCodeChrome ? '0' : '8px'
     }}>
       {minimalCodeChrome ? (
-        <TerminalOrderToolbar
-          value={deskState.terminalSortMode}
-          count={visibleTerminals.length}
-          restoreCount={visibleTerminals.filter((terminal) => terminal.restoreState === 'reopenable').length}
-          onChange={handleSortModeChange}
-          compact
-        />
+        <div style={compactTerminalToolbarStyle}>
+          <TerminalLayoutToolbar
+            value={layoutMode}
+            onChange={handleLayoutModeChange}
+            compact
+          />
+          <TerminalOrderToolbar
+            value={deskState.terminalSortMode}
+            count={visibleTerminals.length}
+            restoreCount={visibleTerminals.filter((terminal) => terminal.restoreState === 'reopenable').length}
+            onChange={handleSortModeChange}
+            compact
+          />
+        </div>
       ) : null}
 
       {!minimalCodeChrome ? (
@@ -835,27 +872,10 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
               {visibleTerminals.length}/{MAX_TERMINALS}
             </div>
 
-            <button
-              onClick={() => setLayoutMode(layoutMode === 'grid' ? 'vertical' : 'grid')}
-              title={layoutMode === 'grid' ? 'Switch to vertical layout' : 'Switch to grid layout'}
-              style={{
-                height: '24px',
-                padding: '2px 7px',
-                background: 'var(--app-panel-muted)',
-                border: '1px solid var(--app-border)',
-                borderRadius: '6px',
-                color: 'var(--app-subtle)',
-                fontSize: '10px',
-                fontWeight: '800',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {layoutMode === 'grid' ? 'Grid' : 'Vertical'}
-            </button>
+            <TerminalLayoutToolbar
+              value={layoutMode}
+              onChange={handleLayoutModeChange}
+            />
 
             <TerminalDeskFilterBar
               value={deskFilter}
@@ -933,32 +953,43 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
         </div>
       ) : null}
 
+      {useFocusLayout && visibleTerminals.length > 1 ? (
+        <TerminalFocusStrip
+          terminals={visibleTerminals}
+          activeTerminal={focusTerminal}
+          onSelect={handleFocusTerminal}
+        />
+      ) : null}
+
       <div style={{
         flex: 1,
         minHeight: 0,
-        display: useStackLayout ? 'flex' : 'grid',
-        flexDirection: useStackLayout ? 'column' : undefined,
-        gridTemplateColumns: !useStackLayout
+        display: useListLayout ? 'flex' : 'grid',
+        flexDirection: useListLayout ? 'column' : undefined,
+        gridTemplateColumns: !useListLayout
           ? (minimalCodeChrome ? compactGridColumns : `repeat(${gridLayout.cols}, 1fr)`)
           : undefined,
-        gridTemplateRows: !useStackLayout && !minimalCodeChrome ? `repeat(${gridLayout.rows}, 1fr)` : undefined,
-        gridAutoRows: !useStackLayout && minimalCodeChrome ? compactGridRows : undefined,
+        gridTemplateRows: !useListLayout && !minimalCodeChrome ? `repeat(${gridLayout.rows}, 1fr)` : undefined,
+        gridAutoRows: !useListLayout && minimalCodeChrome ? compactGridRows : undefined,
         gap: minimalCodeChrome ? '5px' : '6px',
-        overflow: useStackLayout || (minimalCodeChrome && visibleTerminals.length > 2) ? 'auto' : 'hidden'
+        overflow: useListLayout || (minimalCodeChrome && layoutTerminals.length > 2) ? 'auto' : 'hidden',
+        scrollbarGutter: useListLayout ? 'stable' : undefined
       }}>
-        {visibleTerminals.map((terminal) => (
+        {layoutTerminals.map((terminal) => (
           <div
             key={terminal.id}
             style={{
               position: 'relative',
               minWidth: 0,
-              height: '100%',
-              flex: layoutMode === 'vertical'
+              height: useListLayout ? undefined : '100%',
+              flex: useListLayout
                 ? '0 0 auto'
                 : undefined,
-              minHeight: !minimalCodeChrome && layoutMode === 'vertical'
-                ? (compact ? '260px' : '300px')
-                : 0,
+              minHeight: useListLayout
+                ? (compact ? '360px' : '420px')
+                : useFocusLayout
+                  ? 0
+                  : 0,
               overflow: 'hidden',
               contain: 'layout paint'
             }}
@@ -976,6 +1007,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
                 terminal={terminal}
                 onRelaunch={handleRelaunchTerminal}
                 onClose={handleCloseTerminal}
+                onStopSession={handleStopTerminalSession}
               />
             ) : (
               <div style={{ width: '100%', height: '100%' }}>
@@ -999,7 +1031,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
                   runtimeAttempts={terminal.runtimeAttempts}
                   ptyState={terminal.ptyState}
                   ptyDetail={terminal.ptyDetail}
+                  persistenceMode={terminal.persistenceMode}
+                  screenStatus={terminal.screenStatus}
+                  screenSessionName={terminal.screenSessionName}
+                  screenLogPath={terminal.screenLogPath}
                   onClose={() => handleCloseTerminal(terminal.id)}
+                  onStopSession={() => handleStopTerminalSession(terminal.id)}
                   onTitleChange={(nextTitle) => updateTerminalCwd(terminal.id, nextTitle)}
                   onLabelChange={(newLabel) => updateTerminalLabel(terminal.id, newLabel)}
                   onColorChange={(newColor) => updateTerminalColor(terminal.id, newColor)}
@@ -1053,6 +1090,75 @@ function TerminalOrderToolbar({
   );
 }
 
+function TerminalLayoutToolbar({
+  value,
+  onChange,
+  compact = false
+}: {
+  value: TerminalLayoutMode;
+  onChange: (value: TerminalLayoutMode) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div style={compact ? compactLayoutToolbarStyle : layoutToolbarStyle} aria-label="Terminal layout">
+      {TERMINAL_LAYOUT_OPTIONS.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            title={`Switch terminal layout to ${option.label}`}
+            style={{
+              ...layoutSegmentButtonStyle,
+              background: selected ? 'var(--app-focus)' : 'transparent',
+              borderColor: selected ? 'var(--app-border-strong)' : 'transparent',
+              color: selected ? 'var(--app-text)' : 'var(--app-subtle)'
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TerminalFocusStrip({
+  terminals,
+  activeTerminal,
+  onSelect
+}: {
+  terminals: TerminalSession[];
+  activeTerminal: TerminalSession | null;
+  onSelect: (terminal: TerminalSession) => void;
+}) {
+  return (
+    <div style={focusStripStyle} aria-label="Focused terminal selector">
+      {terminals.map((terminal) => {
+        const selected = activeTerminal?.id === terminal.id;
+        return (
+          <button
+            key={terminal.id}
+            type="button"
+            onClick={() => onSelect(terminal)}
+            title={terminal.currentCommand || terminal.autoCommand || terminal.label}
+            style={{
+              ...focusStripButtonStyle,
+              background: selected ? 'var(--app-focus)' : 'var(--app-panel-muted)',
+              borderColor: selected ? 'var(--app-border-strong)' : 'var(--app-border)',
+              color: selected ? 'var(--app-text)' : 'var(--app-muted)'
+            }}
+          >
+            <span style={focusStripTitleStyle}>{terminal.label}</span>
+            <span style={focusStripMetaStyle}>{terminal.runtimeState || terminal.ptyState || 'shell'}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function TerminalItemControls({
   terminal,
   pinned,
@@ -1099,20 +1205,25 @@ function TerminalItemControls({
 function RestoreTerminalCard({
   terminal,
   onRelaunch,
-  onClose
+  onClose,
+  onStopSession
 }: {
   terminal: TerminalSession;
   onRelaunch: (terminal: TerminalSession) => void;
   onClose: (terminalId: string) => void;
+  onStopSession: (terminalId: string) => void;
 }) {
   const command = terminal.currentCommand || terminal.autoCommand || 'interactive shell';
   const detail = terminal.restoreReason || terminal.runtimeDetail || terminal.ptyDetail || 'Terminal process is not running.';
+  const isPersistent = terminal.persistenceMode === 'screen';
   return (
     <section style={restoreCardStyle}>
       <div style={restoreCardHeaderStyle}>
         <div style={{ minWidth: 0 }}>
           <div style={restoreCardTitleStyle}>{terminal.label}</div>
-          <div style={restoreCardMetaStyle}>{terminalProviderLabel(terminal)} / {command}</div>
+          <div style={restoreCardMetaStyle}>
+            {terminalProviderLabel(terminal)} / {isPersistent ? `screen ${terminal.screenStatus || 'detached'} / ` : ''}{command}
+          </div>
         </div>
         <button type="button" onClick={() => onClose(terminal.id)} style={restoreIconButtonStyle} title="Remove" aria-label="Remove restored terminal">
           <X size={13} />
@@ -1122,10 +1233,17 @@ function RestoreTerminalCard({
       {terminal.lastKnownExcerpt ? (
         <pre style={restoreExcerptStyle}>{terminal.lastKnownExcerpt}</pre>
       ) : null}
-      <button type="button" onClick={() => onRelaunch(terminal)} style={restoreButtonStyle}>
-        <RotateCcw size={14} />
-        Relaunch
-      </button>
+      <div style={restoreActionRowStyle}>
+        <button type="button" onClick={() => onRelaunch(terminal)} style={restoreButtonStyle}>
+          <RotateCcw size={14} />
+          {isPersistent ? 'Reattach' : 'Relaunch'}
+        </button>
+        {isPersistent ? (
+          <button type="button" onClick={() => onStopSession(terminal.id)} style={restoreDangerButtonStyle}>
+            Stop session
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -1155,6 +1273,51 @@ const orderToolbarStyle: React.CSSProperties = {
   fontWeight: 850
 };
 
+const layoutToolbarStyle: React.CSSProperties = {
+  minHeight: '24px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '3px',
+  border: '1px solid var(--app-border)',
+  borderRadius: '6px',
+  background: 'var(--app-panel-muted)',
+  padding: '2px',
+  flexShrink: 0
+};
+
+const compactLayoutToolbarStyle: React.CSSProperties = {
+  ...layoutToolbarStyle,
+  height: '28px',
+  minHeight: '28px',
+  borderRadius: 0,
+  borderLeft: 0,
+  borderTop: 0,
+  borderBottom: 0
+};
+
+const layoutSegmentButtonStyle: React.CSSProperties = {
+  height: '20px',
+  minWidth: '42px',
+  borderRadius: '5px',
+  border: '1px solid transparent',
+  background: 'transparent',
+  padding: '0 7px',
+  fontSize: '10px',
+  fontWeight: 900,
+  cursor: 'pointer'
+};
+
+const compactTerminalToolbarStyle: React.CSSProperties = {
+  minHeight: '28px',
+  display: 'flex',
+  alignItems: 'center',
+  borderBottom: '1px solid var(--app-border)',
+  background: 'var(--app-panel)',
+  flexShrink: 0,
+  overflowX: 'auto',
+  overflowY: 'hidden'
+};
+
 const compactOrderToolbarStyle: React.CSSProperties = {
   ...orderToolbarStyle,
   height: '28px',
@@ -1163,8 +1326,61 @@ const compactOrderToolbarStyle: React.CSSProperties = {
   borderLeft: 0,
   borderRight: 0,
   borderTop: 0,
+  borderBottom: 0,
   justifyContent: 'flex-start',
   flexShrink: 0
+};
+
+const focusStripStyle: React.CSSProperties = {
+  minHeight: '42px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  scrollbarGutter: 'stable',
+  padding: minimalFocusStripPadding(),
+  border: '1px solid var(--app-border)',
+  borderRadius: '8px',
+  background: 'var(--app-panel)'
+};
+
+function minimalFocusStripPadding() {
+  return '5px';
+}
+
+const focusStripButtonStyle: React.CSSProperties = {
+  minWidth: '120px',
+  maxWidth: '180px',
+  height: '30px',
+  display: 'grid',
+  alignContent: 'center',
+  gap: '2px',
+  borderRadius: '7px',
+  border: '1px solid var(--app-border)',
+  padding: '3px 8px',
+  cursor: 'pointer',
+  textAlign: 'left',
+  flexShrink: 0
+};
+
+const focusStripTitleStyle: React.CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: '10px',
+  fontWeight: 900
+};
+
+const focusStripMetaStyle: React.CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  color: 'var(--app-subtle)',
+  fontSize: '9px',
+  fontWeight: 800
 };
 
 const orderSelectStyle: React.CSSProperties = {
@@ -1299,6 +1515,7 @@ const restoreExcerptStyle: React.CSSProperties = {
 };
 
 const restoreButtonStyle: React.CSSProperties = {
+  flex: 1,
   height: '30px',
   borderRadius: '7px',
   border: '1px solid var(--app-border-strong)',
@@ -1309,6 +1526,24 @@ const restoreButtonStyle: React.CSSProperties = {
   justifyContent: 'center',
   gap: '7px',
   fontSize: '11px',
+  fontWeight: 900,
+  cursor: 'pointer'
+};
+
+const restoreActionRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px'
+};
+
+const restoreDangerButtonStyle: React.CSSProperties = {
+  height: '30px',
+  borderRadius: '7px',
+  border: '1px solid rgba(248, 113, 113, 0.24)',
+  background: 'rgba(239, 68, 68, 0.10)',
+  color: '#fca5a5',
+  padding: '0 10px',
+  fontSize: '10px',
   fontWeight: 900,
   cursor: 'pointer'
 };

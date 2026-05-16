@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { Palette, Sparkles, X } from 'lucide-react';
+import { ArrowDownToLine, Clipboard, Maximize2, Palette, Power, Sparkles, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../../hooks/useTerminal';
 import { TerminalColor } from '@/contexts/TerminalContext';
@@ -246,7 +246,12 @@ interface TerminalPaneProps {
   runtimeAttempts?: number;
   ptyState?: TerminalPtyState;
   ptyDetail?: string;
+  persistenceMode?: 'ephemeral' | 'screen';
+  screenStatus?: string;
+  screenSessionName?: string;
+  screenLogPath?: string;
   onClose?: () => void;
+  onStopSession?: () => void;
   onTitleChange?: (title: string) => void;
   onLabelChange?: (label: string) => void;
   onColorChange?: (color: TerminalColor) => void;
@@ -289,6 +294,16 @@ const terminalToolButtonStyle: React.CSSProperties = {
   transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease'
 };
 
+const terminalTextToolButtonStyle: React.CSSProperties = {
+  ...terminalToolButtonStyle,
+  width: 'auto',
+  minWidth: '24px',
+  padding: '0 7px',
+  gap: '4px',
+  fontSize: '9px',
+  letterSpacing: '0.01em'
+};
+
 const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   id,
   cwd,
@@ -309,7 +324,12 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   runtimeAttempts = 0,
   ptyState = 'creating',
   ptyDetail,
+  persistenceMode = 'ephemeral',
+  screenStatus,
+  screenSessionName,
+  screenLogPath,
   onClose,
+  onStopSession,
   onTitleChange,
   onLabelChange,
   onColorChange,
@@ -332,6 +352,9 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [editLabel, setEditLabel] = useState(label);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [outputViewerOpen, setOutputViewerOpen] = useState(false);
+  const [outputViewerText, setOutputViewerText] = useState('');
+  const [outputViewerStatus, setOutputViewerStatus] = useState('');
   const labelInputRef = useRef<HTMLInputElement>(null);
   const settingsRef = useRef(loadAppSettings());
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
@@ -721,7 +744,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         brightCyan: '#7fdbff',
         brightWhite: '#ffffff'
       },
-      scrollback: Math.max(200, Math.min(settingsRef.current.scrollbackLines, 5000)),
+      scrollback: Math.max(5000, Math.min(settingsRef.current.scrollbackLines, 50000)),
       allowProposedApi: false,
       allowTransparency: false,
       customGlyphs: true,
@@ -905,6 +928,39 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }
   };
 
+  const readTerminalSnapshotText = React.useCallback(async () => {
+    const snapshot = await getSnapshot();
+    return stripAnsi(snapshot?.buffer || '').trimEnd();
+  }, [getSnapshot]);
+
+  const handleOpenOutputViewer = React.useCallback(async () => {
+    setOutputViewerOpen(true);
+    setOutputViewerStatus('Loading terminal output...');
+    try {
+      const text = await readTerminalSnapshotText();
+      setOutputViewerText(text || 'No terminal output captured yet.');
+      setOutputViewerStatus(text ? `${text.length.toLocaleString()} characters captured` : 'No output captured yet');
+    } catch (error) {
+      setOutputViewerText('');
+      setOutputViewerStatus(error instanceof Error ? error.message : 'Could not read terminal output');
+    }
+  }, [readTerminalSnapshotText]);
+
+  const handleCopyOutput = React.useCallback(async () => {
+    try {
+      const text = await readTerminalSnapshotText();
+      await navigator.clipboard.writeText(text);
+      setOutputViewerStatus(text ? `Copied ${text.length.toLocaleString()} characters` : 'No output to copy');
+    } catch (error) {
+      setOutputViewerStatus(error instanceof Error ? error.message : 'Could not copy terminal output');
+    }
+  }, [readTerminalSnapshotText]);
+
+  const handleJumpBottom = React.useCallback(() => {
+    terminalRef.current?.scrollToBottom();
+    terminalRef.current?.focus();
+  }, []);
+
   const hasRuntimeAttention = Boolean(runtimeProvider && (runtimeState === 'failed' || runtimeState === 'awaiting-approval'));
   const canRetryRuntime = Boolean(runtimeProvider && autoCommand && !hasExited && runtimeState === 'failed');
   const statusDetail = ptyState !== 'ready' ? (ptyDetail || runtimeDetail) : runtimeDetail;
@@ -935,6 +991,9 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
   const detailLabel = statusDetail || (runId ? `run ${runId.slice(0, 8)}` : undefined);
   const metaParts = [
     purposeLabel,
+    persistenceMode === 'screen' ? `screen ${screenStatus || 'persistent'}` : null,
+    screenSessionName ? `session ${screenSessionName}` : null,
+    screenLogPath ? `log ${compactPath(screenLogPath)}` : null,
     `cmd ${commandLabel}`,
     compactPath(cwd),
     `pty ${ptyLabel}`,
@@ -1301,6 +1360,67 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
           ) : null}
 
           {onClose ? (
+            <>
+              {persistenceMode === 'screen' ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStopSession?.();
+                  }}
+                  style={{
+                    ...terminalTextToolButtonStyle,
+                    color: '#fca5a5',
+                    background: 'rgba(239, 68, 68, 0.10)',
+                    borderColor: 'rgba(248, 113, 113, 0.24)'
+                  }}
+                  title={`Stop persistent screen session${screenSessionName ? ` ${screenSessionName}` : ''}`}
+                >
+                  <Power size={12} />
+                  {!compactChrome ? 'Stop' : null}
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleOpenOutputViewer();
+                }}
+                style={terminalTextToolButtonStyle}
+                title="Open full terminal output"
+              >
+                <Maximize2 size={12} />
+                {!compactChrome ? 'Output' : null}
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleCopyOutput();
+                }}
+                style={terminalToolButtonStyle}
+                title="Copy terminal output"
+              >
+                <Clipboard size={12} />
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleJumpBottom();
+                }}
+                style={terminalToolButtonStyle}
+                title="Jump to latest output"
+              >
+                <ArrowDownToLine size={12} />
+              </button>
+            </>
+          ) : null}
+
+          {onClose ? (
             <button
               type="button"
               onClick={(e) => {
@@ -1313,7 +1433,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
                 background: 'rgba(239, 68, 68, 0.10)',
                 borderColor: 'rgba(248, 113, 113, 0.22)'
               }}
-              title="Close terminal"
+              title={persistenceMode === 'screen' ? 'Close view and keep screen session running' : 'Close terminal'}
             >
               <X size={13} />
             </button>
@@ -1415,8 +1535,168 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         </div>
       ) : null}
 
+      {outputViewerOpen ? (
+        <TerminalOutputViewer
+          title={terminalIdentity}
+          detail={metaParts.join(' / ')}
+          text={outputViewerText}
+          status={outputViewerStatus}
+          onClose={() => setOutputViewerOpen(false)}
+          onCopy={() => void handleCopyOutput()}
+        />
+      ) : null}
+
     </div>
   );
+};
+
+function TerminalOutputViewer({
+  title,
+  detail,
+  text,
+  status,
+  onClose,
+  onCopy
+}: {
+  title: string;
+  detail: string;
+  text: string;
+  status: string;
+  onClose: () => void;
+  onCopy: () => void;
+}) {
+  return (
+    <div style={outputViewerOverlayStyle} role="dialog" aria-modal="true" aria-label="Terminal output viewer">
+      <section style={outputViewerPanelStyle}>
+        <header style={outputViewerHeaderStyle}>
+          <div style={{ minWidth: 0 }}>
+            <div style={outputViewerTitleStyle}>{title}</div>
+            <div style={outputViewerDetailStyle} title={detail}>{detail}</div>
+            <div style={outputViewerStatusStyle}>{status}</div>
+          </div>
+          <div style={outputViewerActionsStyle}>
+            <button type="button" onClick={onCopy} style={outputViewerButtonStyle}>
+              <Clipboard size={13} />
+              Copy output
+            </button>
+            <button type="button" onClick={onClose} style={outputViewerIconButtonStyle} aria-label="Close output viewer">
+              <X size={15} />
+            </button>
+          </div>
+        </header>
+        <pre style={outputViewerPreStyle}>{text}</pre>
+      </section>
+    </div>
+  );
+}
+
+const outputViewerOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 100000,
+  padding: '28px',
+  background: 'rgba(2, 6, 23, 0.72)',
+  backdropFilter: 'blur(18px)',
+  WebkitBackdropFilter: 'blur(18px)',
+  display: 'grid',
+  placeItems: 'center'
+};
+
+const outputViewerPanelStyle: React.CSSProperties = {
+  width: 'min(1120px, 96vw)',
+  height: 'min(820px, 92vh)',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+  borderRadius: '14px',
+  border: '1px solid rgba(148, 163, 184, 0.24)',
+  background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98))',
+  boxShadow: '0 24px 80px rgba(0, 0, 0, 0.58)'
+};
+
+const outputViewerHeaderStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  gap: '14px',
+  alignItems: 'start',
+  padding: '14px',
+  borderBottom: '1px solid rgba(148, 163, 184, 0.16)',
+  background: 'rgba(15, 23, 42, 0.92)'
+};
+
+const outputViewerTitleStyle: React.CSSProperties = {
+  color: '#f8fafc',
+  fontSize: '14px',
+  fontWeight: 900,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+};
+
+const outputViewerDetailStyle: React.CSSProperties = {
+  marginTop: '5px',
+  color: '#94a3b8',
+  fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
+  fontSize: '10px',
+  fontWeight: 750,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+};
+
+const outputViewerStatusStyle: React.CSSProperties = {
+  marginTop: '6px',
+  color: '#67e8f9',
+  fontSize: '10px',
+  fontWeight: 800
+};
+
+const outputViewerActionsStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '8px'
+};
+
+const outputViewerButtonStyle: React.CSSProperties = {
+  height: '30px',
+  borderRadius: '8px',
+  border: '1px solid rgba(103, 232, 249, 0.24)',
+  background: 'rgba(6, 182, 212, 0.10)',
+  color: '#cffafe',
+  padding: '0 10px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '7px',
+  fontSize: '11px',
+  fontWeight: 850,
+  cursor: 'pointer'
+};
+
+const outputViewerIconButtonStyle: React.CSSProperties = {
+  ...outputViewerButtonStyle,
+  width: '30px',
+  padding: 0,
+  justifyContent: 'center',
+  borderColor: 'rgba(248, 113, 113, 0.26)',
+  background: 'rgba(239, 68, 68, 0.10)',
+  color: '#fecaca'
+};
+
+const outputViewerPreStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  margin: 0,
+  padding: '14px',
+  overflow: 'auto',
+  scrollbarGutter: 'stable',
+  background: '#05070b',
+  color: '#dbeafe',
+  fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
+  fontSize: '12px',
+  lineHeight: 1.55,
+  whiteSpace: 'pre-wrap',
+  overflowWrap: 'anywhere'
 };
 
 export const TerminalPane = memo(TerminalPaneComponent, (prev, next) => (
@@ -1435,6 +1715,10 @@ export const TerminalPane = memo(TerminalPaneComponent, (prev, next) => (
   prev.runtimeState === next.runtimeState &&
   prev.runtimeDetail === next.runtimeDetail &&
   prev.runtimeAttempts === next.runtimeAttempts &&
+  prev.persistenceMode === next.persistenceMode &&
+  prev.screenStatus === next.screenStatus &&
+  prev.screenSessionName === next.screenSessionName &&
+  prev.screenLogPath === next.screenLogPath &&
   prev.onOpenDiagnostics === next.onOpenDiagnostics &&
   prev.isActive === next.isActive &&
   prev.compactChrome === next.compactChrome

@@ -76,10 +76,11 @@ validation, replay, paper evidence, and audit trails belong in the backend.
   stats, agents, terminal evidence, browser tabs, and commands scoped to the
   selected desk.
 - Desk kinds are part of the local `Workspace` contract:
-  `hedge-fund`, `command-hub`, `project`, and `ops`. The required `Command Hub`
-  desk uses the user's home/Documents area as a neutral cwd for shells, AI
-  runtimes, tunnels, and quick commands; it must not inherit hedge fund command
-  defaults.
+  `strategy-pod`, `hedge-fund`, `command-hub`, `project`, and `ops`. Strategy
+  Pods are asset-level desks: one ticker, many draft ideas, one active linked
+  strategy at a time. The required `Command Hub` desk uses the user's
+  home/Documents area as a neutral cwd for shells, AI runtimes, tunnels, and
+  quick commands; it must not inherit hedge fund command defaults.
 - The `Workspace` IPC/type remains the desk model only. Do not put trading
   lifecycle state, strategy truth, or live execution authority into it.
 

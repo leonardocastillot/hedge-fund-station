@@ -39,6 +39,8 @@ Core files:
 
 - `agent_tasks.json` is the canonical task queue.
 - `progress/current.md` is the live session state.
+- `progress/strategy_claims.json` is the Strategy Mission Lock ledger for
+  active and closed one-strategy-per-LLM missions.
 - `progress/history.md` is append-only session history.
 - `progress/explore_<topic>.md`, `progress/impl_<task>.md`, and
   `progress/review_<task>.md` are subagent reports.
@@ -72,6 +74,9 @@ Hard harness rules:
   `progress/explore_strategy_<strategy_id>_<topic>.md`, implementers write
   `progress/impl_<strategy_id>.md`, and reviewers write
   `progress/review_<strategy_id>.md` unless the task already has a stable id.
+- Strategy Factory or external CLI missions must run `rtk npm run hf:strategy:claim`
+  with asset, strategy id, and title before launching implementation, then
+  release with `rtk npm run hf:strategy:release` after handoff.
 - Completed tasks must name evidence, verification, and review or handoff
   files.
 - Future live/production work is allowed only through explicit promotion gates:
@@ -282,6 +287,19 @@ Use:
 
 Strategy docs must describe edge, regime, anti-regime, inputs, entry,
 invalidation, exit, risk, costs, validation, failure modes, and backend mapping.
+
+### Asset Workspaces
+
+Use:
+
+- `docs/assets/<ASSET>/README.md`
+- `docs/assets/<ASSET>/ideas/`
+- `docs/assets/<ASSET>/reviews/`
+
+Asset folders organize ticker-level rough ideas, thesis inboxes, and review
+notes. They do not replace canonical strategy specs or backend modules. When an
+idea graduates, write the official strategy spec in `docs/strategies/` and the
+backend implementation under `backend/hyperliquid_gateway/strategies/`.
 
 ### Backend Strategy Logic
 

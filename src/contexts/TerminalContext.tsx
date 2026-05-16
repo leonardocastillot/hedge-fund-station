@@ -19,6 +19,8 @@ export type TerminalRuntimeState =
   | 'failed';
 export type TerminalPtyState = 'creating' | 'ready' | 'failed';
 export type TerminalRestoreState = 'live' | 'reopenable';
+export type TerminalPersistenceMode = 'ephemeral' | 'screen';
+export type TerminalScreenStatus = 'creating' | 'persistent' | 'reattached' | 'detached' | 'stopped' | 'unavailable';
 
 export interface TerminalSession {
   id: string;
@@ -36,6 +38,11 @@ export interface TerminalSession {
   restoreReason?: string;
   lastKnownExcerpt?: string;
   pinned?: boolean;
+  persistenceMode?: TerminalPersistenceMode;
+  screenSessionName?: string;
+  screenLogPath?: string;
+  screenStatus?: TerminalScreenStatus;
+  autoCommandDispatched?: boolean;
   color: TerminalColor;
   rainbowEffect?: boolean;
   createdAt: number;
@@ -69,7 +76,8 @@ export type TerminalCreateMetadata =
   & Pick<TerminalSession, 'workspaceId' | 'missionTitle' | 'missionKind' | 'handoffSummary' | 'evidenceRefs'>
   & Pick<TerminalSession, 'assetSymbol' | 'strategySessionId' | 'strategySessionTitle' | 'strategySessionStatus' | 'strategySessionReview'>
   & Pick<TerminalSession, 'runtimeProvider' | 'runId' | 'pendingInput'>
-  & Pick<TerminalSession, 'sessionKey' | 'restoreState' | 'restoreReason' | 'lastKnownExcerpt' | 'pinned'>;
+  & Pick<TerminalSession, 'sessionKey' | 'restoreState' | 'restoreReason' | 'lastKnownExcerpt' | 'pinned'>
+  & Pick<TerminalSession, 'persistenceMode' | 'screenSessionName' | 'screenLogPath' | 'screenStatus' | 'autoCommandDispatched'>;
 
 interface TerminalContextValue {
   terminals: TerminalSession[];
@@ -98,6 +106,7 @@ interface TerminalContextValue {
   getWorkspaceTerminals: (workspaceId?: string | null, workspacePath?: string | null) => TerminalSession[];
   touchTerminalActivity: (id: string) => void;
   retryTerminalRuntime: (id: string, detail?: string) => void;
+  stopTerminalSession: (id: string) => Promise<void>;
   toggleRainbowEffect: (id: string) => void;
   onLayoutUpdateNeeded: (callback: LayoutUpdateCallback | null) => void;
 }
@@ -172,6 +181,18 @@ function normalizePersistedSession(session: TerminalSession): TerminalSession {
     restoreReason: typeof session.restoreReason === 'string' ? session.restoreReason : undefined,
     lastKnownExcerpt: typeof session.lastKnownExcerpt === 'string' ? session.lastKnownExcerpt : undefined,
     pinned: typeof session.pinned === 'boolean' ? session.pinned : false,
+    persistenceMode: session.persistenceMode === 'screen' ? 'screen' : 'ephemeral',
+    screenSessionName: typeof session.screenSessionName === 'string' ? session.screenSessionName : undefined,
+    screenLogPath: typeof session.screenLogPath === 'string' ? session.screenLogPath : undefined,
+    screenStatus: session.screenStatus === 'creating'
+      || session.screenStatus === 'persistent'
+      || session.screenStatus === 'reattached'
+      || session.screenStatus === 'detached'
+      || session.screenStatus === 'stopped'
+      || session.screenStatus === 'unavailable'
+      ? session.screenStatus
+      : undefined,
+    autoCommandDispatched: typeof session.autoCommandDispatched === 'boolean' ? session.autoCommandDispatched : false,
     runtimeState: nextRuntimeState,
     runtimeDetail: staleLaunching
       ? 'Reattached terminal session; runtime launch state was stale'
@@ -191,6 +212,23 @@ function terminalSessionKey(session: TerminalSession): string {
   return session.sessionKey || session.id;
 }
 
+function sanitizeSessionSegment(value?: string): string {
+  return (value || 'workspace')
+    .trim()
+    .replace(/[^A-Za-z0-9_.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42) || 'workspace';
+}
+
+function buildScreenSessionName(workspaceId: string | undefined, label: string, sessionKey: string): string {
+  return [
+    'hfs',
+    sanitizeSessionSegment(workspaceId || 'global'),
+    sanitizeSessionSegment(label || 'cli'),
+    sanitizeSessionSegment(sessionKey).slice(-18)
+  ].join('-').slice(0, 96);
+}
+
 function markSessionReopenable(session: TerminalSession, reason = REOPENABLE_REASON): TerminalSession {
   return {
     ...session,
@@ -198,6 +236,7 @@ function markSessionReopenable(session: TerminalSession, reason = REOPENABLE_REA
     restoreReason: reason,
     ptyState: 'failed',
     ptyDetail: reason,
+    screenStatus: session.persistenceMode === 'screen' ? 'detached' : session.screenStatus,
     runtimeState: session.runtimeProvider
       ? session.runtimeState === 'completed'
         ? 'completed'
@@ -287,16 +326,34 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
 
         const activeIds = new Set(await terminalApi.getAllIds());
-        const restoredTerminals = terminals.map((terminal) => (
-          activeIds.has(terminal.id)
-            ? {
-                ...terminal,
-                restoreState: 'live' as const,
-                restoreReason: undefined,
-                ptyState: terminal.ptyState === 'failed' ? 'ready' as const : terminal.ptyState
-              }
-            : markSessionReopenable(terminal)
-        ));
+        const restoredTerminals = terminals.map((terminal) => {
+          if (activeIds.has(terminal.id)) {
+            return {
+              ...terminal,
+              restoreState: 'live' as const,
+              restoreReason: undefined,
+              ptyState: terminal.ptyState === 'failed' ? 'ready' as const : terminal.ptyState,
+              screenStatus: terminal.persistenceMode === 'screen'
+                ? terminal.screenStatus || 'persistent' as const
+                : terminal.screenStatus
+            };
+          }
+
+          if (terminal.persistenceMode === 'screen' && terminal.screenSessionName) {
+            return {
+              ...terminal,
+              restoreState: 'live' as const,
+              restoreReason: undefined,
+              ptyState: 'creating' as const,
+              ptyDetail: 'Reattaching persistent screen session',
+              screenStatus: 'detached' as const,
+              runtimeDetail: 'Reattaching persistent screen session',
+              lastStateChangeAt: Date.now()
+            };
+          }
+
+          return markSessionReopenable(terminal);
+        });
 
         if (restoredTerminals.some((terminal, index) => (
           terminal.restoreState !== terminals[index]?.restoreState
@@ -312,6 +369,55 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
           return restoredTerminals.find((terminal) => terminal.restoreState !== 'reopenable')?.id ?? null;
         });
+
+        restoredTerminals
+          .filter((terminal) => terminal.persistenceMode === 'screen' && terminal.screenSessionName && !activeIds.has(terminal.id))
+          .forEach((terminal) => {
+            void terminalApi.create(
+              terminal.id,
+              terminal.cwd,
+              terminal.shell,
+              undefined,
+              {
+                sessionBackend: 'screen',
+                sessionName: terminal.screenSessionName,
+                logPath: terminal.screenLogPath,
+                attachExisting: true
+              }
+            ).then((result) => {
+              if (result?.success === false) {
+                throw new Error(result.error || `Could not reattach ${terminal.screenSessionName}`);
+              }
+              setTerminals((current) => current.map((item) => (
+                item.id === terminal.id
+                  ? {
+                      ...item,
+                      shell: result?.shell || item.shell,
+                      cwd: result?.cwd || item.cwd,
+                      ptyState: 'ready',
+                      ptyDetail: result?.attachedExisting ? 'Reattached persistent screen session' : 'Persistent screen session ready',
+                      screenStatus: result?.attachedExisting ? 'reattached' : 'persistent',
+                      screenSessionName: result?.sessionName || item.screenSessionName,
+                      screenLogPath: result?.logPath || item.screenLogPath,
+                      autoCommandDispatched: true,
+                      restoreState: 'live',
+                      restoreReason: undefined,
+                      lastStateChangeAt: Date.now()
+                    }
+                  : item
+              )));
+            }).catch((error) => {
+              const reason = error instanceof Error ? error.message : String(error);
+              setTerminals((current) => current.map((item) => (
+                item.id === terminal.id
+                  ? {
+                      ...markSessionReopenable(item, reason),
+                      screenStatus: 'unavailable'
+                    }
+                  : item
+              )));
+            });
+          });
       } catch (error) {
         console.error('Failed to restore terminal sessions:', error);
         setTerminals((current) => current.map((terminal) => markSessionReopenable(terminal)));
@@ -336,10 +442,17 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const resolvedShell = shellResolution.shell;
     const resolvedAutoCommand = normalizeRuntimeCommandForShell(autoCommand, resolvedShell);
     const now = Date.now();
+    const resolvedSessionKey = metadata?.sessionKey || id;
+    const persistenceMode: TerminalPersistenceMode = metadata?.persistenceMode
+      || (metadata?.terminalPurpose === 'dev-server' ? 'ephemeral' : 'screen');
+    const screenSessionName = persistenceMode === 'screen'
+      ? metadata?.screenSessionName || buildScreenSessionName(metadata?.workspaceId, label || `Terminal ${terminals.length + 1}`, resolvedSessionKey)
+      : undefined;
+    const attachExistingScreenSession = Boolean(persistenceMode === 'screen' && metadata?.screenSessionName);
 
     const terminal: TerminalSession = {
       id,
-      sessionKey: metadata?.sessionKey || id,
+      sessionKey: resolvedSessionKey,
       label: label || `Terminal ${terminals.length + 1}`,
       cwd,
       shell: resolvedShell,
@@ -353,6 +466,11 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       restoreReason: metadata?.restoreReason,
       lastKnownExcerpt: metadata?.lastKnownExcerpt,
       pinned: metadata?.pinned || false,
+      persistenceMode,
+      screenSessionName,
+      screenLogPath: metadata?.screenLogPath,
+      screenStatus: persistenceMode === 'screen' ? (metadata?.screenStatus || 'creating') : undefined,
+      autoCommandDispatched: metadata?.autoCommandDispatched || false,
       color: nextColor,
       createdAt: now,
       autoCommand: resolvedAutoCommand,
@@ -387,6 +505,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ...item,
               ptyState: 'failed',
               ptyDetail: TERMINAL_API_UNAVAILABLE_REASON,
+              screenStatus: item.persistenceMode === 'screen' ? 'unavailable' : item.screenStatus,
               runtimeState: item.runtimeProvider ? 'failed' : item.runtimeState,
               runtimeDetail: TERMINAL_API_UNAVAILABLE_REASON,
               lastStateChangeAt: Date.now()
@@ -401,7 +520,12 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return id;
     }
 
-    void terminalApi.create(id, cwd, resolvedShell, resolvedAutoCommand)
+    void terminalApi.create(id, cwd, resolvedShell, resolvedAutoCommand, {
+      sessionBackend: persistenceMode === 'screen' ? 'screen' : 'pty',
+      sessionName: screenSessionName,
+      logPath: metadata?.screenLogPath,
+      attachExisting: attachExistingScreenSession
+    })
       .then((result) => {
         if (result?.success === false) {
           const detail = formatTerminalCreateError(result.error);
@@ -411,6 +535,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   ...item,
                   ptyState: 'failed',
                   ptyDetail: detail,
+                  screenStatus: item.persistenceMode === 'screen' ? 'unavailable' : item.screenStatus,
                   runtimeState: item.runtimeProvider ? 'failed' : item.runtimeState,
                   runtimeDetail: detail || item.runtimeDetail,
                   lastStateChangeAt: Date.now()
@@ -430,6 +555,12 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 ptyDetail: result?.normalizedShell && result.shell
                   ? `Terminal process ready (${result.shell})`
                   : 'Terminal process ready',
+                screenSessionName: result?.sessionName || item.screenSessionName,
+                screenLogPath: result?.logPath || item.screenLogPath,
+                screenStatus: result?.sessionBackend === 'screen'
+                  ? result.attachedExisting ? 'reattached' : 'persistent'
+                  : item.screenStatus,
+                autoCommandDispatched: item.autoCommandDispatched || Boolean(result?.autoCommandDispatched) || Boolean(result?.attachedExisting),
                 lastStateChangeAt: Date.now()
               }
             : item
@@ -443,6 +574,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 ...item,
                 ptyState: 'failed',
                 ptyDetail: message,
+                screenStatus: item.persistenceMode === 'screen' ? 'unavailable' : item.screenStatus,
                 runtimeState: item.runtimeProvider ? 'failed' : item.runtimeState,
                 runtimeDetail: message,
                 lastStateChangeAt: Date.now()
@@ -496,7 +628,12 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         runtimeProvider: source.runtimeProvider,
         runId: source.runId,
         pinned: source.pinned,
-        lastKnownExcerpt: source.lastKnownExcerpt
+        lastKnownExcerpt: source.lastKnownExcerpt,
+        persistenceMode: source.persistenceMode,
+        screenSessionName: source.screenSessionName,
+        screenLogPath: source.screenLogPath,
+        screenStatus: source.persistenceMode === 'screen' ? 'detached' : source.screenStatus,
+        autoCommandDispatched: source.autoCommandDispatched
       }
     );
 
@@ -507,6 +644,31 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const closeTerminal = useCallback((id: string) => {
     const target = terminals.find((terminal) => terminal.id === id);
     const terminalApi = window.electronAPI?.terminal;
+    if (target?.persistenceMode === 'screen' && target.restoreState !== 'reopenable') {
+      terminalApi?.kill?.(id);
+      setTerminals(prev => prev.map((terminal) => (
+        terminal.id === id
+          ? {
+              ...terminal,
+              restoreState: 'reopenable',
+              restoreReason: 'Persistent screen session detached. Reattach to continue.',
+              ptyState: 'failed',
+              ptyDetail: 'Persistent screen session detached. Reattach to continue.',
+              screenStatus: 'detached',
+              runtimeDetail: 'Persistent screen session detached. Reattach to continue.',
+              lastStateChangeAt: Date.now()
+            }
+          : terminal
+      )));
+      setActiveTerminalId((current) => {
+        if (current !== id) {
+          return current;
+        }
+        return terminals.find((terminal) => terminal.id !== id && terminal.restoreState !== 'reopenable')?.id ?? null;
+      });
+      return;
+    }
+
     if (target?.restoreState !== 'reopenable' && terminalApi?.kill) {
       terminalApi.kill(id);
     }
@@ -524,6 +686,34 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return filtered;
     });
   }, [activeTerminalId, terminals]);
+
+  const stopTerminalSession = useCallback(async (id: string) => {
+    const target = terminals.find((terminal) => terminal.id === id);
+    if (!target) {
+      return;
+    }
+
+    if (target.persistenceMode === 'screen' && window.electronAPI?.terminal?.stopSession) {
+      const result = await window.electronAPI.terminal.stopSession(id, target.screenSessionName);
+      if (result?.success === false) {
+        throw new Error(result.error || 'Could not stop persistent screen session.');
+      }
+    } else if (target.restoreState !== 'reopenable') {
+      window.electronAPI?.terminal?.kill?.(id);
+    }
+
+    setTerminals(prev => {
+      const filtered = prev.filter((terminal) => terminal.id !== id);
+      setActiveTerminalId((current) => {
+        if (current && current !== id && filtered.some((terminal) => terminal.id === current && terminal.restoreState !== 'reopenable')) {
+          return current;
+        }
+        const liveTerminals = filtered.filter((terminal) => terminal.restoreState !== 'reopenable');
+        return liveTerminals[liveTerminals.length - 1]?.id ?? null;
+      });
+      return filtered;
+    });
+  }, [terminals]);
 
   const closeAllTerminals = useCallback((predicate?: (terminal: TerminalSession) => boolean) => {
     setTerminals((prev) => {
@@ -841,15 +1031,22 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const now = Date.now();
         setTerminals((prev) => prev.map((item) => (
           item.id === terminal.id
-            ? {
-                ...item,
-                runtimeState: item.runtimeProvider ? (exitCode === 0 ? 'completed' : 'failed') : item.runtimeState,
-                runtimeDetail: item.runtimeProvider
-                  ? (exitCode === 0 ? 'Process exited successfully' : `Process exited with code ${exitCode}`)
-                  : item.runtimeDetail,
-                lastOutputAt: item.lastOutputAt || now,
-                lastStateChangeAt: now
-              }
+            ? item.persistenceMode === 'screen'
+              ? {
+                  ...markSessionReopenable(item, 'Persistent screen session detached. Reattach to continue.'),
+                  screenStatus: 'detached',
+                  lastOutputAt: item.lastOutputAt || now,
+                  lastStateChangeAt: now
+                }
+              : {
+                  ...item,
+                  runtimeState: item.runtimeProvider ? (exitCode === 0 ? 'completed' : 'failed') : item.runtimeState,
+                  runtimeDetail: item.runtimeProvider
+                    ? (exitCode === 0 ? 'Process exited successfully' : `Process exited with code ${exitCode}`)
+                    : item.runtimeDetail,
+                  lastOutputAt: item.lastOutputAt || now,
+                  lastStateChangeAt: now
+                }
             : item
         )));
       });
@@ -886,6 +1083,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     getWorkspaceTerminals,
     touchTerminalActivity,
     retryTerminalRuntime,
+    stopTerminalSession,
     toggleRainbowEffect,
     onLayoutUpdateNeeded
   }), [
@@ -909,6 +1107,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     getWorkspaceTerminals,
     touchTerminalActivity,
     retryTerminalRuntime,
+    stopTerminalSession,
     toggleRainbowEffect,
     onLayoutUpdateNeeded
   ]);

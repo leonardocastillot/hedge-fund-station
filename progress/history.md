@@ -2471,7 +2471,6 @@ entries unless the human explicitly asks for cleanup.
   backend, strategy logic, credentials, live trading, or production routing
   changed.
 
----
 ## 2026-05-16 - Agent View Simplified Layout
 
 - Agent: Codex
@@ -2540,5 +2539,70 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. UI-local draft review only; backend strategy audit, strategy
   logic, credentials, order routing, live trading, and production promotion were
   not changed.
+
+---
+## 2026-05-16 - Strategy Mission Locks
+
+- Agent: Codex
+- Mission class: repo health audit / strategy workflow control
+- Summary: Added Strategy Mission Locks so Strategy Factory and external CLIs
+  reserve a single `strategy_id` before LLM implementation, block overlapping
+  active claims per asset, and release claims to review, done, or blocked with
+  handoff evidence.
+- Evidence:
+  `backend/hyperliquid_gateway/strategy_claims.py`,
+  `progress/strategy_claims.json`,
+  `scripts/agent_harness.py`,
+  `src/features/strategies/components/StrategyFactoryModal.tsx`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`, and
+  `progress/impl_strategy_mission_locks.md`.
+- Verification: `rtk npm run agent:check`,
+  `rtk python3 -m unittest tests.test_strategy_catalog tests.test_strategy_claims`,
+  `rtk npm run build`, and `rtk git diff --check` passed.
+- Status: done. Workflow and harness control only; no live trading, credential
+  changes, order routing, production promotion, or strategy edge claims.
+
+---
+
+## 2026-05-16 - Strategy Pods Icon Refresh
+
+- Agent: Codex
+- Mission class: UI review-speed audit / workspace semantics
+- Summary: Replaced the `/workbench` Strategy Pods entry and pod list icon
+  language with Lucide `Blocks`, so the surface reads as pod/workspace
+  operations instead of AI assistant or generic lab UI.
+- Evidence:
+  `src/features/cockpit/navigation.ts`,
+  `src/features/stations/pages/HedgeFundStationPage.tsx`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/contexts/WorkspaceContext.tsx`,
+  `electron/main/native/workspace-manager.ts`, and
+  `progress/impl_strategy_pods_icon_refresh.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, and
+  `rtk git diff --check` passed.
+- Status: done. UI icon/defaults only; no backend strategy logic, credentials,
+  order routing, paper supervisor loop, live trading, or production promotion
+  changed.
+
+---
+
+## 2026-05-16 - Asset Strategy Workspace Scaffold
+
+- Agent: Codex
+- Mission class: repo architecture / UI review-speed audit
+- Summary: Added an asset-first Strategy Pod convention: each ticker pod now has
+  deterministic `docs/assets/<ASSET>/` folders for idea inboxes and reviews,
+  while official specs and backend packages stay in their canonical locations.
+- Evidence:
+  `docs/assets/README.md`, `docs/assets/BTC/README.md`,
+  `electron/main/native/workspace-manager.ts`,
+  `src/components/electron/WorkspaceModal.tsx`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`, and
+  `progress/impl_asset_strategy_workspace_scaffold.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, and
+  `rtk git diff --check` passed.
+- Status: done. Workspace organization/UI only; no strategy logic, generated
+  evidence relocation, credentials, order routing, live trading, or production
+  promotion changed.
 
 ---

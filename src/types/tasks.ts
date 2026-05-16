@@ -72,6 +72,7 @@ export interface MissionPacket {
   mode: string;
   goal: string;
   strategyId?: string;
+  strategyClaimId?: string;
   runtimePlan: MissionRuntimePlan;
   frontierRuntime: AgentProvider;
   backendActions: MissionBackendAction[];
@@ -181,6 +182,8 @@ export interface ApprovedMission {
   workspaceId: string;
   title: string;
   goal: string;
+  strategyId?: string;
+  strategyClaimId?: string;
   finalPrompt: string;
   suggestedRoles: AgentRole[];
   proposedCommands: string[];

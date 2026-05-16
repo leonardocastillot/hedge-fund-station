@@ -1,0 +1,78 @@
+{
+  "validation_suite": "btc_trend_cascade_vs_regime_adaptive_confluence",
+  "generated_at": "2026-05-16T03:28:38Z",
+  "elapsed_seconds": 111.7,
+  "overall_confidence": "weak",
+  "checks_passed": 5,
+  "checks_total": 10,
+  "full_return_pct": 357.59,
+  "checks": {
+    "temporal_full_period": {
+      "passed": true,
+      "start": "2014-09-17",
+      "end": "2026-05-13",
+      "new_return_pct": 357.59,
+      "champion_return_pct": 263.78
+    },
+    "temporal_train_period": {
+      "passed": false,
+      "start": "2014-09-17",
+      "end": "2021-12-31",
+      "new_return_pct": 204.89,
+      "champion_return_pct": 224.95
+    },
+    "temporal_test_period_oos": {
+      "passed": true,
+      "start": "2020-07-01",
+      "end": "2026-05-13",
+      "new_return_pct": 50.08,
+      "champion_return_pct": 11.95
+    },
+    "walkforward_wf_2015_2020": {
+      "passed": true,
+      "start": "2015-06-01",
+      "end": "2020-05-31",
+      "new_return_pct": 91.15,
+      "champion_return_pct": 64.55
+    },
+    "walkforward_wf_2017_2022": {
+      "passed": false,
+      "start": "2017-06-01",
+      "end": "2022-05-31",
+      "new_return_pct": 62.8,
+      "champion_return_pct": 104.16
+    },
+    "walkforward_wf_2019_2024": {
+      "passed": false,
+      "start": "2019-06-01",
+      "end": "2024-05-31",
+      "new_return_pct": 85.87,
+      "champion_return_pct": 120.2
+    },
+    "walkforward_wf_2021_2026": {
+      "passed": true,
+      "start": "2021-06-01",
+      "end": "2026-05-13",
+      "new_return_pct": 50.08,
+      "champion_return_pct": 9.29
+    },
+    "cross_data_binance": {
+      "passed": false,
+      "new_return_pct": 34.89,
+      "champion_return_pct": 74.56
+    },
+    "bootstrap": {
+      "passed": true,
+      "iterations": 1000,
+      "original_return": 357.59,
+      "median": 356.46,
+      "pct_above_champ": 83.1
+    },
+    "buyhold_comparison": {
+      "passed": false,
+      "windows": 7,
+      "beaten": 0,
+      "win_rate_pct": 0.0
+    }
+  }
+}

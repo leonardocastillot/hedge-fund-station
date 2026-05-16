@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   BarChart3,
+  Blocks,
   Bot,
   Briefcase,
   Cloud,
@@ -34,6 +35,7 @@ const ICONS: Record<string, LucideIcon> = {
   folder: Folder,
   rocket: Rocket,
   chart: BarChart3,
+  blocks: Blocks,
   terminal: Terminal,
   database: Database,
   server: Server,
@@ -50,6 +52,16 @@ function slugify(value: string): string {
 
 function normalizeAssetSymbol(value: string): string {
   return value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+}
+
+function assetWorkspacePaths(repoPath: string, assetSymbol: string) {
+  const normalizedAsset = normalizeAssetSymbol(assetSymbol) || 'BTC';
+  const assetWorkspaceDir = `${repoPath.replace(/\/$/, '')}/docs/assets/${normalizedAsset}`;
+  return {
+    assetWorkspaceDir,
+    strategyIdeasDir: `${assetWorkspaceDir}/ideas`,
+    strategyReviewsDir: `${assetWorkspaceDir}/reviews`
+  };
 }
 
 function uniqueAssetPodId(workspaces: Workspace[], assetSymbol: string): string {
@@ -97,6 +109,7 @@ function buildAssetPod(params: {
 }): Workspace {
   const assetSymbol = normalizeAssetSymbol(params.assetSymbol) || 'BTC';
   const assetDisplayName = params.assetDisplayName?.trim() || assetSymbol;
+  const assetPaths = assetWorkspacePaths(params.repoPath, assetSymbol);
   return {
     id: params.id,
     name: assetDisplayName,
@@ -105,7 +118,7 @@ function buildAssetPod(params: {
     description: `Asset pod for ${assetSymbol} strategy research sessions.`,
     pinned: true,
     default_route: '/workbench',
-    icon: 'chart',
+    icon: 'blocks',
     color: '#22d3ee',
     default_commands: [
       'rtk npm run agent:brief',
@@ -135,6 +148,9 @@ function buildAssetPod(params: {
     obsidian_vault_path: undefined,
     asset_symbol: assetSymbol,
     asset_display_name: assetDisplayName,
+    asset_workspace_dir: assetPaths.assetWorkspaceDir,
+    strategy_ideas_dir: assetPaths.strategyIdeasDir,
+    strategy_reviews_dir: assetPaths.strategyReviewsDir,
     linked_strategy_ids: [],
     active_strategy_id: undefined,
     strategy_symbol: assetSymbol,
@@ -416,7 +432,7 @@ function WorkspaceListItem({
   onOpenInspector: () => void;
   onOpenStrategyShell: () => void;
 }) {
-  const Icon = ICONS[workspace.icon] || Folder;
+  const Icon = workspace.kind === 'strategy-pod' ? Blocks : ICONS[workspace.icon] || Folder;
   const assetSymbol = workspace.asset_symbol || workspace.strategy_symbol || workspace.name;
   const activeStrategy = workspace.active_strategy_id || workspace.strategy_id || 'draft strategy';
   const meta = `${assetSymbol} / ${linkedCount} strategies / ${sessionCount} sessions / ${activeStrategy}`;

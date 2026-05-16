@@ -130,6 +130,7 @@ export function buildCodexPrompt(params: {
     `Goal: ${params.goal}`,
     `Suggested specialist lens: ${params.suggestedRoles.map(formatRoleLabel).join(', ') || 'Commander'}`,
     params.missionPacket?.strategyId ? `Strategy ID: ${params.missionPacket.strategyId}` : '',
+    params.missionPacket?.strategyClaimId ? `Strategy claim ID: ${params.missionPacket.strategyClaimId}` : '',
     params.missionPacket ? `Runtime plan: ${params.missionPacket.runtimePlan.summary}` : '',
     '',
     params.missionPacket?.evidenceRefs.length ? 'Evidence refs:' : '',
@@ -167,6 +168,7 @@ export function buildMissionDraftInput(params: {
   mode?: MissionMode;
   preferredRuntime?: AgentProvider;
   strategyId?: string;
+  strategyClaimId?: string;
   title?: string;
   suggestedRoles?: AgentRole[];
   backendActions?: MissionBackendAction[];
@@ -195,6 +197,7 @@ export function buildMissionDraftInput(params: {
     mode,
     goal: params.goal,
     strategyId,
+    strategyClaimId: params.strategyClaimId,
     runtimePlan: buildRuntimePlan({
       preferredRuntime,
       runtimeStatus: params.runtimeStatus,

@@ -131,7 +131,13 @@ export function launchAgentRun(
   const runtimeCommand = resolveAgentRuntimeCommand(agent.provider, runtimeShell);
   const missionPrompt = approvedMission?.finalPrompt || buildMissionPrompt(task, agent, workspace);
   const assetSymbol = workspace.asset_symbol || workspace.strategy_symbol;
-  const strategySessionId = assetSymbol ? `strategy-session-${assetSymbol.toLowerCase()}-${Date.now()}` : undefined;
+  const assignedStrategyId = approvedMission?.strategyId;
+  const assignedClaimId = approvedMission?.strategyClaimId;
+  const strategySessionId = assignedClaimId
+    ? `strategy-claim-${assignedClaimId}`
+    : assignedStrategyId
+      ? `strategy-claim-${assignedStrategyId}`
+      : assetSymbol ? `strategy-session-${assetSymbol.toLowerCase()}-${Date.now()}` : undefined;
 
   const run = createRun({
     taskId: task.id,
@@ -160,7 +166,9 @@ export function launchAgentRun(
     workspaceId: workspace.id,
     assetSymbol,
     strategySessionId,
-    strategySessionTitle: assetSymbol ? `${assetSymbol}: ${task.title || task.goal.slice(0, 64)}` : undefined,
+    strategySessionTitle: assignedStrategyId
+      ? `${assetSymbol || 'Strategy'}: ${assignedStrategyId}`
+      : assetSymbol ? `${assetSymbol}: ${task.title || task.goal.slice(0, 64)}` : undefined,
     strategySessionStatus: assetSymbol ? ('draft' as const) : undefined,
     runtimeProvider: agent.provider,
     missionPrompt,

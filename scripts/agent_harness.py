@@ -14,9 +14,11 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TASKS_PATH = REPO_ROOT / "agent_tasks.json"
 CURRENT_PATH = REPO_ROOT / "progress" / "current.md"
+CLAIMS_PATH = REPO_ROOT / "progress" / "strategy_claims.json"
 GRAPHIFY_OUT_PATH = REPO_ROOT / "graphify-out"
 OBSIDIAN_VAULT_PATH = REPO_ROOT / "hedge-station"
 VALID_STATUSES = {"pending", "in_progress", "review", "done", "blocked"}
+ACTIVE_STATUSES = {"in_progress", "review"}
 REQUIRED_FILES = [
     "AGENTS.md",
     "RTK.md",
@@ -26,6 +28,7 @@ REQUIRED_FILES = [
     "progress/README.md",
     "progress/current.md",
     "progress/history.md",
+    "progress/strategy_claims.json",
     "docs/operations/agents/file-harness.md",
     "docs/operations/agents/roles/leader.md",
     "docs/operations/agents/roles/explorer.md",
@@ -344,12 +347,83 @@ def validate_current(tasks: list[dict[str, Any]]) -> list[HarnessIssue]:
     return issues
 
 
+def normalize_asset(value: Any) -> str:
+    return "".join(char for char in str(value or "").upper() if char.isalnum())
+
+
+def normalize_strategy(value: Any) -> str:
+    return str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def validate_strategy_claims(tasks: list[dict[str, Any]]) -> list[HarnessIssue]:
+    issues: list[HarnessIssue] = []
+    data, json_issues = load_json(CLAIMS_PATH)
+    issues.extend(json_issues)
+    if data is None:
+        return issues
+    raw_claims = data.get("claims")
+    if not isinstance(raw_claims, list):
+        return [*issues, HarnessIssue("progress/strategy_claims.json must contain a claims array")]
+
+    active_by_asset: dict[str, list[str]] = {}
+    tasks_by_id = {str(task.get("id")): task for task in tasks}
+    for index, raw_claim in enumerate(raw_claims):
+        if not isinstance(raw_claim, dict):
+            issues.append(HarnessIssue(f"Strategy claim #{index + 1} must be an object"))
+            continue
+        strategy_id = normalize_strategy(raw_claim.get("strategy_id") or raw_claim.get("claim_id"))
+        asset_symbol = normalize_asset(raw_claim.get("asset_symbol"))
+        status = raw_claim.get("status")
+        claim_label = strategy_id or f"<claim #{index + 1}>"
+        if not strategy_id:
+            issues.append(HarnessIssue(f"Strategy claim #{index + 1} missing strategy_id"))
+        if not asset_symbol:
+            issues.append(HarnessIssue(f"{claim_label} missing asset_symbol"))
+        if status not in VALID_STATUSES:
+            issues.append(HarnessIssue(f"{claim_label} has invalid claim status: {status}"))
+            continue
+        if status not in ACTIVE_STATUSES:
+            continue
+
+        active_by_asset.setdefault(asset_symbol, []).append(strategy_id)
+        task = tasks_by_id.get(strategy_id)
+        if not task:
+            issues.append(HarnessIssue(f"Active strategy claim {strategy_id} has no matching task in agent_tasks.json"))
+            continue
+        if task.get("status") not in ACTIVE_STATUSES:
+            issues.append(
+                HarnessIssue(
+                    f"Active strategy claim {strategy_id} points to task status {task.get('status')}, expected in_progress or review"
+                )
+            )
+        scope = [str(item) for item in as_list(task.get("scope"))]
+        expected_scope = [
+            "progress/strategy_claims.json",
+            f"docs/strategies/{strategy_id.replace('_', '-')}.md",
+            f"backend/hyperliquid_gateway/strategies/{strategy_id}/",
+        ]
+        for expected in expected_scope:
+            if expected not in scope:
+                issues.append(HarnessIssue(f"Active strategy claim {strategy_id} task scope missing {expected}"))
+
+    for asset_symbol, strategy_ids in active_by_asset.items():
+        unique_ids = sorted(set(strategy_ids))
+        if len(unique_ids) > 1:
+            issues.append(
+                HarnessIssue(
+                    f"More than one active strategy claim for asset {asset_symbol}: {', '.join(unique_ids)}"
+                )
+            )
+    return issues
+
+
 def collect_issues() -> tuple[list[dict[str, Any]], list[HarnessIssue]]:
     issues = validate_required_files()
     data, json_issues = load_json(TASKS_PATH)
     issues.extend(json_issues)
     tasks, task_issues = validate_tasks(data)
     issues.extend(task_issues)
+    issues.extend(validate_strategy_claims(tasks))
     issues.extend(validate_current(tasks))
     return tasks, issues
 

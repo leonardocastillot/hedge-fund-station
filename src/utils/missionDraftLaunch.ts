@@ -107,6 +107,8 @@ export function launchApprovedMissionDraft(
     workspaceId: dependencies.workspace.id,
     title: params.draft.title,
     goal: params.draft.goal,
+    strategyId: params.draft.missionPacket?.strategyId,
+    strategyClaimId: params.draft.missionPacket?.strategyClaimId,
     finalPrompt: params.draft.finalPrompt,
     suggestedRoles: params.draft.suggestedRoles,
     proposedCommands: params.draft.proposedCommands

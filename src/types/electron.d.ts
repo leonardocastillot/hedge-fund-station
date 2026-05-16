@@ -36,6 +36,9 @@ export interface Workspace {
   obsidian_vault_path?: string;
   asset_symbol?: string;
   asset_display_name?: string;
+  asset_workspace_dir?: string;
+  strategy_ideas_dir?: string;
+  strategy_reviews_dir?: string;
   linked_strategy_ids?: string[];
   active_strategy_id?: string;
   strategy_id?: string;
@@ -394,6 +397,9 @@ export interface TerminalSnapshot {
   cwd?: string;
   shell?: string;
   autoCommand?: string;
+  sessionBackend?: TerminalSessionBackend;
+  sessionName?: string;
+  logPath?: string;
   cols: number;
   rows: number;
   exitCode?: number;
@@ -407,20 +413,39 @@ export interface TerminalSmokeTestResult {
   error?: string;
 }
 
+export type TerminalSessionBackend = 'pty' | 'screen';
+
 export interface TerminalCreateResult {
   success: boolean;
   error?: string;
   shell?: string;
   cwd?: string;
   normalizedShell?: boolean;
+  sessionBackend?: TerminalSessionBackend;
+  sessionName?: string;
+  logPath?: string;
+  attachedExisting?: boolean;
+  autoCommandDispatched?: boolean;
 }
 
 export interface ElectronAPI {
   terminal: {
-    create: (id: string, cwd: string, shell?: string, autoCommand?: string) => Promise<TerminalCreateResult>;
+    create: (
+      id: string,
+      cwd: string,
+      shell?: string,
+      autoCommand?: string,
+      options?: {
+        sessionBackend?: TerminalSessionBackend;
+        sessionName?: string;
+        logPath?: string;
+        attachExisting?: boolean;
+      }
+    ) => Promise<TerminalCreateResult>;
     write: (id: string, data: string) => void;
     resize: (id: string, cols: number, rows: number) => void;
     kill: (id: string) => void;
+    stopSession?: (id: string, sessionName?: string) => Promise<{ success: boolean; error?: string }>;
     exists: (id: string) => Promise<boolean>;
     getAllIds: () => Promise<string[]>;
     getSnapshot?: (id: string) => Promise<TerminalSnapshot | null>;

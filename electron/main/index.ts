@@ -497,6 +497,7 @@ function clearIpcChannels(): void {
     'terminal:getAllIds',
     'terminal:getSnapshot',
     'terminal:smokeTest',
+    'terminal:stopSession',
     'workspace:getAll',
     'workspace:getActive',
     'workspace:setActive',

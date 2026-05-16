@@ -7,6 +7,7 @@ import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
 import {
   hyperliquidService,
   type HyperliquidAgentRuntimeStatus,
+  type HyperliquidStrategyClaim,
   type HyperliquidStrategyCatalogRow
 } from '@/services/hyperliquidService';
 import type { MissionDraft } from '@/types/tasks';
@@ -42,8 +43,35 @@ function getDraftStatusLabel(status: MissionDraft['approvalStatus']): string {
   return status.replace('-', ' ');
 }
 
+function timestampSlug(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return [
+    now.getFullYear(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate()),
+    '_',
+    pad(now.getHours()),
+    pad(now.getMinutes())
+  ].join('');
+}
+
+function normalizeStrategyId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function defaultStrategyId(assetSymbol?: string): string {
+  const asset = normalizeStrategyId(assetSymbol || 'btc') || 'btc';
+  return `${asset}_factory_auto_${timestampSlug()}`;
+}
+
 export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open, strategies, assetSymbol, onClose }) => {
-  const { activeWorkspace } = useWorkspaceContext();
+  const { activeWorkspace, updateWorkspace } = useWorkspaceContext();
   const { agents, ensureWorkspaceAgents } = useAgentProfilesContext();
   const {
     createTask,
@@ -61,8 +89,13 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
   const [runtimeLoading, setRuntimeLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [draft, setDraft] = React.useState<MissionDraft | null>(null);
+  const [claim, setClaim] = React.useState<HyperliquidStrategyClaim | null>(null);
+  const [strategyId, setStrategyId] = React.useState('');
+  const [strategyTitle, setStrategyTitle] = React.useState('');
+  const [strategyIdTouched, setStrategyIdTouched] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const missionAsset = (assetSymbol || activeWorkspace?.asset_symbol || activeWorkspace?.strategy_symbol || 'BTC').toUpperCase();
 
   const workspaceAgents = React.useMemo(
     () => agents.filter((agent) => agent.workspaceId === activeWorkspace?.id),
@@ -99,9 +132,14 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
     if (open) {
       setMessage(null);
       setError(null);
+      setClaim(null);
+      setDraft(null);
+      const nextId = defaultStrategyId(missionAsset);
+      setStrategyId((current) => strategyIdTouched && current ? current : nextId);
+      setStrategyTitle((current) => current || nextId.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()));
       void refreshRuntime();
     }
-  }, [open, refreshRuntime]);
+  }, [missionAsset, open, refreshRuntime, strategyIdTouched]);
 
   const launchCodexLogin = React.useCallback(async () => {
     if (!window.electronAPI?.diagnostics?.launchCodexLogin) {
@@ -124,36 +162,86 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
     }
   }, []);
 
-  const createFactoryDraft = React.useCallback(() => {
+  const createFactoryDraft = React.useCallback(async () => {
     if (!activeWorkspace) {
       setError('No active workspace is selected.');
       return;
     }
+    const normalizedStrategyId = normalizeStrategyId(strategyId);
+    if (!normalizedStrategyId) {
+      setError('Strategy ID is required.');
+      return;
+    }
 
-    const draftInput = buildStrategyFactoryMissionDraftInput({
-      workspaceId: activeWorkspace.id,
-      assetSymbol: assetSymbol || activeWorkspace.asset_symbol || activeWorkspace.strategy_symbol || 'BTC',
-      focus,
-      strategies,
-      runtimeStatus,
-      claudeAvailable
-    });
-    const nextDraft = createMissionDraft(draftInput);
-    addMissionMessage({
-      workspaceId: activeWorkspace.id,
-      role: 'user',
-      content: draftInput.goal
-    });
-    addMissionMessage({
-      workspaceId: activeWorkspace.id,
-      draftId: nextDraft.id,
-      role: 'assistant',
-      content: `Strategy Factory draft ready for approval: ${draftInput.title}.`
-    });
-    setDraft(nextDraft);
-    setMessage('Draft ready for approval.');
+    setBusy(true);
     setError(null);
-  }, [activeWorkspace, addMissionMessage, assetSymbol, claudeAvailable, createMissionDraft, focus, runtimeStatus, strategies]);
+    setMessage(null);
+    try {
+      const claimResult = await hyperliquidService.claimStrategy({
+        strategyId: normalizedStrategyId,
+        title: strategyTitle.trim() || normalizedStrategyId.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        assetSymbol: missionAsset,
+        owner: 'strategy-factory'
+      });
+      const nextClaim = claimResult.claim;
+      setClaim(nextClaim);
+
+      if (activeWorkspace.kind === 'strategy-pod') {
+        await updateWorkspace(activeWorkspace.id, {
+          active_strategy_id: nextClaim.strategyId,
+          linked_strategy_ids: Array.from(new Set([...(activeWorkspace.linked_strategy_ids || []), nextClaim.strategyId])),
+          strategy_id: nextClaim.strategyId,
+          strategy_display_name: nextClaim.title,
+          strategy_symbol: missionAsset,
+          strategy_pod_status: 'draft',
+          strategy_backend_dir: nextClaim.backendDir,
+          strategy_docs_path: nextClaim.docsPath
+        });
+      }
+
+      const draftInput = buildStrategyFactoryMissionDraftInput({
+        workspaceId: activeWorkspace.id,
+        assetSymbol: missionAsset,
+        strategyId: nextClaim.strategyId,
+        claim: nextClaim,
+        focus,
+        strategies,
+        runtimeStatus,
+        claudeAvailable
+      });
+      const nextDraft = createMissionDraft(draftInput);
+      addMissionMessage({
+        workspaceId: activeWorkspace.id,
+        role: 'user',
+        content: draftInput.goal
+      });
+      addMissionMessage({
+        workspaceId: activeWorkspace.id,
+        draftId: nextDraft.id,
+        role: 'assistant',
+        content: `Strategy Factory draft ready for approval: ${draftInput.title}.`
+      });
+      setDraft(nextDraft);
+      setMessage(`Strategy claim reserved: ${nextClaim.strategyId}. Draft ready for approval.`);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Strategy claim failed.');
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    activeWorkspace,
+    addMissionMessage,
+    claudeAvailable,
+    createMissionDraft,
+    focus,
+    missionAsset,
+    runtimeStatus,
+    strategies,
+    strategyId,
+    strategyTitle,
+    updateWorkspace
+  ]);
 
   const approveAndLaunch = React.useCallback(() => {
     if (!activeWorkspace || !draft) {
@@ -258,6 +346,37 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr]">
+            <label className="grid gap-1 text-xs font-semibold text-white/65">
+              Strategy ID
+              <input
+                value={strategyId}
+                onChange={(event) => {
+                  setStrategyIdTouched(true);
+                  setStrategyId(normalizeStrategyId(event.target.value));
+                }}
+                className="h-10 rounded-md border border-white/10 bg-black/30 px-3 font-mono text-sm text-white outline-none transition focus:border-cyan-300/45"
+                placeholder="btc_factory_auto_YYYYMMDD_HHMM"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-white/65">
+              Title
+              <input
+                value={strategyTitle}
+                onChange={(event) => setStrategyTitle(event.target.value)}
+                className="h-10 rounded-md border border-white/10 bg-black/30 px-3 text-sm text-white outline-none transition focus:border-cyan-300/45"
+                placeholder="Strategy display name"
+              />
+            </label>
+          </div>
+
+          {claim ? (
+            <div className="rounded-md border border-emerald-300/25 bg-emerald-400/10 p-3 text-xs leading-5 text-emerald-100">
+              <div className="font-semibold text-emerald-50">Claim reserved: {claim.strategyId}</div>
+              <div className="mt-1 font-mono text-emerald-100/65">{claim.docsPath} / {claim.backendDir}</div>
+            </div>
+          ) : null}
+
           <div className="grid gap-2 sm:grid-cols-3">
             {focusOptions.map((option) => {
               const active = focus === option.value;
@@ -349,12 +468,12 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
         <div className="flex flex-wrap justify-end gap-2 border-t border-white/10 p-4">
           <button
             type="button"
-            onClick={createFactoryDraft}
+            onClick={() => void createFactoryDraft()}
             disabled={busy || !activeWorkspace}
             className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md border border-cyan-300/30 bg-cyan-400/15 px-3 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-55 sm:flex-none"
           >
             <Sparkles className="h-4 w-4" />
-            Create Draft
+            {busy ? 'Claiming' : 'Create Draft'}
           </button>
           <button
             type="button"

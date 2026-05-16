@@ -85,10 +85,12 @@ Renderer terminology:
   and a browser partition isolated by desk. The `Workspace` IPC contract should
   stay scoped to desks, not trading lifecycle state.
 - Desk kind is explicit through `WorkspaceKind`: `hedge-fund`, `command-hub`,
-  `project`, or `ops`. `Command Hub` is a required global desk for shells, AI
-  runtimes, tunnels, and short operational commands. Hedge fund work belongs in
-  a `hedge-fund` desk, while unrelated repos default to `project` unless the
-  operator explicitly classifies them otherwise.
+  `strategy-pod`, `project`, or `ops`. A `strategy-pod` is an asset workspace:
+  one ticker, many rough strategy ideas, and one active linked strategy for
+  inspection. `Command Hub` is a required global desk for shells, AI runtimes,
+  tunnels, and short operational commands. Hedge fund work belongs in a
+  `hedge-fund` desk or a ticker-specific `strategy-pod`, while unrelated repos
+  default to `project` unless the operator explicitly classifies them otherwise.
 
 ### `electron/`
 

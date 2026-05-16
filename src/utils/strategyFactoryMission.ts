@@ -1,6 +1,10 @@
 import type { AgentRole } from '@/types/agents';
 import type { MissionDraftInput } from './missionDrafts';
-import type { HyperliquidAgentRuntimeStatus, HyperliquidStrategyCatalogRow } from '@/services/hyperliquidService';
+import type {
+  HyperliquidAgentRuntimeStatus,
+  HyperliquidStrategyCatalogRow,
+  HyperliquidStrategyClaim
+} from '@/services/hyperliquidService';
 import { buildMissionDraftInput } from './missionDrafts';
 
 export type StrategyFactoryFocus = 'auto' | 'scalper' | 'swing';
@@ -13,19 +17,23 @@ const STRATEGY_FACTORY_FOCUS_LABELS: Record<StrategyFactoryFocus, string> = {
 
 const STRATEGY_FACTORY_ROLES: AgentRole[] = ['researcher', 'backtester', 'risk', 'developer', 'data-engineer', 'ops'];
 
-export const STRATEGY_FACTORY_REQUIRED_COMMANDS = [
-  'rtk npm run agent:brief',
-  'rtk npm run agent:check',
-  'rtk npm run hf:doctor',
-  'rtk npm run hf:agent:runtime',
-  'rtk npm run hf:status',
-  'rtk npm run hf:strategy:new -- --strategy-id <new_strategy_id>',
-  'rtk npm run hf:backtest',
-  'rtk npm run hf:validate',
-  'rtk npm run hf:paper',
-  'rtk npm run hf:doubling:stability',
-  'rtk git diff --check'
-];
+export function buildStrategyFactoryRequiredCommands(strategyId: string, assetSymbol?: string): string[] {
+  const asset = assetSymbol?.trim().toUpperCase() || 'BTC';
+  return [
+    'rtk npm run agent:brief',
+    'rtk npm run agent:check',
+    'rtk npm run hf:doctor',
+    'rtk npm run hf:agent:runtime',
+    'rtk npm run hf:status',
+    'rtk npm run hf:strategy:claims -- --asset ' + asset,
+    `rtk npm run hf:backtest -- --strategy ${strategyId}`,
+    `rtk npm run hf:validate -- --strategy ${strategyId}`,
+    `rtk npm run hf:paper -- --strategy ${strategyId} # only when validation allows`,
+    `rtk npm run hf:doubling:stability -- --strategy ${strategyId} # only when validation allows`,
+    `rtk npm run hf:strategy:release -- --strategy-id ${strategyId} --status review --handoff progress/impl_${strategyId}.md`,
+    'rtk git diff --check'
+  ];
+}
 
 export function getStrategyFactoryFocusLabel(focus: StrategyFactoryFocus): string {
   return STRATEGY_FACTORY_FOCUS_LABELS[focus];
@@ -111,10 +119,13 @@ export function buildStrategyFactoryGoal(params: {
   focus: StrategyFactoryFocus;
   strategies: HyperliquidStrategyCatalogRow[];
   assetSymbol?: string;
+  strategyId: string;
+  claim?: HyperliquidStrategyClaim | null;
 }): string {
   const benchmarkBoard = buildStrategyFactoryBenchmarkBoard(params.strategies);
   const evidenceLean = inferEvidenceLean(params.strategies);
   const assetSymbol = params.assetSymbol?.trim().toUpperCase();
+  const strategyId = params.strategyId.trim().replace(/-/g, '_').toLowerCase();
   const focusInstruction = params.focus === 'auto'
     ? `Auto-select scalper or swing only after comparing evidence. Initial catalog lean: ${evidenceLean}.`
     : `Operator override: build a ${params.focus} candidate unless evidence clearly says it is a bad use of this repo.`;
@@ -124,6 +135,13 @@ export function buildStrategyFactoryGoal(params: {
 
   return [
     'Strategy Factory mission: create one complete, backend-first strategy candidate for Hedge Fund Station.',
+    '',
+    `Assigned strategy_id: ${strategyId}.`,
+    `Assigned backend path: backend/hyperliquid_gateway/strategies/${strategyId}/.`,
+    `Assigned docs path: docs/strategies/${strategyId.replace(/_/g, '-')}.md.`,
+    params.claim ? `Strategy Mission Lock: ${params.claim.claimId} (${params.claim.status}).` : '',
+    '',
+    'Hard ownership rule: create or modify exactly the assigned strategy_id. Do not create, rename, fork, or register a second strategy_id in this mission. If the evidence says a different strategy is needed, stop and ask the operator instead of making it.',
     '',
     assetSymbol ? `Asset constraint: build or improve a ${assetSymbol} strategy only. Do not switch assets unless the operator explicitly overrides this constraint.` : '',
     assetSymbol ? '' : '',
@@ -146,9 +164,9 @@ export function buildStrategyFactoryGoal(params: {
     '- The thesis must not be parameter-only curve fitting. Parameters can refine risk, but the main edge must come from a falsifiable market mechanism, data input, regime filter, trigger/invalidation pair, or signal combination.',
     '',
     'Implementation contract:',
-    '- Create or materially complete exactly one strategy candidate.',
-    '- Write or update docs/strategies/<strategy-id>.md with edge, regime, anti-regime, inputs, entry, invalidation, exit, risk, costs, validation, failure modes, and backend mapping.',
-    '- Put deterministic logic in backend/hyperliquid_gateway/strategies/<strategy_id>/, not React or Electron.',
+    `- Create or materially complete exactly one strategy candidate: ${strategyId}.`,
+    `- Write or update docs/strategies/${strategyId.replace(/_/g, '-')}.md with edge, regime, anti-regime, inputs, entry, invalidation, exit, risk, costs, validation, failure modes, and backend mapping.`,
+    `- Put deterministic logic in backend/hyperliquid_gateway/strategies/${strategyId}/, not React or Electron.`,
     '- Add focused backend tests where the strategy logic, scoring, risk, or backtest adapter can regress.',
     '- Run the stable hf:* pipeline: doctor, status, strategy new if needed, backtest, validate, and paper candidate only when validation makes it eligible.',
     '- Prepare live-gate notes only as blocked planning after paper evidence, risk review, runbook, and explicit operator sign-off.',
@@ -158,6 +176,7 @@ export function buildStrategyFactoryGoal(params: {
     '- Do not invent evidence. If evidence is missing, record the gap and stop at the correct gate.',
     '- Do not optimize a tiny historical window just to beat the current board.',
     '- Leave progress/current.md, progress/impl_<task>.md, and progress/history.md in a state the next agent can trust.',
+    `- Before finishing, release or move the Strategy Mission Lock with: rtk npm run hf:strategy:release -- --strategy-id ${strategyId} --status review --handoff progress/impl_${strategyId}.md.`,
     '',
     'Done means: source/docs/tests are updated, backtest and validation artifacts are named, paper candidate is created only if eligible, live remains blocked, and the final operator brief names files, commands, results, risks, and next gate.'
   ].join('\n');
@@ -166,6 +185,8 @@ export function buildStrategyFactoryGoal(params: {
 export function buildStrategyFactoryMissionDraftInput(params: {
   workspaceId: string;
   assetSymbol?: string;
+  strategyId: string;
+  claim?: HyperliquidStrategyClaim | null;
   focus: StrategyFactoryFocus;
   strategies: HyperliquidStrategyCatalogRow[];
   runtimeStatus: HyperliquidAgentRuntimeStatus | null;
@@ -174,11 +195,15 @@ export function buildStrategyFactoryMissionDraftInput(params: {
   const goal = buildStrategyFactoryGoal({
     focus: params.focus,
     strategies: params.strategies,
-    assetSymbol: params.assetSymbol
+    assetSymbol: params.assetSymbol,
+    strategyId: params.strategyId,
+    claim: params.claim
   });
   const focusLabel = getStrategyFactoryFocusLabel(params.focus);
+  const commands = buildStrategyFactoryRequiredCommands(params.strategyId, params.assetSymbol);
   const risks = [
     'No live trades, no order routing, and no credential changes.',
+    `Create or modify exactly the assigned strategy_id: ${params.strategyId}.`,
     'No parameter-only curve fitting as the main thesis.',
     'Backend-first strategy logic only; React and Electron stay review/control surfaces.',
     'Paper candidate only after validation evidence; live gate remains blocked without operator sign-off.',
@@ -195,9 +220,19 @@ export function buildStrategyFactoryMissionDraftInput(params: {
     title: `Strategy Factory: ${focusLabel}`,
     suggestedRoles: STRATEGY_FACTORY_ROLES,
     backendActions: [],
-    proposedCommands: STRATEGY_FACTORY_REQUIRED_COMMANDS,
+    proposedCommands: commands,
     risks,
+    strategyId: params.strategyId,
+    strategyClaimId: params.claim?.claimId,
     evidenceRefs: [
+      params.claim ? {
+        id: `strategy-claim:${params.claim.strategyId}`,
+        kind: 'command',
+        label: 'Strategy Mission Lock',
+        path: 'progress/strategy_claims.json',
+        strategyId: params.claim.strategyId,
+        summary: `${params.claim.assetSymbol}/${params.claim.strategyId} claimed`
+      } : null,
       {
         id: 'strategy-catalog',
         kind: 'command',
@@ -222,6 +257,6 @@ export function buildStrategyFactoryMissionDraftInput(params: {
         label: 'Agent run evidence',
         path: 'backend/hyperliquid_gateway/data/agent_runs'
       }
-    ]
+    ].filter((ref): ref is NonNullable<typeof ref> => Boolean(ref))
   });
 }

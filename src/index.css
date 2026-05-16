@@ -131,23 +131,37 @@
 }
 
 /* Customize xterm scrollbar */
+.xterm {
+  height: 100%;
+  min-height: 0;
+}
+
+.xterm .xterm-screen {
+  height: 100%;
+}
+
+.xterm-viewport {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable;
+}
+
 .xterm-viewport::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
 .xterm-viewport::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
+  background: rgba(2, 6, 23, 0.72);
+  border-left: 1px solid rgba(148, 163, 184, 0.08);
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(239, 68, 68, 0.2);
-  border-radius: 4px;
-  border: 1px solid rgba(239, 68, 68, 0.1);
+  background: rgba(239, 68, 68, 0.32);
+  border-radius: 999px;
+  border: 2px solid rgba(2, 6, 23, 0.72);
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.52);
 }
 
 @layer utilities {
