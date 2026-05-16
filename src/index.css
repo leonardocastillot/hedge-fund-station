@@ -32,7 +32,7 @@
     --app-terminal-border: rgba(239, 68, 68, 0.14);
     --glass-blur: 28px;
     --glass-saturation: 1.2;
-    --noise-opacity: 0.03;
+    --noise-opacity: 0.018;
   }
 
   body {
@@ -134,15 +134,29 @@
 .xterm {
   height: 100%;
   min-height: 0;
+  background: #05070b !important;
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  font-variant-ligatures: none;
 }
 
 .xterm .xterm-screen {
   height: 100%;
+  background: #05070b !important;
+  text-shadow: none !important;
+}
+
+.xterm .xterm-rows,
+.xterm .xterm-rows span,
+.xterm .xterm-accessibility,
+.xterm .xterm-accessibility-tree {
+  text-shadow: none !important;
 }
 
 .xterm-viewport {
   overflow-y: scroll !important;
   scrollbar-gutter: stable;
+  background-color: #05070b !important;
 }
 
 .xterm-viewport::-webkit-scrollbar {

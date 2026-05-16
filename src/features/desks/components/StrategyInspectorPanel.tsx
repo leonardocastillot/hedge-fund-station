@@ -57,6 +57,77 @@ const SAFE_BACKTEST_OPTIONS = {
   buildPaperCandidate: false
 };
 const intervals = ['1d', '4h', '1h', '15m'];
+const INSPECTOR_STATE_STORAGE_KEY = 'hedge-station:strategy-inspector-state:v1';
+
+interface PersistedStrategyInspectorState {
+  mode?: InspectorMode;
+  selectedStrategyId?: string;
+  artifactId?: string;
+  interval?: string;
+  pineInterval?: string;
+  factoryFocus?: StrategyFactoryFocus;
+  updatedAt?: number;
+}
+
+function isInspectorMode(value: unknown): value is InspectorMode {
+  return value === 'overview' || value === 'create' || value === 'indicator';
+}
+
+function isStrategyFactoryFocus(value: unknown): value is StrategyFactoryFocus {
+  return value === 'auto' || value === 'scalper' || value === 'swing';
+}
+
+function loadInspectorState(workspaceId?: string | null): PersistedStrategyInspectorState {
+  if (!workspaceId) {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(INSPECTOR_STATE_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, PersistedStrategyInspectorState>;
+    const state = parsed?.[workspaceId];
+    if (!state || typeof state !== 'object') {
+      return {};
+    }
+    return {
+      mode: isInspectorMode(state.mode) ? state.mode : undefined,
+      selectedStrategyId: typeof state.selectedStrategyId === 'string' ? state.selectedStrategyId : undefined,
+      artifactId: typeof state.artifactId === 'string' ? state.artifactId : undefined,
+      interval: intervals.includes(String(state.interval)) ? String(state.interval) : undefined,
+      pineInterval: intervals.includes(String(state.pineInterval)) ? String(state.pineInterval) : undefined,
+      factoryFocus: isStrategyFactoryFocus(state.factoryFocus) ? state.factoryFocus : undefined,
+      updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : undefined
+    };
+  } catch {
+    return {};
+  }
+}
+
+function saveInspectorState(workspaceId: string | undefined, state: PersistedStrategyInspectorState): void {
+  if (!workspaceId) {
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(INSPECTOR_STATE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) as Record<string, PersistedStrategyInspectorState> : {};
+    const entries = Object.entries({
+      ...parsed,
+      [workspaceId]: {
+        ...state,
+        updatedAt: Date.now()
+      }
+    })
+      .sort((left, right) => Number(right[1]?.updatedAt || 0) - Number(left[1]?.updatedAt || 0))
+      .slice(0, 24);
+    window.localStorage.setItem(INSPECTOR_STATE_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    // Losing ephemeral panel state should not interrupt strategy review.
+  }
+}
 
 function joinRepoPath(repoPath: string, path: string): string {
   if (!path) return repoPath;
@@ -160,12 +231,18 @@ export function StrategyInspectorPanel() {
     updateTaskReview
   } = useCommanderTasksContext();
   const assetSymbol = activeWorkspace?.asset_symbol || activeWorkspace?.strategy_symbol || 'BTC';
-  const [mode, setMode] = useState<InspectorMode>('overview');
+  const initialInspectorState = useMemo(
+    () => loadInspectorState(activeWorkspace?.id),
+    [activeWorkspace?.id]
+  );
+  const [mode, setMode] = useState<InspectorMode>(initialInspectorState.mode || 'overview');
   const [catalog, setCatalog] = useState<HyperliquidStrategyCatalogRow[]>([]);
-  const [selectedStrategyId, setSelectedStrategyId] = useState(activeWorkspace?.active_strategy_id || activeWorkspace?.strategy_id || '');
-  const [artifactId, setArtifactId] = useState('latest');
-  const [interval, setInterval] = useState('1d');
-  const [pineInterval, setPineInterval] = useState('1h');
+  const [selectedStrategyId, setSelectedStrategyId] = useState(
+    initialInspectorState.selectedStrategyId || activeWorkspace?.active_strategy_id || activeWorkspace?.strategy_id || ''
+  );
+  const [artifactId, setArtifactId] = useState(initialInspectorState.artifactId || 'latest');
+  const [interval, setInterval] = useState(initialInspectorState.interval || '1d');
+  const [pineInterval, setPineInterval] = useState(initialInspectorState.pineInterval || '1h');
   const [lab, setLab] = useState<HyperliquidStrategyLabResponse | null>(null);
   const [claims, setClaims] = useState<HyperliquidStrategyClaim[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -174,7 +251,7 @@ export function StrategyInspectorPanel() {
   const [claimAction, setClaimAction] = useState<HyperliquidStrategyClaim['status'] | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [factoryOpen, setFactoryOpen] = useState(false);
-  const [factoryFocus, setFactoryFocus] = useState<StrategyFactoryFocus>('auto');
+  const [factoryFocus, setFactoryFocus] = useState<StrategyFactoryFocus>(initialInspectorState.factoryFocus || 'auto');
   const [error, setError] = useState<string | null>(null);
 
   const sortedStrategies = useMemo(
@@ -258,10 +335,26 @@ export function StrategyInspectorPanel() {
   }, [assetSymbol]);
 
   useEffect(() => {
-    setSelectedStrategyId(activeWorkspace?.active_strategy_id || activeWorkspace?.strategy_id || '');
-    setArtifactId('latest');
+    const restored = loadInspectorState(activeWorkspace?.id);
+    setMode(restored.mode || 'overview');
+    setSelectedStrategyId(restored.selectedStrategyId || activeWorkspace?.active_strategy_id || activeWorkspace?.strategy_id || '');
+    setArtifactId(restored.artifactId || 'latest');
+    setInterval(restored.interval || '1d');
+    setPineInterval(restored.pineInterval || '1h');
+    setFactoryFocus(restored.factoryFocus || 'auto');
     setActionResult(null);
-  }, [activeWorkspace?.active_strategy_id, activeWorkspace?.id, activeWorkspace?.strategy_id]);
+  }, [activeWorkspace?.id]);
+
+  useEffect(() => {
+    saveInspectorState(activeWorkspace?.id, {
+      mode,
+      selectedStrategyId,
+      artifactId,
+      interval,
+      pineInterval,
+      factoryFocus
+    });
+  }, [activeWorkspace?.id, artifactId, factoryFocus, interval, mode, pineInterval, selectedStrategyId]);
 
   useEffect(() => {
     void refreshCatalog();

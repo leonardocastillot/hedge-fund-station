@@ -9,8 +9,47 @@ import type { TerminalRuntimeState } from '@/contexts/TerminalContext';
 import type { TerminalPtyState } from '@/contexts/TerminalContext';
 import type { AgentProvider } from '../../types/agents';
 import { COLOR_SCHEMES } from './TerminalColorSchemes';
-import { loadAppSettings } from '../../utils/appSettings';
+import { APP_SETTINGS_CHANGED_EVENT, loadAppSettings } from '../../utils/appSettings';
 import { getProviderMeta } from '../../utils/agentRuntime';
+import { usePerformanceProfile } from '@/hooks/usePerformanceProfile';
+
+const TERMINAL_SURFACE_BACKGROUND = '#05070b';
+const TERMINAL_PANEL_BACKGROUND = 'linear-gradient(180deg, rgba(5, 9, 13, 0.98), rgba(2, 6, 10, 0.98))';
+const TERMINAL_HEADER_ACTIVE_BACKGROUND = 'linear-gradient(180deg, rgba(10, 19, 25, 0.98), rgba(4, 10, 15, 0.98))';
+const TERMINAL_HEADER_BACKGROUND = 'rgba(5, 11, 16, 0.96)';
+const TERMINAL_FONT_FAMILY = '"Cascadia Mono", Consolas, "Courier New", monospace';
+const TERMINAL_HACKER_THEME = {
+  background: TERMINAL_SURFACE_BACKGROUND,
+  foreground: '#f1f5f9',
+  cursor: '#67e8f9',
+  cursorAccent: '#02070a',
+  selectionBackground: '#155e7566',
+  selectionForeground: '#ffffff',
+  black: '#64748b',
+  red: '#ff6b7a',
+  green: '#7ee787',
+  yellow: '#facc15',
+  blue: '#93c5fd',
+  magenta: '#d8b4fe',
+  cyan: '#67e8f9',
+  white: '#f8fafc',
+  brightBlack: '#a1a8b3',
+  brightRed: '#fb7185',
+  brightGreen: '#86efac',
+  brightYellow: '#fde68a',
+  brightBlue: '#bfdbfe',
+  brightMagenta: '#f0abfc',
+  brightCyan: '#a5f3fc',
+  brightWhite: '#ffffff'
+} as const;
+
+function clampTerminalFontSize(value: number): number {
+  return Math.max(10, Math.min(value, 18));
+}
+
+function clampTerminalScrollback(value: number): number {
+  return Math.max(5000, Math.min(value, 50000));
+}
 
 function normalizeTerminalTitle(title: string): string {
   const trimmed = title.trim();
@@ -379,6 +418,9 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
 
   // Get color scheme
   const colorScheme = COLOR_SCHEMES[color];
+  const performanceProfile = usePerformanceProfile();
+  const allowAmbientTerminalMotion = performanceProfile === 'full';
+  const rainbowAccentAnimated = Boolean(rainbowEffect && allowAmbientTerminalMotion);
 
   useEffect(() => {
     hasExitedRef.current = hasExited;
@@ -672,6 +714,67 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }
   });
 
+  const applyTerminalVisualSettings = React.useCallback((settings = loadAppSettings()) => {
+    settingsRef.current = settings;
+
+    const terminal = terminalRef.current;
+    if (!terminal) {
+      return;
+    }
+
+    terminal.options.theme = { ...TERMINAL_HACKER_THEME };
+    terminal.options.fontSize = clampTerminalFontSize(settings.fontSize);
+    terminal.options.fontFamily = TERMINAL_FONT_FAMILY;
+    terminal.options.fontWeight = '400';
+    terminal.options.fontWeightBold = '700';
+    terminal.options.letterSpacing = 0;
+    terminal.options.lineHeight = 1.2;
+    terminal.options.scrollback = clampTerminalScrollback(settings.scrollbackLines);
+
+    if (!fitAddonRef.current || !containerRef.current) {
+      return;
+    }
+
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+    }
+
+    resizeFrameRef.current = window.requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      if (!fitAddonRef.current || terminalRef.current !== terminal || !containerRef.current) {
+        return;
+      }
+
+      const rect = containerRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      fitAddonRef.current.fit();
+      const { cols, rows } = terminal;
+      const lastSize = lastSizeRef.current;
+      if (lastSize?.cols !== cols || lastSize?.rows !== rows) {
+        lastSizeRef.current = { cols, rows };
+        resize(cols, rows);
+      }
+    });
+  }, [resize]);
+
+  useEffect(() => {
+    applyTerminalVisualSettings();
+
+    const handleSettingsChange = () => {
+      applyTerminalVisualSettings();
+    };
+
+    window.addEventListener(APP_SETTINGS_CHANGED_EVENT, handleSettingsChange);
+    window.addEventListener('storage', handleSettingsChange);
+    return () => {
+      window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, handleSettingsChange);
+      window.removeEventListener('storage', handleSettingsChange);
+    };
+  }, [applyTerminalVisualSettings, performanceProfile]);
+
   const handleManualRuntimeRetry = React.useCallback(() => {
     if (!runtimeProvider || !autoCommand || hasExitedRef.current) {
       return;
@@ -713,38 +816,14 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     // Use conservative terminal settings for CLI stability.
     const terminal = new Terminal({
       cursorBlink: true,
-      fontSize: Math.max(10, Math.min(settingsRef.current.fontSize, 18)),
-      fontFamily: '"Cascadia Mono", Consolas, "Courier New", monospace',
+      fontSize: clampTerminalFontSize(settingsRef.current.fontSize),
+      fontFamily: TERMINAL_FONT_FAMILY,
       fontWeight: '400',
       fontWeightBold: '700',
       letterSpacing: 0,
       lineHeight: 1.2,
-      theme: {
-        background: '#05070b',
-        foreground: '#e5e7eb',
-        cursor: '#ef4444',
-        cursorAccent: '#05070b',
-        selectionBackground: '#ef444480',
-        selectionForeground: '#ffffff',
-        black: '#2e3440',
-        red: '#ff6b6b',
-        green: '#51cf66',
-        yellow: '#ffd93d',
-        blue: '#74c0fc',
-        magenta: '#d0bfff',
-        cyan: '#66d9ef',
-        white: '#e5e7eb',
-        // Bright colors - neon-like
-        brightBlack: '#6c7a89',
-        brightRed: '#ff8787',
-        brightGreen: '#69db7c',
-        brightYellow: '#ffe066',
-        brightBlue: '#91d7ff',
-        brightMagenta: '#e599f7',
-        brightCyan: '#7fdbff',
-        brightWhite: '#ffffff'
-      },
-      scrollback: Math.max(5000, Math.min(settingsRef.current.scrollbackLines, 50000)),
+      theme: { ...TERMINAL_HACKER_THEME },
+      scrollback: clampTerminalScrollback(settingsRef.current.scrollbackLines),
       allowProposedApi: false,
       allowTransparency: false,
       customGlyphs: true,
@@ -789,6 +868,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     // Store refs
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    applyTerminalVisualSettings(settingsRef.current);
 
     void getSnapshot().then((snapshot) => {
       if (!snapshot || terminalRef.current !== terminal) {
@@ -818,7 +898,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       // NO llamar kill() aquí - los PTY deben sobrevivir hot reload
       // Solo se matan cuando el usuario cierra explícitamente (ver onClose)
     };
-  }, [id, write, getSnapshot]);
+  }, [applyTerminalVisualSettings, id, write, getSnapshot]);
 
   // Handle resize
   useEffect(() => {
@@ -1008,96 +1088,43 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       minHeight: 0,
       display: 'flex',
       flexDirection: 'column',
-      background: 'var(--app-terminal-bg)',
+      background: TERMINAL_PANEL_BACKGROUND,
       border: isActive
-        ? `1.5px solid ${providerAccent}`
+        ? `1px solid ${providerAccent}cc`
         : `1px solid ${colorScheme.border}`,
       borderRadius: compactChrome ? '8px' : '12px',
       overflow: 'hidden',
       boxShadow: isActive
         ? compactChrome
-          ? `0 0 0 1px ${providerAccent}38, 0 8px 18px rgba(0, 0, 0, 0.28)`
-          : (providerMeta ? `0 0 22px ${providerMeta.glow}` : colorScheme.shadowActive)
-        : colorScheme.shadow,
+          ? `0 0 0 1px ${providerAccent}2e, 0 8px 18px rgba(0, 0, 0, 0.26)`
+          : `0 0 0 1px ${providerAccent}24, 0 14px 30px rgba(0, 0, 0, 0.34)`
+        : '0 0 0 1px rgba(15, 23, 42, 0.42), 0 8px 18px rgba(0, 0, 0, 0.22)',
       position: 'relative',
       zIndex: isActive ? 2 : 1,
       isolation: 'isolate',
-      transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+      transition: 'border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
       // Remove transform scale which causes blurriness
       transform: 'none'
     }}>
-      {/* Rainbow Effect - manual only to avoid constant GPU work */}
-      {rainbowEffect && (
-        <>
-          <div style={{
-            position: 'absolute',
-            inset: '-100%',
-            width: '300%',
-            height: '300%',
-            background: `
-              conic-gradient(
-                from 0deg,
-                transparent,
-                rgba(239, 68, 68, 0.015),
-                rgba(249, 115, 22, 0.015),
-                rgba(234, 179, 8, 0.015),
-                rgba(16, 185, 129, 0.015),
-                rgba(6, 182, 212, 0.015),
-                rgba(59, 130, 246, 0.015),
-                rgba(168, 85, 247, 0.015),
-                rgba(236, 72, 153, 0.015),
-                rgba(239, 68, 68, 0.015),
-                transparent
-              )
-            `,
-            pointerEvents: 'none',
-            zIndex: 5,
-            animation: 'rainbowRotate 16s linear infinite',
-            filter: 'blur(56px)',
-            opacity: 0.55,
-            mixBlendMode: 'screen',
-            transformOrigin: '50% 50%'
-          }} />
-
-          <div style={{
-            position: 'absolute',
-            inset: '-1px',
-            borderRadius: '13px',
-            background: `
-              linear-gradient(
-                90deg,
-                #ef4444,
-                #f97316,
-                #eab308,
-                #10b981,
-                #06b6d4,
-                #3b82f6,
-                #a855f7,
-                #ec4899,
-                #ef4444
-              )
-            `,
-            backgroundSize: '400% 100%',
-            pointerEvents: 'none',
-            zIndex: 4,
-            animation: 'borderFlow 8s linear infinite',
-            filter: 'blur(4px)',
-            opacity: 0.12
-          }} />
-        </>
-      )}
+      {/* Manual accent rail. Animation stays off unless the full visual profile is active. */}
+      {rainbowEffect ? (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          background: 'linear-gradient(90deg, #fb7185, #f59e0b, #84cc16, #22d3ee, #60a5fa, #c084fc, #fb7185)',
+          backgroundSize: '300% 100%',
+          pointerEvents: 'none',
+          zIndex: 6,
+          animation: rainbowAccentAnimated ? 'borderFlow 12s linear infinite' : 'none',
+          opacity: allowAmbientTerminalMotion ? 0.44 : 0.28
+        }} />
+      ) : null}
 
       <style>
         {`
-          @keyframes rainbowRotate {
-            0% {
-              transform: translate(-50%, -50%) rotate(0deg);
-            }
-            100% {
-              transform: translate(-50%, -50%) rotate(360deg);
-            }
-          }
-
           @keyframes borderFlow {
             0% {
               background-position: 0% 50%;
@@ -1116,15 +1143,15 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
         alignItems: 'center',
         gap: compactChrome ? '6px' : '8px',
         padding: compactChrome ? '4px 6px' : '5px 8px',
-        background: isActive
-          ? 'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.96))'
-          : 'rgba(15, 23, 42, 0.92)',
-        borderBottom: isActive ? `1px solid ${providerAccent}55` : '1px solid var(--app-terminal-border)',
+        background: isActive ? TERMINAL_HEADER_ACTIVE_BACKGROUND : TERMINAL_HEADER_BACKGROUND,
+        borderBottom: isActive ? `1px solid ${providerAccent}44` : '1px solid rgba(148, 163, 184, 0.12)',
         fontSize: '10px',
         color: isActive ? 'var(--app-text)' : 'var(--app-muted)',
         position: 'relative',
         zIndex: 10,
-        boxShadow: isActive ? `0 4px 14px ${providerMeta?.glow || colorScheme.glow}` : 'inset 0 1px 1px rgba(255, 255, 255, 0.04)'
+        boxShadow: isActive && allowAmbientTerminalMotion
+          ? `0 4px 14px ${providerMeta?.glow || colorScheme.glow}`
+          : 'inset 0 -1px 0 rgba(255, 255, 255, 0.025)'
       }}
       title={compactChrome ? metaParts.join(' / ') : undefined}
       >
@@ -1349,7 +1376,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
                     ? 'linear-gradient(90deg, #ef4444, #f97316, #eab308, #10b981, #06b6d4, #3b82f6, #a855f7, #ec4899)'
                     : 'rgba(15, 23, 42, 0.82)',
                   backgroundSize: '400% 100%',
-                  animation: rainbowEffect ? 'borderFlow 3s linear infinite' : 'none',
+                  animation: rainbowAccentAnimated ? 'borderFlow 10s linear infinite' : 'none',
                   borderColor: rainbowEffect ? 'rgba(255, 255, 255, 0.24)' : 'rgba(148, 163, 184, 0.16)'
                 }}
                 title={rainbowEffect ? 'Disable visual accent' : 'Enable visual accent'}
@@ -1455,7 +1482,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
           width: '100%',
           overflow: 'hidden',
           padding: 0,
-          background: '#05070b',
+          background: TERMINAL_SURFACE_BACKGROUND,
           position: 'relative',
           cursor: 'text',
           zIndex: 1

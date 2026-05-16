@@ -18,6 +18,178 @@
   },
   "tasks": [
     {
+      "id": "center_panel_persistent_layout",
+      "title": "Keep the center panel mounted while side panels collapse",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_center_panel_persistent_layout.md",
+        "src/components/electron/ElectronLayout.tsx"
+      ],
+      "acceptance": [
+        "Closing or opening the left context panel does not remount WidgetPanel.",
+        "Closing or opening the right workspace dock does not remount WidgetPanel.",
+        "The center panel can resize when side panels collapse or expand, but the current route remains mounted.",
+        "Collapsed side rails render inside stable side panels instead of replacing the panel tree.",
+        "No backend, Electron IPC, route, strategy, storage schema, or trading behavior changes.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/components/electron/ElectronLayout.tsx",
+        "progress/impl_center_panel_persistent_layout.md"
+      ],
+      "notes": "Done. ElectronLayout now keeps a stable three-panel tree without a collapse-state PanelGroup key; side panels collapse through react-resizable-panels refs and render rails inside their existing panels, so WidgetPanel stays mounted while the center resizes."
+    },
+    {
+      "id": "btc_toolbar_minimal",
+      "title": "Make the BTC workbench toolbar compact and professional",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_btc_toolbar_minimal.md",
+        "src/features/cockpit/pages/BtcAnalysisPage.tsx"
+      ],
+      "acceptance": [
+        "The BTC route header consumes substantially less vertical space above TradingView.",
+        "The toolbar stays understandable with compact grouped controls and tooltips.",
+        "Existing interval, edit, reset, Pine Lab, auto-sleep, focus, preset, and stream controls remain available.",
+        "No backend, Electron IPC, strategy logic, storage schema, or trading behavior changes.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/cockpit/pages/BtcAnalysisPage.tsx",
+        "progress/impl_btc_toolbar_minimal.md"
+      ],
+      "notes": "Done. The BTC workbench header is now a single compact toolbar row with short title text, icon-first actions, compact presets, S1/S2/M stream controls, hidden horizontal scrollbar overflow, and no extra vertical wrap. No backend, Electron IPC, strategy logic, storage schema, or trading behavior changed."
+    },
+    {
+      "id": "btc_video_auto_fit",
+      "title": "Auto-fit BTC video workbench to available screen space",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_btc_video_auto_fit.md",
+        "src/features/cockpit/pages/BtcAnalysisPage.tsx"
+      ],
+      "acceptance": [
+        "The BTC research station grid uses available vertical screen space when the app window grows.",
+        "The row height is derived from measured container dimensions instead of staying fixed at 24px.",
+        "Focused BTC video mode expands the selected stream into unused video space without mutating the persisted custom layout.",
+        "TradingView, YouTube mute/fullscreen, performance auto-suspend, and Pine Lab behavior remain unchanged.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/features/cockpit/pages/BtcAnalysisPage.tsx",
+        "progress/impl_btc_video_auto_fit.md"
+      ],
+      "notes": "Done. The BTC workbench now measures the grid container, derives row height from available height, and expands focused video mode into the combined video area without mutating persisted custom layouts. No backend, Electron IPC, strategy logic, storage schema, or trading behavior changed."
+    },
+    {
+      "id": "terminal_visual_comfort",
+      "title": "Improve terminal readability with a lightweight hacker visual style",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_terminal_visual_comfort.md",
+        "src/components/electron/TerminalPane.tsx",
+        "src/index.css"
+      ],
+      "acceptance": [
+        "OpenCode and other right-dock agent CLIs render high-contrast terminal text.",
+        "ANSI black and bright-black output remains readable on the matte dark terminal background.",
+        "Terminal chrome uses a lightweight hacker style without heavy blur, text shadow, or always-on animation.",
+        "Rainbow and accent effects remain opt-in and animate only in the full performance profile.",
+        "No Electron IPC, node-pty, backend, terminal persistence, or CLI command behavior changes are made.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/components/electron/TerminalPane.tsx",
+        "src/index.css",
+        "progress/impl_terminal_visual_comfort.md"
+      ],
+      "notes": "Done. Shared terminal renderer now uses a high-contrast matte xterm palette with readable ANSI black/bright-black, lighter terminal chrome, static low-cost accents for daily-light and ultra-light profiles, and opt-in accent animation only for the full profile. No Electron IPC, node-pty, backend, terminal persistence, CLI command behavior, strategy logic, credentials, order routing, market orders, or release promotion changed."
+    },
+    {
+      "id": "hybrid_agent_console_refresh",
+      "title": "Make Agent View drive focused right-dock consoles",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_hybrid_agent_console_refresh.md",
+        "src/components/electron/TerminalPane.tsx",
+        "src/features/agents/components/WorkspaceAgentView.tsx"
+      ],
+      "acceptance": [
+        "Already-open terminal instances apply the shared hacker-light theme and settings refresh without killing PTY sessions.",
+        "Agent View opens an existing session in the right dock code console with terminal layout set to focus.",
+        "Agent View attach, launch, retry, and send flows keep the right dock focused on the relevant console.",
+        "Agent View remains the control layer and does not embed duplicate terminal instances.",
+        "No Electron IPC, node-pty, backend, terminal persistence, CLI command behavior, strategy logic, credentials, order routing, or market-order behavior changes are made.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/components/electron/TerminalPane.tsx",
+        "src/features/agents/components/WorkspaceAgentView.tsx",
+        "progress/impl_hybrid_agent_console_refresh.md"
+      ],
+      "notes": "Done. Mounted xterm instances now re-apply the shared hacker-light theme and app terminal settings without killing PTY sessions, and Agent View attach, launch, retry, Claude View, and send flows switch the right dock to Code with terminal layout set to focus. No Electron IPC, node-pty, backend, terminal persistence schema, CLI command behavior, strategy logic, credentials, order routing, or market-order behavior changed."
+    },
+    {
       "id": "dev_stability_strategy_harness_hardening",
       "title": "Keep dev sessions stable while hardening Strategy Pod harness state",
       "mission_class": "repo health audit",
@@ -48,11 +220,19 @@
         "rtk npm run build",
         "rtk git diff --check"
       ],
-      "status": "in_progress",
+      "status": "done",
       "owner": "codex",
       "parallelizable": false,
-      "evidence_paths": [],
-      "notes": "Active task for stabilizing the dev loop and tightening harness state so strategy agents do not collide or run against stale current-session metadata."
+      "evidence_paths": [
+        "package.json",
+        "docs/operations/how-to-develop-this-app.md",
+        "src/features/desks/components/StrategyInspectorPanel.tsx",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "scripts/agent_harness.py",
+        "tests/test_agent_harness.py",
+        "progress/impl_dev_stability_strategy_harness_hardening.md"
+      ],
+      "notes": "Done. `npm run dev` is now the stable renderer/HMR loop, native Electron watch/restart is explicit via `npm run dev:watch-native`, Strategy Inspector state survives renderer reloads, dynamic route import recovery no longer auto-reloads in development, and agent:check now fails when progress/current.md names a missing active task."
     },
     {
       "id": "strategy_mission_locks",
@@ -1281,6 +1461,37 @@
         "progress/impl_btc_multiframe_trend_ensemble.md"
       ],
       "notes": "Done. 229.64% return, 5.85 profit factor, 19.8% max drawdown. Anti-overfit design: 4 MA pair ensemble voting (no single pair dominates), smooth vol scaling (no step functions), structure exit via consensus collapse. 100% positive doubling stability slices. Different approach from champion (ensemble vs single MA pair)."
+    },
+    {
+      "id": "release_push_mac_delivery",
+      "title": "Publish latest repo changes and package this Mac build",
+      "mission_class": "operations/runbook audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_release_push_mac_delivery.md",
+        "release/"
+      ],
+      "acceptance": [
+        "All pending source and handoff changes are committed and pushed.",
+        "The current Electron app is packaged for this Mac.",
+        "Harness and build verification results are recorded.",
+        "The operator receives the pushed branch, commit, and local macOS artifact path."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npm run build",
+        "rtk npm run dist:mac -- --arm64"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "progress/impl_release_push_mac_delivery.md"
+      ],
+      "notes": "Done. Packaged this Mac build as arm64 app, DMG, and ZIP under release/1.0.0, verified checksums, and left binaries ignored from Git. The app is ad-hoc signed for local use; Developer ID signing and notarization remain required for public distribution."
     }
   ]
 }

@@ -394,6 +394,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
   const [agentActionsOpen, setAgentActionsOpen] = React.useState(false);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [isLaunching, setIsLaunching] = React.useState(false);
+  const autoOpenedDockWorkspaceRef = React.useRef<string | null>(null);
   const activePeekRow = React.useMemo(
     () => rows.find((row) => row.id === peekRowId) || null,
     [peekRowId, rows]
@@ -474,6 +475,33 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
   );
   const canSend = Boolean(workspace && prompt.trim() && !isLaunching);
 
+  const focusTerminalInRightDock = React.useCallback((terminalId: string, activeTerminalKey = terminalId) => {
+    if (!workspace) {
+      return;
+    }
+
+    setActiveTerminal(terminalId);
+    setDeskState(workspace.id, {
+      activeTerminalKey,
+      terminalLayout: 'focus'
+    });
+    publishWorkspaceDockMode('code', workspace.id);
+  }, [setActiveTerminal, setDeskState, workspace]);
+
+  React.useEffect(() => {
+    if (!workspace) {
+      autoOpenedDockWorkspaceRef.current = null;
+      return;
+    }
+
+    if (!composerTargetTerminal || autoOpenedDockWorkspaceRef.current === workspace.id) {
+      return;
+    }
+
+    autoOpenedDockWorkspaceRef.current = workspace.id;
+    focusTerminalInRightDock(composerTargetTerminal.id, terminalKey(composerTargetTerminal));
+  }, [composerTargetTerminal, focusTerminalInRightDock, workspace]);
+
   const handleProviderChange = React.useCallback((nextProvider: AgentProvider) => {
     setProvider(nextProvider);
     if (workspace) {
@@ -490,18 +518,17 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
     if (targetTerminal?.restoreState === 'reopenable') {
       const nextId = relaunchTerminal(terminalKey(targetTerminal));
       if (nextId) {
-        setActiveTerminal(nextId);
-        setDeskState(workspace.id, { activeTerminalKey: terminalKey(targetTerminal) });
+        focusTerminalInRightDock(nextId, terminalKey(targetTerminal));
       }
     } else {
-      setActiveTerminal(row.terminalId);
       if (targetTerminal) {
-        setDeskState(workspace.id, { activeTerminalKey: terminalKey(targetTerminal) });
+        focusTerminalInRightDock(row.terminalId, terminalKey(targetTerminal));
+      } else {
+        focusTerminalInRightDock(row.terminalId);
       }
     }
-    publishWorkspaceDockMode('code', workspace.id);
-    setStatusMessage(`Attached ${row.title}`);
-  }, [relaunchTerminal, setActiveTerminal, setDeskState, workspace, workspaceTerminals]);
+    setStatusMessage(`Showing live console for ${row.title}`);
+  }, [focusTerminalInRightDock, relaunchTerminal, workspace, workspaceTerminals]);
 
   const handlePeek = React.useCallback((row: WorkspaceAgentSessionRow) => {
     setPeekRowId(row.id);
@@ -556,11 +583,9 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
         ...(pendingInput ? { pendingInput } : {})
       }
     );
-    setActiveTerminal(terminalId);
-    setDeskState(workspace.id, { activeTerminalKey: terminalId });
-    publishWorkspaceDockMode('code', workspace.id);
+    focusTerminalInRightDock(terminalId);
     return terminalId;
-  }, [createTerminal, openTerminalCount, provider, setActiveTerminal, setDeskState, workspace]);
+  }, [createTerminal, focusTerminalInRightDock, openTerminalCount, provider, workspace]);
 
   const launchMinimalAgentSessions = React.useCallback((goal: string, targetAgents: AgentProfile[], summaryPrefix: string) => {
     if (!workspace || !goal.trim() || targetAgents.length === 0) {
@@ -578,6 +603,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
     updateTaskStatus(task.id, 'running');
     const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
     const sessionMeta = createStrategySessionMeta(workspace, goal);
+    let lastTerminalId: string | null = null;
 
     targetAgents.forEach((agent) => {
       const providerMeta = getProviderMeta(agent.provider);
@@ -610,7 +636,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
           runId: run.id
         }
       );
-      setDeskState(workspace.id, { activeTerminalKey: terminalId });
+      lastTerminalId = terminalId;
       updateRun(run.id, {
         terminalIds: [terminalId],
         launchState: 'ready',
@@ -618,10 +644,12 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
       });
     });
 
-    publishWorkspaceDockMode('code', workspace.id);
+    if (lastTerminalId) {
+      focusTerminalInRightDock(lastTerminalId);
+    }
     setStatusMessage(`Launched ${targetAgents.length} agent${targetAgents.length === 1 ? '' : 's'}`);
     return true;
-  }, [createRun, createTask, createTerminal, openTerminalCount, setDeskState, updateRun, updateTaskStatus, workspace]);
+  }, [createRun, createTask, createTerminal, focusTerminalInRightDock, openTerminalCount, updateRun, updateTaskStatus, workspace]);
 
   const handleStop = React.useCallback((row: WorkspaceAgentSessionRow) => {
     if (row.terminalId) {
@@ -669,8 +697,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
     if (row.terminal?.restoreState === 'reopenable') {
       const terminalId = relaunchTerminal(terminalKey(row.terminal));
       if (terminalId) {
-        publishWorkspaceDockMode('code', workspace.id);
-        setDeskState(workspace.id, { activeTerminalKey: terminalKey(row.terminal) });
+        focusTerminalInRightDock(terminalId, terminalKey(row.terminal));
       }
       setStatusMessage(`Relaunched ${row.title}`);
       return;
@@ -707,12 +734,10 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
           runId: terminal.runId
         }
       );
-      setActiveTerminal(terminalId);
-      setDeskState(workspace.id, { activeTerminalKey: terminalId });
-      publishWorkspaceDockMode('code', workspace.id);
+      focusTerminalInRightDock(terminalId);
       setStatusMessage(`Retry terminal opened for ${row.title}`);
     }
-  }, [createTerminal, launchMinimalAgentSessions, provider, relaunchTerminal, scopedAgents, setActiveTerminal, setDeskState, workspace]);
+  }, [createTerminal, focusTerminalInRightDock, launchMinimalAgentSessions, provider, relaunchTerminal, scopedAgents, workspace]);
 
   const handleSendChatMessage = React.useCallback(() => {
     if (!workspace || !prompt.trim() || isLaunching) {
@@ -728,9 +753,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
       if (composerTargetTerminal.runtimeProvider) {
         updateTerminalRuntimeState(composerTargetTerminal.id, 'waiting-response', 'Operator message sent');
       }
-      setActiveTerminal(composerTargetTerminal.id);
-      setDeskState(workspace.id, { activeTerminalKey: terminalKey(composerTargetTerminal) });
-      publishWorkspaceDockMode('code', workspace.id);
+      focusTerminalInRightDock(composerTargetTerminal.id, terminalKey(composerTargetTerminal));
       setStatusMessage(`Sent to ${composerTargetTerminal.label}`);
     } else {
       if (openTerminalCount + 1 > MAX_AGENT_VIEW_TERMINALS) {
@@ -779,7 +802,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
 
     setPrompt('');
     setIsLaunching(false);
-  }, [composerTargetTerminal, createMainAgentTerminal, createRun, createTask, isLaunching, openTerminalCount, prompt, provider, setActiveTerminal, setDeskState, updateRun, updateTaskStatus, updateTerminalRuntimeState, workspace, writeToTerminal]);
+  }, [composerTargetTerminal, createMainAgentTerminal, createRun, createTask, focusTerminalInRightDock, isLaunching, openTerminalCount, prompt, provider, updateRun, updateTaskStatus, updateTerminalRuntimeState, workspace, writeToTerminal]);
 
   const handleLaunchSelectedAgents = React.useCallback(() => {
     if (!workspace || !prompt.trim()) {
@@ -840,11 +863,9 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
         agentName: 'Claude Agent View'
       }
     );
-    setActiveTerminal(terminalId);
-    setDeskState(workspace.id, { activeTerminalKey: terminalId });
-    publishWorkspaceDockMode('code', workspace.id);
-    setStatusMessage('Claude Agent View opened in Code.');
-  }, [createTerminal, openTerminalCount, setActiveTerminal, setDeskState, workspace]);
+    focusTerminalInRightDock(terminalId);
+    setStatusMessage('Claude Agent View opened in live console.');
+  }, [createTerminal, focusTerminalInRightDock, openTerminalCount, workspace]);
 
   if (!workspace) {
     return (
@@ -940,9 +961,9 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
                     </button>
                   ) : null}
                   {activePeekRow.terminalId ? (
-                    <button type="button" onClick={() => handleAttach(activePeekRow)} style={detailButtonStyle} title="Open full console in Code">
+                    <button type="button" onClick={() => handleAttach(activePeekRow)} style={detailButtonStyle} title="Show this session in the right live console">
                       <Terminal size={13} />
-                      Attach
+                      Live Console
                     </button>
                   ) : null}
                 </div>
@@ -1197,7 +1218,7 @@ function AgentRow({
         <button type="button" onClick={() => onPeek(row)} style={iconButtonStyle} title="Peek">
           <Eye size={13} />
         </button>
-        <button type="button" onClick={() => onAttach(row)} disabled={!row.terminalId} style={iconButtonStyle} title="Attach">
+        <button type="button" onClick={() => onAttach(row)} disabled={!row.terminalId} style={iconButtonStyle} title="Show live console">
           <Terminal size={13} />
         </button>
         <button type="button" onClick={() => onRetry(row)} style={iconButtonStyle} title="Retry">

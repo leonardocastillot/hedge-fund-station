@@ -331,12 +331,40 @@ def validate_live_task(task: dict[str, Any], current_id: str) -> list[HarnessIss
     return []
 
 
+def parse_current_field(current: str, field: str) -> str | None:
+    prefix = f"- {field}:"
+    for line in current.splitlines():
+        if not line.startswith(prefix):
+            continue
+        value = line.split(":", 1)[1].strip()
+        return value.strip("`").strip() or None
+    return None
+
+
 def validate_current(tasks: list[dict[str, Any]]) -> list[HarnessIssue]:
     issues: list[HarnessIssue] = []
     try:
         current = CURRENT_PATH.read_text(encoding="utf-8")
     except FileNotFoundError:
         return [HarnessIssue("Missing progress/current.md")]
+
+    current_task_id = parse_current_field(current, "Task")
+    current_status = parse_current_field(current, "Status")
+    tasks_by_id = {str(task.get("id")): task for task in tasks}
+    if current_task_id and current_task_id.lower() != "none" and current_status in ACTIVE_STATUSES:
+        current_task = tasks_by_id.get(current_task_id)
+        if not current_task:
+            issues.append(
+                HarnessIssue(
+                    f"progress/current.md names active task {current_task_id} but no matching task exists in agent_tasks.json"
+                )
+            )
+        elif current_task.get("status") not in ACTIVE_STATUSES:
+            issues.append(
+                HarnessIssue(
+                    f"progress/current.md names active task {current_task_id} but task status is {current_task.get('status')}"
+                )
+            )
 
     active = [task for task in tasks if task.get("status") in {"in_progress", "review"}]
     if active and not any(str(task.get("id")) in current for task in active):

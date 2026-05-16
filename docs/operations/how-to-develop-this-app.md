@@ -21,6 +21,15 @@ npm run dev
 This starts Electron in development mode. You do not need to create a Mac build
 while editing UI, services, docs, or backend integration code.
 
+`npm run dev` is the stable daily loop: renderer changes under `src/` hot reload
+through Vite, while native Electron changes wait for an explicit shell restart.
+Use the native watcher only when you intentionally want main/preload edits to
+rebuild and restart the Electron shell:
+
+```bash
+npm run dev:watch-native
+```
+
 ## Stable Dev Loop
 
 Use the in-app Diagnostics page while developing. In development builds it shows:
@@ -36,7 +45,8 @@ Daily edit rules:
 
 - Changes under `src/` should hot reload through Vite. Use `Reload renderer`
   only when React state or a module cache gets awkward.
-- Changes under `electron/main/` require `Restart Electron shell`.
+- Changes under `electron/main/` require `Restart Electron shell`; they do not
+  auto-restart in the default `npm run dev` loop.
 - Changes under `electron/preload/` or `electron/types/` require
   `Restart Electron shell`, then a renderer reload if the UI still has an old
   bridge shape.

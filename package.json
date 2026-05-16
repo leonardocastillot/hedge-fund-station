@@ -14,7 +14,8 @@
     "url": "https://github.com/leonardocastillot/hedge-fund-station.git"
   },
   "scripts": {
-    "dev": "electron-vite dev --watch",
+    "dev": "electron-vite dev",
+    "dev:watch-native": "electron-vite dev --watch",
     "dev:mac": "./open-hedge-fund-station-dev.command",
     "dev:doctor": "node scripts/dev-doctor.mjs",
     "build": "electron-vite build",

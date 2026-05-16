@@ -1,5 +1,10 @@
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
-import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  PanelGroup,
+  Panel,
+  PanelResizeHandle,
+  type ImperativePanelHandle
+} from 'react-resizable-panels';
 import {
   Monitor,
   PanelLeftClose,
@@ -29,17 +34,41 @@ type ElectronLayoutProps = {
 };
 
 export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }) => {
+  const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
+  const workspaceDockPanelRef = useRef<ImperativePanelHandle>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isWorkspaceDockCollapsed, setIsWorkspaceDockCollapsedState] = useState(loadWorkspaceDockCollapsedDefault);
-  const setWorkspaceDockCollapsed = useCallback((collapsed: boolean) => {
+
+  const persistWorkspaceDockCollapsed = useCallback((collapsed: boolean) => {
     setIsWorkspaceDockCollapsedState(collapsed);
     window.localStorage.setItem(WORKSPACE_DOCK_COLLAPSED_KEY, collapsed ? '1' : '0');
   }, []);
+
+  const collapseSidebar = useCallback(() => {
+    setIsSidebarCollapsed(true);
+    sidebarPanelRef.current?.collapse();
+  }, []);
+
+  const expandSidebar = useCallback(() => {
+    setIsSidebarCollapsed(false);
+    sidebarPanelRef.current?.expand(14);
+  }, []);
+
+  const collapseWorkspaceDock = useCallback(() => {
+    persistWorkspaceDockCollapsed(true);
+    workspaceDockPanelRef.current?.collapse();
+  }, [persistWorkspaceDockCollapsed]);
+
+  const expandWorkspaceDock = useCallback(() => {
+    persistWorkspaceDockCollapsed(false);
+    workspaceDockPanelRef.current?.expand(22);
+  }, [persistWorkspaceDockCollapsed]);
+
   useEffect(() => {
-    const handleDockModeRequest = () => setWorkspaceDockCollapsed(false);
+    const handleDockModeRequest = () => expandWorkspaceDock();
     window.addEventListener(WORKSPACE_DOCK_MODE_EVENT, handleDockModeRequest);
     return () => window.removeEventListener(WORKSPACE_DOCK_MODE_EVENT, handleDockModeRequest);
-  }, [setWorkspaceDockCollapsed]);
+  }, [expandWorkspaceDock]);
 
   const centerDefaultSize = !isSidebarCollapsed && !isWorkspaceDockCollapsed
     ? 58
@@ -54,44 +83,39 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
       <div style={layoutBodyStyle}>
         {navigationRail ? <div style={navigationRailHostStyle}>{navigationRail}</div> : null}
         <div style={panelHostStyle}>
-          <PanelGroup key={`${isSidebarCollapsed}-${isWorkspaceDockCollapsed}`} direction="horizontal">
-            {isSidebarCollapsed ? (
-              <Panel
-                defaultSize={4}
-                minSize={4}
-                maxSize={4}
-                id="sidebar-rail"
-                order={1}
-              >
+          <PanelGroup direction="horizontal">
+            <Panel
+              ref={sidebarPanelRef}
+              defaultSize={isSidebarCollapsed ? 4 : 18}
+              minSize={14}
+              maxSize={26}
+              collapsedSize={4}
+              collapsible
+              id="sidebar"
+              order={1}
+              onCollapse={() => setIsSidebarCollapsed(true)}
+              onExpand={() => setIsSidebarCollapsed(false)}
+            >
+              {isSidebarCollapsed ? (
                 <CollapsedRail
                   side="left"
                   title="Open strategy context"
                   icon={<Monitor size={17} />}
                   actionIcon={<PanelLeftOpen size={15} />}
-                  onExpand={() => setIsSidebarCollapsed(false)}
+                  onExpand={expandSidebar}
                 />
-              </Panel>
-            ) : (
-              <>
-                <Panel
-                  defaultSize={18}
-                  minSize={14}
-                  maxSize={26}
-                  id="sidebar"
-                  order={1}
-                >
-                  <Suspense fallback={<DockLoading />}>
-                    <Sidebar />
-                  </Suspense>
-                </Panel>
+              ) : (
+                <Suspense fallback={<DockLoading />}>
+                  <Sidebar />
+                </Suspense>
+              )}
+            </Panel>
 
-                <ResizeHandle
-                  title="Collapse strategy context"
-                  onCollapse={() => setIsSidebarCollapsed(true)}
-                  icon={<PanelLeftClose size={14} />}
-                />
-              </>
-            )}
+            <ResizeHandle
+              title={isSidebarCollapsed ? 'Open strategy context' : 'Collapse strategy context'}
+              onAction={isSidebarCollapsed ? expandSidebar : collapseSidebar}
+              icon={isSidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+            />
 
             <Panel
               defaultSize={centerDefaultSize}
@@ -102,42 +126,37 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
               <WidgetPanel />
             </Panel>
 
-            {isWorkspaceDockCollapsed ? (
-              <Panel
-                defaultSize={4}
-                minSize={4}
-                maxSize={4}
-                id="workspace-dock-rail"
-                order={3}
-              >
+            <ResizeHandle
+              title={isWorkspaceDockCollapsed ? 'Open strategy tools dock' : 'Collapse strategy tools dock'}
+              onAction={isWorkspaceDockCollapsed ? expandWorkspaceDock : collapseWorkspaceDock}
+              icon={isWorkspaceDockCollapsed ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
+            />
+
+            <Panel
+              ref={workspaceDockPanelRef}
+              defaultSize={isWorkspaceDockCollapsed ? 4 : 24}
+              minSize={22}
+              collapsedSize={4}
+              collapsible
+              id="workspace-dock"
+              order={3}
+              onCollapse={() => persistWorkspaceDockCollapsed(true)}
+              onExpand={() => persistWorkspaceDockCollapsed(false)}
+            >
+              {isWorkspaceDockCollapsed ? (
                 <CollapsedRail
                   side="right"
                   title="Open strategy tools dock"
                   icon={<Monitor size={17} />}
                   actionIcon={<PanelRightOpen size={15} />}
-                  onExpand={() => setWorkspaceDockCollapsed(false)}
+                  onExpand={expandWorkspaceDock}
                 />
-              </Panel>
-            ) : (
-              <>
-                <ResizeHandle
-                  title="Collapse strategy tools dock"
-                  onCollapse={() => setWorkspaceDockCollapsed(true)}
-                  icon={<PanelRightClose size={14} />}
-                />
-
-                <Panel
-                  defaultSize={24}
-                  minSize={22}
-                  id="workspace-dock"
-                  order={3}
-                >
-                  <Suspense fallback={<DockLoading />}>
-                    <WorkspaceDock />
-                  </Suspense>
-                </Panel>
-              </>
-            )}
+              ) : (
+                <Suspense fallback={<DockLoading />}>
+                  <WorkspaceDock />
+                </Suspense>
+              )}
+            </Panel>
           </PanelGroup>
         </div>
       </div>
@@ -186,10 +205,10 @@ const DockLoading: React.FC = () => (
 type ResizeHandleProps = {
   title: string;
   icon: React.ReactNode;
-  onCollapse: () => void;
+  onAction: () => void;
 };
 
-const ResizeHandle: React.FC<ResizeHandleProps> = ({ title, icon, onCollapse }) => (
+const ResizeHandle: React.FC<ResizeHandleProps> = ({ title, icon, onAction }) => (
   <PanelResizeHandle
     style={resizeHandleStyle}
     onMouseEnter={(e) => {
@@ -210,7 +229,7 @@ const ResizeHandle: React.FC<ResizeHandleProps> = ({ title, icon, onCollapse }) 
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        onCollapse();
+        onAction();
       }}
       style={handleButtonStyle}
     >

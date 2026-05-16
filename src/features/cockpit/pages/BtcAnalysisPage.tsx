@@ -22,7 +22,6 @@ import {
 import {
   Responsive as ResponsiveGridLayout,
   noCompactor,
-  useContainerWidth,
   type Layout,
   type LayoutItem,
   type ResponsiveLayouts as Layouts
@@ -72,6 +71,11 @@ const FRAME_GUARD_WARMUP_MS = 20_000;
 const FRAME_GUARD_POOR_WINDOWS = 8;
 const FRAME_GUARD_MIN_FPS = 20;
 const FRAME_GUARD_MAX_GAP_MS = 350;
+const DEFAULT_GRID_WIDTH = 1280;
+const DEFAULT_GRID_HEIGHT = 720;
+const DEFAULT_GRID_ROW_HEIGHT = 24;
+const MIN_GRID_ROW_HEIGHT = 18;
+const GRID_MARGIN: [number, number] = [8, 8];
 const gridBreakpoints = { lg: 1320, md: 1040, sm: 760, xs: 480, xxs: 0 };
 const gridCols = { lg: 24, md: 18, sm: 12, xs: 8, xxs: 4 };
 const layoutBreakpoints = Object.keys(gridCols) as Array<keyof typeof gridCols>;
@@ -445,14 +449,32 @@ export default function BtcAnalysisPage() {
   const [autoSuspendEnabled, setAutoSuspendEnabled] = useState(true);
   const performanceProfile = usePerformanceProfile();
   const suspendBackgroundMedia = shouldSuspendBackgroundMedia(performanceProfile);
-  const { width: gridWidth, containerRef } = useContainerWidth({ initialWidth: 1280 });
-  const setGridContainerRef = useCallback((node: HTMLDivElement | null) => {
-    (containerRef as { current: HTMLDivElement | null }).current = node;
-  }, [containerRef]);
+  const {
+    ref: setGridContainerRef,
+    width: measuredGridWidth,
+    height: measuredGridHeight
+  } = useMeasuredElement<HTMLDivElement>({
+    width: DEFAULT_GRID_WIDTH,
+    height: DEFAULT_GRID_HEIGHT
+  });
+  const gridWidth = Math.max(1, measuredGridWidth || DEFAULT_GRID_WIDTH);
+  const activeGridBreakpoint = useMemo(() => getActiveGridBreakpoint(gridWidth), [gridWidth]);
   const tradingViewUrl = useMemo(() => buildTradingViewUrl(interval), [interval]);
   const visibleLayouts = useMemo(
-    () => filterLayoutsForVisibility(layoutState.layouts, layoutState.visibility),
-    [layoutState.layouts, layoutState.visibility]
+    () => deriveVisibleLayouts(
+      layoutState.layouts,
+      layoutState.visibility,
+      performanceMode === 'focus' && !isEditing ? activeVideoPanelId : null
+    ),
+    [activeVideoPanelId, isEditing, layoutState.layouts, layoutState.visibility, performanceMode]
+  );
+  const gridRowCount = useMemo(
+    () => getLayoutRowSpan(visibleLayouts[activeGridBreakpoint] || []),
+    [activeGridBreakpoint, visibleLayouts]
+  );
+  const gridRowHeight = useMemo(
+    () => getAdaptiveGridRowHeight(measuredGridHeight, gridRowCount),
+    [gridRowCount, measuredGridHeight]
   );
   const hasFullscreenVideo = fullscreenVideoPanelId !== null;
   const layoutEditingEnabled = isEditing && !hasFullscreenVideo;
@@ -626,32 +648,41 @@ export default function BtcAnalysisPage() {
 
   const activeVideo = btcVideos.find((video) => video.panelId === activeVideoPanelId) ?? null;
   const activeVideoCount = btcVideos.filter((video) => layoutState.visibility[video.panelId]).length;
+  const videoStatusLabel = performanceMode === 'focus'
+    ? `1/${btcVideos.length}${activeVideo ? ` ${activeVideo.label.replace('Stream ', 'S')}` : ''}`
+    : `${activeVideoCount}/${btcVideos.length}`;
+  const videoStatusTitle = performanceMode === 'focus' && activeVideo
+    ? `Focus activo: ${activeVideo.label}`
+    : `${activeVideoCount} videos montados`;
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#05070b] text-slate-100">
       <BtcWorkbenchStyles />
-      <header className="shrink-0 border-b border-white/10 bg-black/35 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200/70">
-              <BarChart3 size={14} />
-              BTC analysis station
+      <header className="shrink-0 border-b border-white/10 bg-black/45 px-3 py-2">
+        <div className="flex min-h-10 items-center gap-3">
+          <div className="flex min-w-[120px] shrink-0 items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded border border-cyan-300/15 bg-cyan-400/[0.06] text-cyan-200">
+              <BarChart3 size={15} />
             </div>
-            <h1 className="mt-1 text-xl font-bold text-white">BTC Lean Workbench</h1>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/60">BTC</div>
+              <h1 className="truncate text-sm font-bold text-white">Workbench</h1>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <div className="flex rounded-md border border-white/10 bg-white/[0.03] p-1">
+          <div className="btc-toolbar-scroll flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-x-auto">
+            <div className="flex shrink-0 rounded border border-white/10 bg-white/[0.025] p-0.5">
               {intervals.map((item) => (
                 <button
                   key={item.value}
                   type="button"
                   onClick={() => setInterval(item.value)}
-                  className={`h-8 rounded px-3 text-xs font-semibold transition ${
+                  className={`h-7 rounded px-2.5 text-[11px] font-bold transition ${
                     interval === item.value
-                      ? 'bg-cyan-400/15 text-cyan-100'
-                      : 'text-slate-400 hover:bg-white/[0.06] hover:text-slate-100'
+                      ? 'bg-cyan-400/18 text-cyan-50 shadow-sm shadow-cyan-950/30'
+                      : 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-200'
                   }`}
+                  title={`Intervalo ${item.label}`}
                 >
                   {item.label}
                 </button>
@@ -661,34 +692,34 @@ export default function BtcAnalysisPage() {
             <ToolbarButton
               active={isEditing}
               icon={isEditing ? <Lock size={14} /> : <Unlock size={14} />}
-              label={isEditing ? 'Bloquear' : 'Editar'}
+              label={isEditing ? 'Bloquear layout' : 'Editar layout'}
               title={isEditing ? 'Bloquear layout' : 'Editar layout'}
               onClick={() => setIsEditing((value) => !value)}
             />
             <ToolbarButton
               icon={<RotateCcw size={14} />}
-              label="Reset"
+              label="Restaurar layout"
               title="Restaurar layout BTC"
               onClick={resetLayout}
             />
             <ToolbarButton
               active={isPineDrawerOpen || layoutState.visibility.pine}
               icon={<Sparkles size={14} />}
-              label="Pine Lab"
+              label="Pine AI Lab"
               title="Abrir Pine AI Lab"
               onClick={openPineLab}
             />
             <ToolbarButton
               active={autoSuspendEnabled}
               icon={autoSuspendEnabled ? <EyeOff size={14} /> : <Eye size={14} />}
-              label={autoSuspendEnabled ? 'Auto sleep' : 'Manual'}
+              label={autoSuspendEnabled ? 'Auto-suspension activa' : 'Auto-suspension manual'}
               title="Alternar auto-suspension de videos"
               onClick={() => setAutoSuspendEnabled((value) => !value)}
             />
             <ToolbarButton
               active={performanceMode === 'all-videos'}
               icon={<Video size={14} />}
-              label={performanceMode === 'focus' ? '3 videos' : 'Focus'}
+              label={performanceMode === 'focus' ? 'Mostrar los 3 videos' : 'Enfocar stream activo'}
               title={performanceMode === 'focus' ? 'Volver a cargar los 3 videos' : 'Cargar solo el stream enfocado'}
               onClick={() => applyVideoMode(
                 performanceMode === 'focus' ? 'all-videos' : 'focus',
@@ -697,58 +728,61 @@ export default function BtcAnalysisPage() {
               )}
             />
 
-            <div className="flex rounded-md border border-white/10 bg-white/[0.03] p-1">
+            <div className="flex shrink-0 rounded border border-white/10 bg-white/[0.025] p-0.5">
               {presetButtons.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
                   onClick={() => applyLayoutPreset(preset.id)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded px-2 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-300 transition hover:bg-white/[0.06] hover:text-white"
+                  className="inline-flex h-7 w-8 items-center justify-center rounded text-slate-400 transition hover:bg-white/[0.06] hover:text-slate-100"
                   title={`Aplicar layout ${preset.label}`}
                 >
                   {preset.icon}
-                  {preset.label}
+                  <span className="sr-only">{preset.label}</span>
                 </button>
               ))}
             </div>
 
-            <div className="flex rounded-md border border-white/10 bg-white/[0.03] p-1">
+            <div className="flex shrink-0 rounded border border-white/10 bg-white/[0.025] p-0.5">
               {btcVideos.map((video) => (
                 <button
                   key={video.id}
                   type="button"
                   onClick={() => toggleVideoPanel(video.panelId)}
-                  className={`inline-flex h-8 items-center gap-1.5 rounded px-2 text-[11px] font-bold uppercase tracking-[0.1em] transition ${
+                  className={`inline-flex h-7 items-center gap-1.5 rounded px-2 text-[10px] font-bold uppercase tracking-[0.08em] transition ${
                     performanceMode === 'focus' && activeVideoPanelId === video.panelId
-                      ? 'bg-orange-400/12 text-orange-100'
-                      : 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-200'
+                      ? 'bg-orange-400/15 text-orange-100 shadow-sm shadow-orange-950/25'
+                      : 'text-slate-600 hover:bg-white/[0.06] hover:text-slate-300'
                   }`}
                   title={performanceMode === 'focus' && activeVideoPanelId === video.panelId ? 'Volver a 3 videos' : `Focus ${video.label}`}
                 >
                   {performanceMode === 'focus' && activeVideoPanelId === video.panelId ? <Eye size={12} /> : <EyeOff size={12} />}
-                  {video.label.replace('Stream ', 'S')}
+                  {video.label === 'Members' ? 'M' : video.label.replace('Stream ', 'S')}
                 </button>
               ))}
             </div>
 
-            <div className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-400/20 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100">
-              <VolumeX size={14} />
-              {performanceMode === 'focus' ? 'focus' : '3 videos'} · {activeVideoCount} mounted{performanceMode === 'focus' && activeVideo ? ` · ${activeVideo.label}` : ''}
+            <div
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded border border-amber-300/20 bg-amber-400/[0.08] px-2.5 text-[11px] font-bold text-amber-100"
+              title={videoStatusTitle}
+            >
+              <VolumeX size={13} />
+              {videoStatusLabel}
             </div>
           </div>
         </div>
       </header>
 
       <main className={`relative min-h-0 flex-1 p-3 ${hasFullscreenVideo ? 'overflow-hidden' : 'overflow-auto'}`}>
-        <div ref={setGridContainerRef} className="min-h-full">
+        <div ref={setGridContainerRef} className="h-full min-h-full">
           <ResponsiveGridLayout
             className={`btc-workbench-grid ${layoutEditingEnabled ? 'btc-workbench-grid-editing' : ''} ${hasFullscreenVideo ? 'btc-workbench-fullscreen-active' : ''}`}
             width={gridWidth}
             layouts={visibleLayouts}
             breakpoints={gridBreakpoints}
             cols={gridCols}
-            rowHeight={24}
-            margin={[8, 8]}
+            rowHeight={gridRowHeight}
+            margin={GRID_MARGIN}
             containerPadding={[0, 0]}
             compactor={noCompactor}
             dragConfig={{
@@ -1178,14 +1212,14 @@ function ToolbarButton({
       type="button"
       onClick={onClick}
       title={title}
-      className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-bold transition ${
+      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border text-[11px] font-bold transition ${
         active
-          ? 'border-cyan-300/25 bg-cyan-400/12 text-cyan-100'
-          : 'border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]'
+          ? 'border-cyan-300/25 bg-cyan-400/12 text-cyan-100 shadow-sm shadow-cyan-950/25'
+          : 'border-white/10 bg-white/[0.035] text-slate-300 hover:bg-white/[0.08] hover:text-white'
       }`}
     >
       {icon}
-      {label}
+      <span className="sr-only">{label}</span>
     </button>
   );
 }
@@ -1244,6 +1278,73 @@ function IconButton({
       {children}
     </button>
   );
+}
+
+type ElementSize = {
+  width: number;
+  height: number;
+};
+
+function useMeasuredElement<T extends HTMLElement>(initialSize: ElementSize) {
+  const [element, setElement] = useState<T | null>(null);
+  const [size, setSize] = useState(initialSize);
+  const ref = useCallback((node: T | null) => {
+    setElement(node);
+  }, []);
+
+  useEffect(() => {
+    if (!element) {
+      return undefined;
+    }
+
+    let animationFrame = 0;
+    const measure = () => {
+      animationFrame = 0;
+      const rect = element.getBoundingClientRect();
+      const nextSize = {
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      };
+      setSize((current) => (
+        current.width === nextSize.width && current.height === nextSize.height
+          ? current
+          : nextSize
+      ));
+    };
+    const scheduleMeasure = () => {
+      if (animationFrame) {
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(measure);
+    };
+
+    measure();
+    window.addEventListener('resize', scheduleMeasure);
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        window.removeEventListener('resize', scheduleMeasure);
+        if (animationFrame) {
+          window.cancelAnimationFrame(animationFrame);
+        }
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(scheduleMeasure);
+    resizeObserver.observe(element);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [element]);
+
+  return {
+    ref,
+    width: size.width,
+    height: size.height
+  };
 }
 
 function useBtcFrameGuard(enabled: boolean, onSuspend: () => void) {
@@ -1468,13 +1569,6 @@ function resizePanelInLayouts(layouts: Layouts, panelId: BtcPanelId, direction: 
   }, {});
 }
 
-function filterLayoutsForVisibility(layouts: Layouts, visibility: BtcPanelVisibility): Layouts {
-  return layoutBreakpoints.reduce<Layouts>((next, breakpoint) => {
-    next[breakpoint] = (layouts[breakpoint] || []).filter((item) => visibility[item.i as BtcPanelId]);
-    return next;
-  }, {});
-}
-
 function cloneLayouts(layouts: Layouts): Layouts {
   return layoutBreakpoints.reduce<Layouts>((next, breakpoint) => {
     next[breakpoint] = (layouts[breakpoint] || []).map((item) => ({ ...item }));
@@ -1494,12 +1588,97 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function getActiveGridBreakpoint(width: number): keyof typeof gridCols {
+  return layoutBreakpoints.find((breakpoint) => width >= gridBreakpoints[breakpoint]) ?? 'xxs';
+}
+
+function getLayoutRowSpan(layout: Layout): number {
+  return Math.max(1, ...layout.map((item) => item.y + item.h));
+}
+
+function getAdaptiveGridRowHeight(containerHeight: number, rowSpan: number): number {
+  if (!Number.isFinite(containerHeight) || containerHeight <= 0 || rowSpan <= 0) {
+    return DEFAULT_GRID_ROW_HEIGHT;
+  }
+
+  const marginHeight = GRID_MARGIN[1] * Math.max(0, rowSpan - 1);
+  const availableHeight = containerHeight - marginHeight;
+  if (availableHeight <= 0) {
+    return MIN_GRID_ROW_HEIGHT;
+  }
+  return Math.max(MIN_GRID_ROW_HEIGHT, Math.floor(availableHeight / rowSpan));
+}
+
+function deriveVisibleLayouts(
+  layouts: Layouts,
+  visibility: BtcPanelVisibility,
+  focusedVideoPanelId: BtcVideoPanelId | null
+): Layouts {
+  return layoutBreakpoints.reduce<Layouts>((next, breakpoint) => {
+    const sourceLayout = layouts[breakpoint] || defaultLayouts[breakpoint] || [];
+    const visibleLayout = sourceLayout
+      .filter((item) => visibility[item.i as BtcPanelId])
+      .map((item) => ({ ...item }));
+
+    next[breakpoint] = focusedVideoPanelId
+      ? expandFocusedVideoLayout(sourceLayout, visibleLayout, focusedVideoPanelId)
+      : visibleLayout;
+    return next;
+  }, {});
+}
+
+function expandFocusedVideoLayout(
+  sourceLayout: Layout,
+  visibleLayout: Layout,
+  focusedVideoPanelId: BtcVideoPanelId
+): Layout {
+  const focusedIndex = visibleLayout.findIndex((item) => item.i === focusedVideoPanelId);
+  if (focusedIndex < 0) {
+    return visibleLayout;
+  }
+
+  const videoItems = btcVideos
+    .map((video) => sourceLayout.find((item) => item.i === video.panelId))
+    .filter((item): item is LayoutItem => Boolean(item));
+  if (videoItems.length < 2) {
+    return visibleLayout;
+  }
+
+  const bounds = getLayoutBounds(videoItems);
+  return visibleLayout.map((item, index) => (
+    index === focusedIndex
+      ? { ...item, x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h }
+      : item
+  ));
+}
+
+function getLayoutBounds(items: LayoutItem[]) {
+  const left = Math.min(...items.map((item) => item.x));
+  const top = Math.min(...items.map((item) => item.y));
+  const right = Math.max(...items.map((item) => item.x + item.w));
+  const bottom = Math.max(...items.map((item) => item.y + item.h));
+  return {
+    x: left,
+    y: top,
+    w: right - left,
+    h: bottom - top
+  };
+}
+
 function BtcWorkbenchStyles() {
   return (
     <style>
       {`
         .btc-workbench-grid {
           min-height: 100%;
+        }
+
+        .btc-toolbar-scroll {
+          scrollbar-width: none;
+        }
+
+        .btc-toolbar-scroll::-webkit-scrollbar {
+          display: none;
         }
 
         .btc-workbench-grid .react-grid-item {

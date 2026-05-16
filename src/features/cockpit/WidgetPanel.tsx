@@ -66,7 +66,7 @@ class RouteErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error) {
     recordTelemetry({ type: 'error', label: `route:${this.props.resetKey}`, status: 'render-error', detail: error.message });
-    if (isDynamicImportError(error)) {
+    if (!import.meta.env.DEV && isDynamicImportError(error)) {
       const reloadKey = `route-reload:${this.props.resetKey}`;
       const lastReloadAt = Number(window.sessionStorage.getItem(reloadKey) ?? 0);
       if (Date.now() - lastReloadAt > 15_000) {

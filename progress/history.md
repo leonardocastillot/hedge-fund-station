@@ -4,6 +4,30 @@ Append meaningful completed session summaries here. Do not rewrite earlier
 entries unless the human explicitly asks for cleanup.
 
 ---
+
+## 2026-05-16 - Dev Stability And Strategy Harness Hardening
+
+- Agent: Codex
+- Mission class: repo health audit / operations runbook audit
+- Summary: Made `npm run dev` the stable renderer/HMR loop without native
+  Electron auto-restart, added explicit `npm run dev:watch-native`, persisted
+  Strategy Inspector pod state across renderer reloads, and made `agent:check`
+  fail when `progress/current.md` names an active task missing from
+  `agent_tasks.json`.
+- Evidence:
+  `package.json`, `docs/operations/how-to-develop-this-app.md`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`,
+  `src/features/cockpit/WidgetPanel.tsx`, `scripts/agent_harness.py`,
+  `tests/test_agent_harness.py`, and
+  `progress/impl_dev_stability_strategy_harness_hardening.md`.
+- Verification: `rtk npm run agent:check`,
+  `rtk python3 -m unittest tests.test_agent_harness tests.test_strategy_claims`,
+  `rtk npm run build`, and `rtk git diff --check` passed.
+- Status: done. Dev workflow and harness state only; no backend strategy logic,
+  credentials, order routing, paper supervisor loop, live trading, or production
+  promotion changed.
+
+---
 ## 2026-05-16 - Agent View Ready Console State
 
 - Agent: Codex
@@ -2604,5 +2628,117 @@ entries unless the human explicitly asks for cleanup.
 - Status: done. Workspace organization/UI only; no strategy logic, generated
   evidence relocation, credentials, order routing, live trading, or production
   promotion changed.
+
+---
+
+## 2026-05-16 - BTC Video Auto-Fit
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Updated `/btc` so the BTC workbench measures its available grid
+  space, derives row height from container height, and expands a focused stream
+  into the unused video area without changing the persisted manual layout.
+- Evidence:
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx` and
+  `progress/impl_btc_video_auto_fit.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, browser smoke
+  on `http://localhost:5173/btc`, and `rtk git diff --check`.
+- Status: done. Renderer layout only; no backend, Electron IPC, strategy logic,
+  storage schema, credentials, order routing, live trading, or production
+  promotion changed.
+
+---
+
+## 2026-05-16 - BTC Toolbar Minimal
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Compacted the `/btc` workbench header into one professional toolbar
+  row with short title text, icon-first actions, compact presets, `S1/S2/M`
+  stream controls, and hidden horizontal overflow scroll.
+- Evidence:
+  `src/features/cockpit/pages/BtcAnalysisPage.tsx` and
+  `progress/impl_btc_toolbar_minimal.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, browser smoke
+  on `http://localhost:5173/btc` at `1581x725`, and `rtk git diff --check`.
+- Status: done. Renderer layout only; no backend, Electron IPC, strategy logic,
+  storage schema, credentials, order routing, live trading, or production
+  promotion changed.
+
+---
+
+## 2026-05-16 - Center Panel Persistent Layout
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Stabilized `ElectronLayout` so side-panel collapse and expansion no
+  longer remounts the center `WidgetPanel`. The left context, center work
+  surface, and right dock now stay in a stable three-panel tree.
+- Evidence:
+  `src/components/electron/ElectronLayout.tsx` and
+  `progress/impl_center_panel_persistent_layout.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, browser smoke
+  on `/btc`, browser smoke on `/workbench`, and `rtk git diff --check`.
+- Status: done. Renderer layout only; no backend, Electron IPC, route, strategy
+  logic, storage schema, credentials, order routing, live trading, or production
+  promotion changed.
+
+---
+
+## 2026-05-16 - Terminal Visual Comfort
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Updated the shared terminal renderer with a high-contrast matte
+  xterm palette, readable ANSI black/bright-black, lighter terminal chrome, and
+  opt-in accent animation only when the `full` performance profile is active.
+- Evidence: `src/components/electron/TerminalPane.tsx`, `src/index.css`, and
+  `progress/impl_terminal_visual_comfort.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, and
+  `rtk git diff --check` passed. Automated browser smoke was attempted but
+  skipped because the available Node REPL environment does not have Playwright
+  installed.
+- Status: done. Renderer visual comfort only; no Electron IPC, `node-pty`,
+  backend, terminal persistence, strategy logic, credentials, order routing,
+  live trading, or production promotion changed.
+
+---
+
+## 2026-05-16 - Hybrid Agent Console Refresh
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Made Agent View drive the right dock as the focused console surface
+  while mounted xterm instances re-apply terminal visuals/settings without
+  killing PTY sessions.
+- Evidence: `src/components/electron/TerminalPane.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`, and
+  `progress/impl_hybrid_agent_console_refresh.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run build`, and
+  `rtk git diff --check` passed.
+- Status: done. Renderer workflow only; no Electron IPC, `node-pty`, backend,
+  terminal persistence schema, CLI command behavior, strategy logic,
+  credentials, order routing, or market-order behavior changed.
+
+---
+
+## 2026-05-16 - Release Push Mac Delivery
+
+- Agent: Codex
+- Mission class: operations/runbook audit
+- Summary: Packaged the current Electron app for this Apple Silicon Mac and
+  prepared all pending source, docs, harness, and handoff changes for push.
+- Evidence: `release/1.0.0/mac-arm64/Hedge Fund Station.app`,
+  `release/1.0.0/Hedge Fund Station-1.0.0-arm64.dmg`,
+  `release/1.0.0/Hedge Fund Station-1.0.0-mac-arm64.zip`, and
+  `progress/impl_release_push_mac_delivery.md`.
+- Verification: `rtk npm run agent:check`,
+  `rtk python3 -m unittest tests.test_agent_harness tests.test_strategy_claims`,
+  `rtk git diff --check`, `rtk npm run build`,
+  `rtk npm run dist:mac -- --arm64`, bundle `Info.plist` inspection,
+  ad-hoc signing inspection, and SHA256 checks passed.
+- Status: done. Build artifacts stay local under ignored `release/`. The app is
+  ad-hoc signed for local use; public distribution still needs Developer ID
+  signing and notarization.
 
 ---
