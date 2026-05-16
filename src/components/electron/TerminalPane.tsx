@@ -17,7 +17,7 @@ const TERMINAL_SURFACE_BACKGROUND = '#05070b';
 const TERMINAL_PANEL_BACKGROUND = 'linear-gradient(180deg, rgba(5, 9, 13, 0.98), rgba(2, 6, 10, 0.98))';
 const TERMINAL_HEADER_ACTIVE_BACKGROUND = 'linear-gradient(180deg, rgba(10, 19, 25, 0.98), rgba(4, 10, 15, 0.98))';
 const TERMINAL_HEADER_BACKGROUND = 'rgba(5, 11, 16, 0.96)';
-const TERMINAL_FONT_FAMILY = '"Cascadia Mono", Consolas, "Courier New", monospace';
+const TERMINAL_FONT_FAMILY = '"SFMono-Regular", "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, "Courier New", monospace';
 const TERMINAL_HACKER_THEME = {
   background: TERMINAL_SURFACE_BACKGROUND,
   foreground: '#f1f5f9',

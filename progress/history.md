@@ -2742,3 +2742,30 @@ entries unless the human explicitly asks for cleanup.
   signing and notarization.
 
 ---
+
+## 2026-05-16 - Right Dock UTF-8 CLI Stability
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed the right-dock agent CLI rendering path so new PTY and
+  screen-backed OpenCode/Codex/Claude/Gemini sessions get UTF-8-safe locale
+  defaults, screen sessions use UTF-8 mode with `screen-256color`, compact Code
+  mode keeps split terminals without duplicate embedded toolbar chrome, and
+  xterm uses macOS-native mono fonts first.
+- Evidence: `electron/main/native/pty-manager.ts`,
+  `src/components/electron/TerminalPane.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/utils/strategyFactoryMission.ts`, and
+  `progress/impl_right_dock_utf8_cli_stability.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk git diff --check`, and
+  `rtk npm run terminal:doctor` passed. A direct screen probe confirmed
+  `screen -U -T screen-256color` starts sessions with `TERM=screen-256color`.
+  Full live Electron OpenCode glyph smoke remains manual because the running
+  packaged app was an older build and the browser preview cannot exercise
+  Electron terminal IPC.
+- Status: done. Electron terminal launch and renderer terminal chrome only; no
+  backend, strategy logic, storage schema, credentials, order routing, or
+  market-order behavior changed.
+
+---

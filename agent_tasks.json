@@ -18,6 +18,48 @@
   },
   "tasks": [
     {
+      "id": "right_dock_utf8_cli_stability",
+      "title": "Fix UTF-8 rendering for right-dock agent CLIs",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_right_dock_utf8_cli_stability.md",
+        "electron/main/native/pty-manager.ts",
+        "src/components/electron/TerminalPane.tsx",
+        "src/components/electron/TerminalGrid.tsx",
+        "src/utils/strategyFactoryMission.ts"
+      ],
+      "acceptance": [
+        "OpenCode and other right-dock agent CLIs launch with UTF-8-safe locale environment defaults.",
+        "Persistent screen-backed terminal sessions launch and attach in UTF-8 mode with a screen-256color terminal type.",
+        "Terminal font fallback starts with macOS-native mono fonts so box drawing and menu glyphs render cleanly.",
+        "Compact right-dock Code mode keeps split terminals and removes duplicate embedded layout/order chrome.",
+        "No Electron IPC signature, backend, strategy logic, storage schema, credentials, order routing, market-order, or release-promotion behavior changes are made.",
+        "Verification and handoff evidence are recorded, then changes are committed and pushed."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npx tsc --noEmit",
+        "rtk npm run build",
+        "rtk git diff --check",
+        "rtk npm run terminal:doctor"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "electron/main/native/pty-manager.ts",
+        "src/components/electron/TerminalPane.tsx",
+        "src/components/electron/TerminalGrid.tsx",
+        "src/utils/strategyFactoryMission.ts",
+        "progress/impl_right_dock_utf8_cli_stability.md"
+      ],
+      "notes": "Done. PTY child envs now default unsafe or missing locale values to en_US.UTF-8, persistent screen-backed agent CLIs start and attach with UTF-8 mode plus screen-256color, xterm uses macOS-native mono fonts first, and compact right-dock Code mode keeps split terminals without duplicate embedded toolbar chrome. TypeScript evidence refs were narrowed so verification passes. No backend, strategy logic, storage schema, credentials, order routing, market-order, or release-promotion behavior changed."
+    },
+    {
       "id": "center_panel_persistent_layout",
       "title": "Keep the center panel mounted while side panels collapse",
       "mission_class": "UI review-speed audit",

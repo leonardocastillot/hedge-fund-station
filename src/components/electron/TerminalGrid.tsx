@@ -716,7 +716,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
   };
 
   const getGridLayout = (count: number) => {
-    if (layoutMode === 'vertical') {
+    if (layoutMode === 'list') {
       return { cols: 1, rows: count };
     }
 
@@ -819,23 +819,6 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
       flexDirection: 'column',
       gap: minimalCodeChrome ? '0' : '8px'
     }}>
-      {minimalCodeChrome ? (
-        <div style={compactTerminalToolbarStyle}>
-          <TerminalLayoutToolbar
-            value={layoutMode}
-            onChange={handleLayoutModeChange}
-            compact
-          />
-          <TerminalOrderToolbar
-            value={deskState.terminalSortMode}
-            count={visibleTerminals.length}
-            restoreCount={visibleTerminals.filter((terminal) => terminal.restoreState === 'reopenable').length}
-            onChange={handleSortModeChange}
-            compact
-          />
-        </div>
-      ) : null}
-
       {!minimalCodeChrome ? (
         <div style={{
           display: 'flex',
@@ -1061,18 +1044,16 @@ function TerminalOrderToolbar({
   value,
   count,
   restoreCount,
-  onChange,
-  compact = false
+  onChange
 }: {
   value: TerminalSortMode;
   count: number;
   restoreCount: number;
   onChange: (value: TerminalSortMode) => void;
-  compact?: boolean;
 }) {
   return (
-    <div style={compact ? compactOrderToolbarStyle : orderToolbarStyle}>
-      <SlidersHorizontal size={compact ? 12 : 13} />
+    <div style={orderToolbarStyle}>
+      <SlidersHorizontal size={13} />
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as TerminalSortMode)}
@@ -1092,15 +1073,13 @@ function TerminalOrderToolbar({
 
 function TerminalLayoutToolbar({
   value,
-  onChange,
-  compact = false
+  onChange
 }: {
   value: TerminalLayoutMode;
   onChange: (value: TerminalLayoutMode) => void;
-  compact?: boolean;
 }) {
   return (
-    <div style={compact ? compactLayoutToolbarStyle : layoutToolbarStyle} aria-label="Terminal layout">
+    <div style={layoutToolbarStyle} aria-label="Terminal layout">
       {TERMINAL_LAYOUT_OPTIONS.map((option) => {
         const selected = option.value === value;
         return (
@@ -1285,16 +1264,6 @@ const layoutToolbarStyle: React.CSSProperties = {
   flexShrink: 0
 };
 
-const compactLayoutToolbarStyle: React.CSSProperties = {
-  ...layoutToolbarStyle,
-  height: '28px',
-  minHeight: '28px',
-  borderRadius: 0,
-  borderLeft: 0,
-  borderTop: 0,
-  borderBottom: 0
-};
-
 const layoutSegmentButtonStyle: React.CSSProperties = {
   height: '20px',
   minWidth: '42px',
@@ -1305,30 +1274,6 @@ const layoutSegmentButtonStyle: React.CSSProperties = {
   fontSize: '10px',
   fontWeight: 900,
   cursor: 'pointer'
-};
-
-const compactTerminalToolbarStyle: React.CSSProperties = {
-  minHeight: '28px',
-  display: 'flex',
-  alignItems: 'center',
-  borderBottom: '1px solid var(--app-border)',
-  background: 'var(--app-panel)',
-  flexShrink: 0,
-  overflowX: 'auto',
-  overflowY: 'hidden'
-};
-
-const compactOrderToolbarStyle: React.CSSProperties = {
-  ...orderToolbarStyle,
-  height: '28px',
-  minHeight: '28px',
-  borderRadius: '0',
-  borderLeft: 0,
-  borderRight: 0,
-  borderTop: 0,
-  borderBottom: 0,
-  justifyContent: 'flex-start',
-  flexShrink: 0
 };
 
 const focusStripStyle: React.CSSProperties = {

@@ -18,6 +18,8 @@ const UNIX_PATH_PREFIX = [
   '/usr/sbin',
   '/sbin'
 ];
+const DEFAULT_UTF8_LOCALE = 'en_US.UTF-8';
+const SCREEN_TERMINAL_TYPE = 'screen-256color';
 const nodeRequire = createRequire(__filename);
 
 interface TerminalRecord {
@@ -88,6 +90,14 @@ export class PTYManager {
     return Array.from(new Set([...UNIX_PATH_PREFIX, ...existing])).join(path.delimiter);
   }
 
+  private isUtf8Locale(value?: string): boolean {
+    return Boolean(value && /utf-?8/i.test(value));
+  }
+
+  private resolveUtf8Locale(value?: string): string {
+    return this.isUtf8Locale(value) ? value as string : DEFAULT_UTF8_LOCALE;
+  }
+
   private buildPtyEnv(cwd: string): { [key: string]: string } {
     const env: { [key: string]: string } = {};
 
@@ -100,6 +110,9 @@ export class PTYManager {
     env.PATH = this.getPathEnv();
     env.PWD = cwd;
     env.TERM = 'xterm-256color';
+    env.LANG = this.resolveUtf8Locale(env.LANG);
+    env.LC_CTYPE = this.resolveUtf8Locale(env.LC_CTYPE);
+    env.LC_ALL = this.resolveUtf8Locale(env.LC_ALL);
 
     return env;
   }
@@ -231,7 +244,7 @@ export class PTYManager {
       throw new Error('screen is not available. Install screen or use an ephemeral terminal.');
     }
 
-    const args = ['-S', sessionName, '-X', command];
+    const args = ['-U', '-S', sessionName, '-X', command];
     if (value !== undefined) {
       args.push(value);
     }
@@ -483,7 +496,7 @@ export class PTYManager {
       }
 
       fs.mkdirSync(path.dirname(logPath), { recursive: true });
-      const start = spawnSync(screen, ['-dmS', sessionName, launch.file, ...launch.args], {
+      const start = spawnSync(screen, ['-U', '-T', SCREEN_TERMINAL_TYPE, '-dmS', sessionName, launch.file, ...launch.args], {
         cwd: validatedCwd,
         env: this.buildPtyEnv(validatedCwd),
         encoding: 'utf8'
@@ -511,8 +524,8 @@ export class PTYManager {
       }
     }
 
-    const attachProcess = spawn(screen, ['-x', sessionName], {
-      name: 'xterm-256color',
+    const attachProcess = spawn(screen, ['-U', '-T', SCREEN_TERMINAL_TYPE, '-x', sessionName], {
+      name: SCREEN_TERMINAL_TYPE,
       cols: 80,
       rows: 24,
       cwd: validatedCwd,

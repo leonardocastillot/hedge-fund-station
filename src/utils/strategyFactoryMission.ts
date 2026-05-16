@@ -227,7 +227,7 @@ export function buildStrategyFactoryMissionDraftInput(params: {
     evidenceRefs: [
       params.claim ? {
         id: `strategy-claim:${params.claim.strategyId}`,
-        kind: 'command',
+        kind: 'command' as const,
         label: 'Strategy Mission Lock',
         path: 'progress/strategy_claims.json',
         strategyId: params.claim.strategyId,
@@ -235,25 +235,25 @@ export function buildStrategyFactoryMissionDraftInput(params: {
       } : null,
       {
         id: 'strategy-catalog',
-        kind: 'command',
+        kind: 'command' as const,
         label: 'Strategy catalog snapshot',
         summary: `${params.strategies.length} strategies loaded from Strategy Pipeline`
       },
       {
         id: 'strategy-docs',
-        kind: 'command',
+        kind: 'command' as const,
         label: 'Strategy docs',
         path: 'docs/strategies'
       },
       {
         id: 'strategy-backend',
-        kind: 'command',
+        kind: 'command' as const,
         label: 'Backend strategy packages',
         path: 'backend/hyperliquid_gateway/strategies'
       },
       {
         id: 'agent-runs',
-        kind: 'agent-run',
+        kind: 'agent-run' as const,
         label: 'Agent run evidence',
         path: 'backend/hyperliquid_gateway/data/agent_runs'
       }
