@@ -18,6 +18,43 @@
   },
   "tasks": [
     {
+      "id": "dev_stability_strategy_harness_hardening",
+      "title": "Keep dev sessions stable while hardening Strategy Pod harness state",
+      "mission_class": "repo health audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "package.json",
+        "docs/operations/how-to-develop-this-app.md",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_dev_stability_strategy_harness_hardening.md",
+        "scripts/agent_harness.py",
+        "tests/test_agent_harness.py",
+        "src/features/cockpit/WidgetPanel.tsx",
+        "src/features/desks/components/StrategyInspectorPanel.tsx"
+      ],
+      "acceptance": [
+        "`npm run dev` keeps renderer HMR as the default loop without automatically watching native Electron files for shell restarts.",
+        "Native Electron watch/restart remains available through an explicit command.",
+        "Strategy Inspector preserves operator selection state across renderer reloads.",
+        "Route dynamic-import recovery does not silently reload the renderer during development.",
+        "Harness validation fails when `progress/current.md` names an active task that does not exist in `agent_tasks.json`.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk python3 -m unittest tests.test_agent_harness tests.test_strategy_claims",
+        "rtk npm run build",
+        "rtk git diff --check"
+      ],
+      "status": "in_progress",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [],
+      "notes": "Active task for stabilizing the dev loop and tightening harness state so strategy agents do not collide or run against stale current-session metadata."
+    },
+    {
       "id": "strategy_mission_locks",
       "title": "Implement Strategy Mission Locks for one-strategy-per-LLM sessions",
       "mission_class": "repo health audit",
