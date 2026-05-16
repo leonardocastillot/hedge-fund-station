@@ -1534,6 +1534,135 @@
         "progress/impl_release_push_mac_delivery.md"
       ],
       "notes": "Done. Packaged this Mac build as arm64 app, DMG, and ZIP under release/1.0.0, verified checksums, and left binaries ignored from Git. The app is ad-hoc signed for local use; Developer ID signing and notarization remain required for public distribution."
+    },
+    {
+      "id": "interactive_agent_permissionless_ticker_insight_missions",
+      "title": "Launch interactive agent CLIs without permission prompts and make strategy missions ticker-first",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_interactive_agent_permissionless_ticker_insight_missions.md",
+        "src/utils/agentRuntime.ts",
+        "src/utils/terminalShell.ts",
+        "src/components/electron/CommandPalette.tsx",
+        "src/features/agents/components/WorkspaceAgentView.tsx",
+        "src/utils/missionControl.ts",
+        "src/utils/strategyFactoryMission.ts",
+        "src/contexts/AgentProfilesContext.tsx"
+      ],
+      "acceptance": [
+        "Interactive Codex launchers use codex --yolo.",
+        "Interactive Claude launchers use claude --permission-mode bypassPermissions.",
+        "Interactive OpenCode launchers use opencode with the default DeepSeek model and --dangerously-skip-permissions.",
+        "Backend Research OS codex exec remains read-only and unchanged.",
+        "Strategy Factory and Strategy Lab prompts start from ticker/asset market reads and only ask for strategy implementation when a falsifiable thesis survives.",
+        "No IPC, backend API, credentials, trading, order routing, release-promotion, or Gemini behavior changes are made.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npx tsc --noEmit",
+        "rtk npm run build",
+        "rtk git diff --check",
+        "rtk npm run terminal:doctor",
+        "rtk zsh -lc 'codex --yolo --version'",
+        "rtk zsh -lc 'claude --permission-mode bypassPermissions --version'",
+        "rtk zsh -lc 'opencode --dangerously-skip-permissions --version'"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/utils/agentRuntime.ts",
+        "src/utils/terminalShell.ts",
+        "src/components/electron/CommandPalette.tsx",
+        "src/features/agents/components/WorkspaceAgentView.tsx",
+        "src/utils/missionControl.ts",
+        "src/utils/strategyFactoryMission.ts",
+        "src/contexts/AgentProfilesContext.tsx",
+        "progress/impl_interactive_agent_permissionless_ticker_insight_missions.md"
+      ],
+      "notes": "Done. Interactive Codex and Claude launch commands now include permissionless flags through the shared runtime helper. OpenCode uses opencode run --interactive with the default DeepSeek model and --dangerously-skip-permissions because this OpenCode version exposes permission bypass on the run subcommand, not the root TUI command. Raw Command Palette and Claude Agent View launches now use the helper, and Strategy Factory/Strategy Lab/default trading agent prompts now start from ticker insight before strategy work. Backend Research OS codex exec, Gemini behavior, IPC, backend APIs, credentials, and order routing were unchanged."
+    },
+    {
+      "id": "opencode_unicode_terminal_rendering",
+      "title": "Fix OpenCode Unicode block rendering in the embedded terminal",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "package.json",
+        "package-lock.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_opencode_unicode_terminal_rendering.md",
+        "src/components/electron/TerminalPane.tsx"
+      ],
+      "acceptance": [
+        "OpenCode block-art and Unicode TUI glyphs render with correct terminal character widths.",
+        "Terminal line height no longer separates block rows in a way that makes OpenCode letters look broken.",
+        "The terminal keeps macOS-native monospace fallbacks and readable high-contrast colors.",
+        "No agent command flags, Electron IPC, backend APIs, credentials, trading, order routing, or release-promotion behavior changes are made.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npx tsc --noEmit",
+        "rtk npm run build",
+        "rtk git diff --check",
+        "rtk npm run terminal:doctor"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "package.json",
+        "package-lock.json",
+        "src/components/electron/TerminalPane.tsx",
+        "progress/impl_opencode_unicode_terminal_rendering.md"
+      ],
+      "notes": "Done. Added xterm Unicode 11 support, activated Unicode 11 in the terminal instance, moved Menlo/Monaco ahead of SF Mono for block glyph quality, and tightened terminal line height to 1 so OpenCode block-art letters render as a coherent logo. No CLI command flags, Electron IPC, backend APIs, credentials, trading, order routing, or release-promotion behavior changed."
+    },
+    {
+      "id": "opencode_permissionless_run_subcommand",
+      "title": "Launch OpenCode permissionless mode through the supported run subcommand",
+      "mission_class": "UI review-speed audit",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_opencode_permissionless_run_subcommand.md",
+        "src/utils/agentRuntime.ts",
+        "progress/impl_interactive_agent_permissionless_ticker_insight_missions.md"
+      ],
+      "acceptance": [
+        "The OpenCode shared runtime command uses opencode run --interactive when adding --dangerously-skip-permissions.",
+        "The command keeps the default DeepSeek model.",
+        "A PTY smoke test confirms OpenCode reaches the interactive prompt without unknown-option, permission-flag, or command-not-found errors.",
+        "Codex, Claude, Gemini, Electron IPC, backend APIs, credentials, trading, order routing, and release-promotion behavior are unchanged.",
+        "Verification and handoff evidence are recorded."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk npx tsc --noEmit",
+        "rtk npm run build",
+        "rtk git diff --check",
+        "rtk npm run terminal:doctor",
+        "node-pty smoke: opencode run --interactive --model opencode/deepseek-v4-flash-free --dangerously-skip-permissions reaches Ask anything prompt without flag errors"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "src/utils/agentRuntime.ts",
+        "progress/impl_interactive_agent_permissionless_ticker_insight_missions.md",
+        "progress/impl_opencode_permissionless_run_subcommand.md"
+      ],
+      "notes": "Done. OpenCode permissionless interactive launch now uses opencode run --interactive --model opencode/deepseek-v4-flash-free --dangerously-skip-permissions because OpenCode 1.15.3 exposes the permission bypass flag on the run subcommand. PTY smoke reached the Ask anything prompt, showed DeepSeek V4 Flash Free/OpenCode Zen, and found no flag or command errors."
     }
   ]
 }

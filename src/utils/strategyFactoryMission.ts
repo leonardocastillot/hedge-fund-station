@@ -134,7 +134,7 @@ export function buildStrategyFactoryGoal(params: {
   const blocked = params.strategies.filter((strategy) => strategy.pipelineStage === 'blocked' || strategy.gateStatus === 'audit-blocked').length;
 
   return [
-    'Strategy Factory mission: create one complete, backend-first strategy candidate for Hedge Fund Station.',
+    'Strategy Factory mission: start from a ticker-first market read, extract actionable insight, then create one backend-first strategy candidate only if the thesis is falsifiable.',
     '',
     `Assigned strategy_id: ${strategyId}.`,
     `Assigned backend path: backend/hyperliquid_gateway/strategies/${strategyId}/.`,
@@ -143,7 +143,7 @@ export function buildStrategyFactoryGoal(params: {
     '',
     'Hard ownership rule: create or modify exactly the assigned strategy_id. Do not create, rename, fork, or register a second strategy_id in this mission. If the evidence says a different strategy is needed, stop and ask the operator instead of making it.',
     '',
-    assetSymbol ? `Asset constraint: build or improve a ${assetSymbol} strategy only. Do not switch assets unless the operator explicitly overrides this constraint.` : '',
+    assetSymbol ? `Ticker constraint: read ${assetSymbol} first and build or improve a ${assetSymbol} strategy only if the insight supports a falsifiable edge. Do not switch assets unless the operator explicitly overrides this constraint.` : '',
     assetSymbol ? '' : '',
     `Focus: ${getStrategyFactoryFocusLabel(params.focus)}.`,
     focusInstruction,
@@ -158,13 +158,15 @@ export function buildStrategyFactoryGoal(params: {
     ...(benchmarkBoard.length ? benchmarkBoard : ['- No strategy catalog rows are loaded. Build the board from docs and backend artifacts before proposing a thesis.']),
     '',
     'Required investigation:',
+    assetSymbol ? `- Start with a ${assetSymbol} market read: regime, structure, funding, OI, liquidations, trigger, invalidation, and anti-regime.` : '- Start with a ticker-level market read: regime, structure, funding, OI, liquidations, trigger, invalidation, and anti-regime.',
     '- Mine docs/strategies, backend/hyperliquid_gateway/strategies, backtest reports, validation reports, paper candidates, paper ledgers, backend/hyperliquid_gateway/data/agent_runs, docs/operations/agents/memory, progress handoffs, and graph/memory reports when fresh enough.',
     '- Build a comparable benchmark board with the strongest current strategies, rejected strategies, failure modes, and what each suggests about regimes, inputs, indicators, and combinations.',
     '- Choose scalper or swing by evidence unless the operator selected a specific focus.',
+    '- If the ticker read does not produce a falsifiable thesis, stop with a blocker/evidence report instead of forcing a strategy.',
     '- The thesis must not be parameter-only curve fitting. Parameters can refine risk, but the main edge must come from a falsifiable market mechanism, data input, regime filter, trigger/invalidation pair, or signal combination.',
     '',
     'Implementation contract:',
-    `- Create or materially complete exactly one strategy candidate: ${strategyId}.`,
+    `- Create or materially complete exactly one strategy candidate: ${strategyId}, only after the ticker insight justifies it.`,
     `- Write or update docs/strategies/${strategyId.replace(/_/g, '-')}.md with edge, regime, anti-regime, inputs, entry, invalidation, exit, risk, costs, validation, failure modes, and backend mapping.`,
     `- Put deterministic logic in backend/hyperliquid_gateway/strategies/${strategyId}/, not React or Electron.`,
     '- Add focused backend tests where the strategy logic, scoring, risk, or backtest adapter can regress.',
@@ -178,7 +180,7 @@ export function buildStrategyFactoryGoal(params: {
     '- Leave progress/current.md, progress/impl_<task>.md, and progress/history.md in a state the next agent can trust.',
     `- Before finishing, release or move the Strategy Mission Lock with: rtk npm run hf:strategy:release -- --strategy-id ${strategyId} --status review --handoff progress/impl_${strategyId}.md.`,
     '',
-    'Done means: source/docs/tests are updated, backtest and validation artifacts are named, paper candidate is created only if eligible, live remains blocked, and the final operator brief names files, commands, results, risks, and next gate.'
+    'Done means: ticker insight is documented, source/docs/tests are updated when thesis survives, backtest and validation artifacts are named, paper candidate is created only if eligible, live remains blocked, and the final operator brief names files, commands, results, risks, and next gate.'
   ].join('\n');
 }
 
@@ -204,6 +206,7 @@ export function buildStrategyFactoryMissionDraftInput(params: {
   const risks = [
     'No live trades, no order routing, and no credential changes.',
     `Create or modify exactly the assigned strategy_id: ${params.strategyId}.`,
+    'Start with ticker insight; stop with blocker evidence if no falsifiable thesis survives.',
     'No parameter-only curve fitting as the main thesis.',
     'Backend-first strategy logic only; React and Electron stay review/control surfaces.',
     'Paper candidate only after validation evidence; live gate remains blocked without operator sign-off.',

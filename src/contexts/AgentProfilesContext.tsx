@@ -6,7 +6,7 @@ import { getDefaultProviderForRole } from '../utils/agentRuntime';
 const STORAGE_KEY = 'hedge-station:agent-profiles';
 
 const TRADING_OPERATING_DISCIPLINE =
-  'Use the repo as an operating stack: put heavy strategy logic, replay, paper execution, ranking, and long-running market jobs in backend services or Docker-facing processes. Keep the Electron app focused on visualization, inspection, controls, and review. When proposing or improving a strategy, first create or update a spec in docs/strategies and map implementation to backend/hyperliquid_gateway/strategies before changing UI surfaces.';
+  'Use the repo as an operating stack: put heavy strategy logic, replay, paper execution, ranking, and long-running market jobs in backend services or Docker-facing processes. Keep the Electron app focused on visualization, inspection, controls, and review. For strategy or market work, read the ticker first: regime, structure, funding, OI, liquidations, trigger, invalidation, and anti-regime. Create or update strategy specs and backend modules only when that ticker insight yields a falsifiable thesis; otherwise leave a blocker/evidence report.';
 
 interface AgentProfilesContextValue {
   agents: AgentProfile[];
@@ -62,8 +62,8 @@ function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
       provider: getDefaultProviderForRole('commander'),
       workspaceId: workspace.id,
       defaultLaunchProfileId: planningProfileId,
-      promptTemplate: `Lead the mission, decompose the objective, route the work to specialists, and synthesize the final operating plan. ${TRADING_OPERATING_DISCIPLINE}`,
-      objective: 'Turn goals into a coordinated plan with ranked actions and explicit handoffs.',
+      promptTemplate: `Lead the mission, decompose the objective, route the work to specialists, and synthesize the final operating plan. Start market and strategy work from a ticker insight before implementation. ${TRADING_OPERATING_DISCIPLINE}`,
+      objective: 'Turn goals into a coordinated ticker read, ranked actions, and explicit handoffs.',
       collaboratesWith: ['market-structure', 'derivatives', 'execution', 'risk', 'researcher', 'data-engineer', 'developer', 'ops'],
       accentColor: '#ef4444',
       autoAssignTerminalPurpose: 'planning'
@@ -75,8 +75,8 @@ function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
       provider: getDefaultProviderForRole('market-structure'),
       workspaceId: workspace.id,
       defaultLaunchProfileId: planningProfileId,
-      promptTemplate: `Map trend, range, volatility regime, key levels, and scenario tree across multiple timeframes. ${TRADING_OPERATING_DISCIPLINE}`,
-      objective: 'Explain where price is, where it can go next, and what invalidates the map.',
+      promptTemplate: `Map trend, range, volatility regime, key levels, trigger, invalidation, and scenario tree across multiple timeframes. ${TRADING_OPERATING_DISCIPLINE}`,
+      objective: 'Explain where the ticker is, where it can go next, and what invalidates the map.',
       collaboratesWith: ['commander', 'execution', 'risk', 'researcher'],
       accentColor: '#38bdf8',
       autoAssignTerminalPurpose: 'market-structure'
@@ -88,8 +88,8 @@ function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
       provider: getDefaultProviderForRole('derivatives'),
       workspaceId: workspace.id,
       defaultLaunchProfileId: planningProfileId,
-      promptTemplate: `Track funding, open interest, liquidations, crowding, squeeze conditions, and trader positioning. ${TRADING_OPERATING_DISCIPLINE}`,
-      objective: 'Surface where positioning is crowded, fragile, or starting to expand.',
+      promptTemplate: `Track funding, open interest, liquidations, crowding, squeeze conditions, and trader positioning for the active ticker. ${TRADING_OPERATING_DISCIPLINE}`,
+      objective: 'Surface where ticker positioning is crowded, fragile, or starting to expand.',
       collaboratesWith: ['commander', 'risk', 'execution', 'researcher'],
       accentColor: '#22c55e',
       autoAssignTerminalPurpose: 'derivatives'
@@ -127,8 +127,8 @@ function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
       provider: getDefaultProviderForRole('researcher'),
       workspaceId: workspace.id,
       defaultLaunchProfileId: planningProfileId,
-      promptTemplate: `Fuse notes, videos, postmortems, market context, and external research into concise evidence. ${TRADING_OPERATING_DISCIPLINE}`,
-      objective: 'Bring the best prior knowledge into the current decision.',
+      promptTemplate: `Fuse notes, videos, postmortems, market context, and external research into concise ticker evidence. ${TRADING_OPERATING_DISCIPLINE}`,
+      objective: 'Bring the best prior knowledge into the current ticker decision.',
       collaboratesWith: ['commander', 'market-structure', 'derivatives'],
       accentColor: '#a855f7',
       autoAssignTerminalPurpose: 'research'

@@ -854,7 +854,7 @@ export const WorkspaceAgentView: React.FC<{ workspaceId?: string }> = ({ workspa
       workspace.path,
       runtimeShell,
       'Claude Agent View',
-      `claude agents --cwd ${quoteShellArg(workspace.path)}`,
+      `${resolveAgentRuntimeCommand('claude', runtimeShell)} agents --cwd ${quoteShellArg(workspace.path)}`,
       {
         workspaceId: workspace.id,
         ...sessionMeta,

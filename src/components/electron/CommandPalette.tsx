@@ -110,15 +110,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       next.push({
         id: 'active-codex',
         title: `Run Codex in ${activeWorkspace.name}`,
-        subtitle: 'Launches a new terminal with Codex',
+        subtitle: 'Launches Codex without permission prompts',
         keywords: `codex ${activeWorkspace.name}`,
-        run: () => runWorkspaceCommand(activeWorkspace, 'codex', 'codex')
+        run: () => runWorkspaceCommand(activeWorkspace, resolveAgentRuntimeCommand('codex', activeWorkspace.shell), 'codex')
       });
 
       next.push({
         id: 'active-opencode',
         title: `Run OpenCode in ${activeWorkspace.name}`,
-        subtitle: 'Launches OpenCode with DeepSeek V4 Flash free',
+        subtitle: 'Launches OpenCode with DeepSeek V4 Flash free without permission prompts',
         keywords: `opencode open code deepseek ${activeWorkspace.name}`,
         run: () => runWorkspaceCommand(activeWorkspace, resolveAgentRuntimeCommand('opencode', activeWorkspace.shell), 'opencode')
       });
@@ -126,9 +126,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       next.push({
         id: 'active-claude',
         title: `Run Claude in ${activeWorkspace.name}`,
-        subtitle: 'Launches a new terminal with Claude',
+        subtitle: 'Launches Claude without permission prompts',
         keywords: `claude ${activeWorkspace.name}`,
-        run: () => runWorkspaceCommand(activeWorkspace, 'claude', 'claude')
+        run: () => runWorkspaceCommand(activeWorkspace, resolveAgentRuntimeCommand('claude', activeWorkspace.shell), 'claude')
       });
 
       activeWorkspace.launch_profiles.forEach((profile) => {

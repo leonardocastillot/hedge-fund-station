@@ -36,21 +36,21 @@ export const MISSION_MODE_CONFIG: Record<MissionMode, MissionModeConfig> = {
     id: 'market-scan',
     label: 'Market Scan',
     title: 'Market Scan',
-    description: 'Read the tape, separate noise from signal, and leave a tradable map.',
-    placeholder: 'Objective, market, timeframes, key datasets, and what decision you need before the session.',
-    quickPrompt: 'Analyze BTC, macro, liquidity, and positioning to leave an actionable market scan with scenarios, levels, and risks for today.',
+    description: 'Read the ticker first, separate noise from signal, and leave actionable market insight.',
+    placeholder: 'Ticker or asset, timeframes, market question, key datasets, and the decision you need before the session.',
+    quickPrompt: 'Analyze BTC or the active ticker across regime, structure, funding, OI, liquidations, triggers, and invalidation to leave actionable insights for today.',
     guidedInput: [
-      'Objective: Build today\'s market scan for BTC or the active focus market.',
-      'Scope: define dominant regime, scenario tree, key levels, and main risks.',
+      'Objective: Build today\'s ticker-first market read for BTC or the active focus market.',
+      'Scope: define dominant regime, scenario tree, key levels, positioning pressure, and main risks.',
       'Timeframes: 1D, 4H, 1H.',
       'Data to use: price structure, macro calendar, open interest, funding, liquidations.',
-      'Deliverable: base case, alternate case, invalidation, and what to monitor next.',
+      'Deliverable: base case, alternate case, trigger, invalidation, and the highest-signal insight to monitor next.',
       'Constraint: keep it actionable and concise; no generic market commentary.'
     ].join('\n'),
-    deliverables: ['Market bias', 'Macro drivers', 'Levels and scenarios'],
+    deliverables: ['Ticker insight', 'Regime and positioning read', 'Triggers and invalidation'],
     datasets: ['Macro calendar', 'Liquidations', 'Open interest', 'Price structure'],
-    successCriteria: ['Base and alternate case', 'Concrete levels', 'Dominant risk identified'],
-    guardrails: ['No edge claims without levels', 'Separate base case from alternate case', 'End with what changes the bias'],
+    successCriteria: ['Base and alternate case', 'Concrete levels and trigger', 'Invalidation and dominant risk identified'],
+    guardrails: ['No edge claims without levels', 'Separate base case from alternate case', 'End with what changes or invalidates the bias'],
     appSurfaces: ['Economic Calendar', 'Hyperliquid Intelligence', 'Hyperliquid Data'],
     backendCapabilities: ['Hyperliquid overview', 'alerts', 'watchlist snapshots'],
     completionGate: ['Bias documented', 'Invalidation documented', 'Next market trigger documented'],
@@ -58,8 +58,8 @@ export const MISSION_MODE_CONFIG: Record<MissionMode, MissionModeConfig> = {
       {
         role: 'market-structure',
         label: 'Map Structure',
-        objective: 'Classify regime, map levels, and define the scenario tree.',
-        output: 'Bias, levels, timeframes, and structural invalidation.',
+        objective: 'Classify ticker regime, map levels, and define the scenario tree.',
+        output: 'Bias, levels, timeframes, trigger, and structural invalidation.',
         handoff: 'Pass the regime map to derivatives and researcher.'
       },
       {
@@ -133,31 +133,32 @@ export const MISSION_MODE_CONFIG: Record<MissionMode, MissionModeConfig> = {
     id: 'strategy-lab',
     label: 'Strategy Lab',
     title: 'Strategy Research',
-    description: 'Turn an insight into a testable strategy and a real validation path.',
-    placeholder: 'Market, horizon, available data, hypothetical edge, and the validation gate you want to decide.',
-    quickPrompt: 'Find one strategy idea with edge, define the hypothesis, rules, filters, invalidations, and the backtest plan.',
+    description: 'Read the ticker first, extract a falsifiable insight, then decide whether it deserves a strategy path.',
+    placeholder: 'Ticker, horizon, market read, available data, possible edge, and the validation gate you want to decide.',
+    quickPrompt: 'Read BTC or the active ticker first, extract one falsifiable market insight, and only then define strategy rules and validation if the thesis is strong enough.',
     guidedInput: [
-      'Objective: find or refine one short-horizon strategy idea worth validating in this repo.',
-      'Market: specify BTC, ETH, Hyperliquid perp universe, or another market.',
-      'Edge hypothesis: describe the crowding, regime, or trigger you want investigated.',
-      'Rules needed: entry, filters, invalidation, exit, sizing assumptions, fee/slippage assumptions.',
+      'Objective: start from a ticker-level market read and extract one short-horizon insight worth validating in this repo.',
+      'Market: specify BTC, ETH, Hyperliquid perp universe, or another ticker.',
+      'Market read required: regime, structure, funding, OI, liquidations, trigger, invalidation, and anti-regime.',
+      'Edge hypothesis: describe the market mechanism, crowding, regime, or trigger that could survive validation.',
+      'Rules only if justified: entry, filters, invalidation, exit, sizing assumptions, fee/slippage assumptions.',
       'Validation path: use this repo\'s real strategy library, backtest endpoint, replay flow, and paper lab. Do not invent results.',
       'Decision gate: reject | needs-more-data | ready-for-backtest | ready-for-paper.'
     ].join('\n'),
-    deliverables: ['Edge hypothesis', 'Operable rules', 'Backtest and paper plan'],
+    deliverables: ['Ticker insight', 'Falsifiable edge hypothesis', 'Backtest and paper plan if justified'],
     datasets: ['Research memory', 'Liquidations', 'Open interest', 'Historical candles', 'Strategy library', 'Paper lab'],
-    successCriteria: ['Falsifiable hypothesis', 'Unambiguous rules', 'Real validation path mapped'],
-    guardrails: ['One strategy idea per mission', 'No invented validation results', 'Reference real repo backtest and paper capabilities'],
+    successCriteria: ['Ticker insight is explicit', 'Falsifiable hypothesis or rejection is documented', 'Real validation path mapped when strategy work is justified'],
+    guardrails: ['One ticker insight per mission', 'No strategy implementation without a falsifiable thesis', 'No invented validation results', 'Reference real repo backtest and paper capabilities'],
     appSurfaces: ['Strategy Library', 'Strategy Detail', 'Hyperliquid Paper Lab', 'Portfolio Dashboard'],
     backendCapabilities: ['Strategy library API', 'runAllBacktests', 'paper signals', 'paper trades', 'strategy detail backtests'],
     completionGate: ['Hypothesis is explicit', 'Validation evidence exists', 'Decision gate is saved'],
     workflow: [
       {
         role: 'researcher',
-        label: 'Define Hypothesis',
-        objective: 'Convert the idea into a falsifiable setup with explicit market regime and data dependencies.',
-        output: 'Hypothesis, regime, trigger logic, invalidation, and failure modes.',
-        handoff: 'Pass only a testable spec to the backtester.'
+        label: 'Read Ticker',
+        objective: 'Convert the ticker market read into a falsifiable insight with explicit regime, positioning, and data dependencies.',
+        output: 'Ticker insight, hypothesis or rejection, regime, trigger logic, invalidation, and failure modes.',
+        handoff: 'Pass only a testable thesis to the backtester; if no thesis survives, pass a blocker report.'
       },
       {
         role: 'backtester',
@@ -169,7 +170,7 @@ export const MISSION_MODE_CONFIG: Record<MissionMode, MissionModeConfig> = {
       {
         role: 'risk',
         label: 'Decision Gate',
-        objective: 'Decide whether the idea should be rejected, researched further, backtested, or moved to paper.',
+        objective: 'Decide whether the ticker insight should be rejected, researched further, backtested, or moved to paper.',
         output: 'Decision gate, failure cases, and next validation step.',
         handoff: 'End with one explicit next action.'
       }

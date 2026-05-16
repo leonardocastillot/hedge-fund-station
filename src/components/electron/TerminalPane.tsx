@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { ArrowDownToLine, Clipboard, Maximize2, Palette, Power, Sparkles, X } from 'lucide-react';
 import '@xterm/xterm/css/xterm.css';
 import { useTerminal } from '../../hooks/useTerminal';
@@ -17,7 +18,8 @@ const TERMINAL_SURFACE_BACKGROUND = '#05070b';
 const TERMINAL_PANEL_BACKGROUND = 'linear-gradient(180deg, rgba(5, 9, 13, 0.98), rgba(2, 6, 10, 0.98))';
 const TERMINAL_HEADER_ACTIVE_BACKGROUND = 'linear-gradient(180deg, rgba(10, 19, 25, 0.98), rgba(4, 10, 15, 0.98))';
 const TERMINAL_HEADER_BACKGROUND = 'rgba(5, 11, 16, 0.96)';
-const TERMINAL_FONT_FAMILY = '"SFMono-Regular", "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, "Courier New", monospace';
+const TERMINAL_FONT_FAMILY = 'Menlo, Monaco, "SFMono-Regular", "SF Mono", "Cascadia Mono", Consolas, "Courier New", monospace';
+const TERMINAL_LINE_HEIGHT = 1;
 const TERMINAL_HACKER_THEME = {
   background: TERMINAL_SURFACE_BACKGROUND,
   foreground: '#f1f5f9',
@@ -49,6 +51,15 @@ function clampTerminalFontSize(value: number): number {
 
 function clampTerminalScrollback(value: number): number {
   return Math.max(5000, Math.min(value, 50000));
+}
+
+function enableUnicode11(terminal: Terminal): void {
+  try {
+    terminal.loadAddon(new Unicode11Addon());
+    terminal.unicode.activeVersion = '11';
+  } catch (error) {
+    console.warn('Unable to activate xterm Unicode 11 support:', error);
+  }
 }
 
 function normalizeTerminalTitle(title: string): string {
@@ -728,7 +739,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     terminal.options.fontWeight = '400';
     terminal.options.fontWeightBold = '700';
     terminal.options.letterSpacing = 0;
-    terminal.options.lineHeight = 1.2;
+    terminal.options.lineHeight = TERMINAL_LINE_HEIGHT;
     terminal.options.scrollback = clampTerminalScrollback(settings.scrollbackLines);
 
     if (!fitAddonRef.current || !containerRef.current) {
@@ -821,14 +832,15 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       fontWeight: '400',
       fontWeightBold: '700',
       letterSpacing: 0,
-      lineHeight: 1.2,
+      lineHeight: TERMINAL_LINE_HEIGHT,
       theme: { ...TERMINAL_HACKER_THEME },
       scrollback: clampTerminalScrollback(settingsRef.current.scrollbackLines),
-      allowProposedApi: false,
+      allowProposedApi: true,
       allowTransparency: false,
       customGlyphs: true,
       smoothScrollDuration: 0
     });
+    enableUnicode11(terminal);
 
     // Create fit addon
     const fitAddon = new FitAddon();

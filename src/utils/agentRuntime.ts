@@ -11,6 +11,10 @@ export interface ProviderMeta {
 
 export const AGENT_PROVIDERS: AgentProvider[] = ['codex', 'opencode', 'claude', 'gemini'];
 export const OPENCODE_DEFAULT_MODEL = 'opencode/deepseek-v4-flash-free';
+export const OPENCODE_INTERACTIVE_SUBCOMMAND = 'run --interactive';
+export const CODEX_PERMISSIONLESS_FLAG = '--yolo';
+export const CLAUDE_PERMISSIONLESS_FLAGS = '--permission-mode bypassPermissions';
+export const OPENCODE_PERMISSIONLESS_FLAG = '--dangerously-skip-permissions';
 
 const PROVIDER_META: Record<AgentProvider, ProviderMeta> = {
   claude: {
@@ -98,7 +102,8 @@ export function resolveAgentRuntimeCommand(provider: AgentProvider, shell?: stri
   const windowsShell = isWindowsTerminalShell(shell);
 
   if (provider === 'codex') {
-    return windowsShell ? 'codex.cmd' : 'codex';
+    const command = windowsShell ? 'codex.cmd' : 'codex';
+    return `${command} ${CODEX_PERMISSIONLESS_FLAG}`;
   }
 
   if (provider === 'gemini') {
@@ -107,10 +112,11 @@ export function resolveAgentRuntimeCommand(provider: AgentProvider, shell?: stri
 
   if (provider === 'opencode') {
     const command = windowsShell ? 'opencode.cmd' : 'opencode';
-    return `${command} --model ${OPENCODE_DEFAULT_MODEL}`;
+    return `${command} ${OPENCODE_INTERACTIVE_SUBCOMMAND} --model ${OPENCODE_DEFAULT_MODEL} ${OPENCODE_PERMISSIONLESS_FLAG}`;
   }
 
-  return windowsShell ? 'claude.exe' : 'claude';
+  const command = windowsShell ? 'claude.exe' : 'claude';
+  return `${command} ${CLAUDE_PERMISSIONLESS_FLAGS}`;
 }
 
 export function resolveAgentRuntimeShell(shell?: string): string | undefined {

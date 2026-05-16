@@ -5,6 +5,74 @@ entries unless the human explicitly asks for cleanup.
 
 ---
 
+## 2026-05-16 - OpenCode Permissionless Run Subcommand
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Corrected the OpenCode permissionless launcher to use
+  `opencode run --interactive --model opencode/deepseek-v4-flash-free --dangerously-skip-permissions`,
+  because OpenCode 1.15.3 exposes permission bypass on `run`, not the root TUI
+  command.
+- Evidence: `src/utils/agentRuntime.ts`,
+  `progress/impl_interactive_agent_permissionless_ticker_insight_missions.md`,
+  and `progress/impl_opencode_permissionless_run_subcommand.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk git diff --check`,
+  `rtk npm run terminal:doctor`, version smoke, and a node-pty launch smoke
+  passed. The PTY smoke reached the OpenCode `Ask anything...` prompt with no
+  flag or command errors.
+- Status: done. OpenCode launch command only; Codex, Claude, Gemini, Electron
+  IPC, backend APIs, credentials, order routing, and release-promotion behavior
+  were unchanged.
+
+---
+
+## 2026-05-16 - OpenCode Unicode Terminal Rendering
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed OpenCode's broken-looking block-art in the embedded terminal
+  by adding xterm Unicode 11 support, activating it per terminal, moving
+  Menlo/Monaco ahead of SF Mono for block glyph rendering, and tightening the
+  terminal line height.
+- Evidence: `package.json`, `package-lock.json`,
+  `src/components/electron/TerminalPane.tsx`, and
+  `progress/impl_opencode_unicode_terminal_rendering.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk git diff --check`, and
+  `rtk npm run terminal:doctor` passed.
+- Status: done. Terminal rendering only; no agent command flags, Electron IPC,
+  backend APIs, credentials, order routing, or release-promotion behavior
+  changed.
+
+---
+
+## 2026-05-16 - Interactive Agent Permissionless Ticker Insight Missions
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Centralized permissionless interactive launch flags for Codex,
+  Claude, and OpenCode; routed OpenCode through `opencode run --interactive`
+  because permission bypass belongs to that subcommand in OpenCode 1.15.3;
+  routed raw Command Palette and Claude Agent View launches through the shared
+  runtime helper; and reworded strategy/market mission prompts to read the
+  ticker first before strategy work.
+- Evidence: `src/utils/agentRuntime.ts`, `src/utils/terminalShell.ts`,
+  `src/components/electron/CommandPalette.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/utils/missionControl.ts`, `src/utils/strategyFactoryMission.ts`,
+  `src/contexts/AgentProfilesContext.tsx`, and
+  `progress/impl_interactive_agent_permissionless_ticker_insight_missions.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk git diff --check`,
+  `rtk npm run terminal:doctor`, and CLI permission-flag smoke checks passed,
+  including `opencode run --interactive --model opencode/deepseek-v4-flash-free --dangerously-skip-permissions --version`.
+- Status: done. Backend Research OS `codex exec --sandbox read-only`, Gemini,
+  IPC, backend APIs, credentials, order routing, and release gates were
+  unchanged.
+
+---
+
 ## 2026-05-16 - Dev Stability And Strategy Harness Hardening
 
 - Agent: Codex

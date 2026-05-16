@@ -1,25 +1,24 @@
 # Current Agent Session
 
-- Task: right_dock_utf8_cli_stability
+- Task: opencode_permissionless_run_subcommand
 - Status: done
 - Last updated: 2026-05-16
 - Owner: codex
 
 ## Plan
 
-1. Add the scoped harness task and active session state.
-2. Patch PTY and screen-backed CLI launch so agent terminals inherit UTF-8-safe locale and terminal capabilities.
-3. Use macOS-native mono font fallbacks and remove duplicate compact Code-dock chrome while preserving split terminals.
-4. Run harness, TypeScript, build, whitespace, and terminal doctor checks.
-5. Write the implementation handoff, update history/task state, commit, and push the current branch.
+1. Confirm where OpenCode 1.15.3 supports `--dangerously-skip-permissions`.
+2. Patch the shared OpenCode launcher to use `opencode run --interactive`.
+3. Smoke-test the exact launcher command in a node-pty session.
+4. Keep Codex, Claude, Gemini, Electron IPC, backend APIs, credentials, order routing, and release-promotion behavior unchanged.
+5. Run harness, TypeScript, build, whitespace, and terminal doctor checks.
+6. Write the implementation handoff, update history and task state.
 
 ## Evidence
 
-- `electron/main/native/pty-manager.ts`
-- `src/components/electron/TerminalPane.tsx`
-- `src/components/electron/TerminalGrid.tsx`
-- `src/utils/strategyFactoryMission.ts`
-- `progress/impl_right_dock_utf8_cli_stability.md`
+- `src/utils/agentRuntime.ts`
+- `progress/impl_interactive_agent_permissionless_ticker_insight_missions.md`
+- `progress/impl_opencode_permissionless_run_subcommand.md`
 
 ## Verification
 
@@ -28,7 +27,8 @@
 - `rtk npm run build`
 - `rtk git diff --check`
 - `rtk npm run terminal:doctor`
+- node-pty smoke: `opencode run --interactive --model opencode/deepseek-v4-flash-free --dangerously-skip-permissions`
 
 ## Next
 
-- Push source and handoff changes to the active branch.
+- No task-local work remains. Reload the desktop app or open a fresh OpenCode terminal to pick up the updated launcher and terminal rendering.
