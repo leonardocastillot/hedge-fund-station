@@ -669,6 +669,59 @@ export interface HyperliquidStrategyLearningCreateResponse {
   event: HyperliquidStrategyLearningEvent;
 }
 
+export interface HyperliquidStrategyMemoryStatus {
+  available: boolean;
+  updatedAt: number;
+  memoryRoot: string;
+  dbPath: string;
+  sourceCount: number;
+  chunkCount: number;
+  queuedJobCount: number;
+  failedJobCount: number;
+  summaryCount: number;
+  latestIndexedAt: number | null;
+  ftsAvailable: boolean;
+  lifecycleCounts: Record<string, number>;
+}
+
+export interface HyperliquidStrategyMemoryResult {
+  chunkId: string;
+  sourceKey: string;
+  sourceType: string;
+  strategyId: string | null;
+  title: string;
+  path: string;
+  seq: number;
+  tokenCount: number;
+  snippet: string;
+  score: number;
+  lifecycleStatus: string;
+  entities: string[];
+}
+
+export interface HyperliquidStrategyMemoryQueryResponse {
+  updatedAt: number;
+  query: string;
+  strategyId: string | null;
+  count: number;
+  backend: string;
+  results: HyperliquidStrategyMemoryResult[];
+}
+
+export interface HyperliquidStrategyMemorySyncResponse {
+  ok: boolean;
+  dryRun: boolean;
+  updatedAt: number;
+  sourceCount: number;
+  chunkCount: number;
+  changedSources: number;
+  unchangedSources: number;
+  queuedJobs: number;
+  processedJobs: number;
+  memoryRoot: string;
+  status?: HyperliquidStrategyMemoryStatus;
+}
+
 export interface HyperliquidGraphifyStatus {
   available: boolean;
   updatedAt: number | null;
@@ -841,6 +894,91 @@ export interface HyperliquidBacktestArtifactSummary {
 export interface HyperliquidBacktestArtifactsResponse {
   strategyId: string;
   artifacts: HyperliquidBacktestArtifactSummary[];
+}
+
+export interface HyperliquidStrategyLabChartCandle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+}
+
+export interface HyperliquidStrategyLabChartMarker {
+  id: string;
+  kind: 'entry' | 'exit';
+  time: number;
+  price: number;
+  side: string | null;
+  pnlUsd: number | null;
+  text: string;
+  color: string;
+  shape: 'arrowUp' | 'arrowDown' | 'circle' | 'square';
+  position: 'aboveBar' | 'belowBar' | 'inBar';
+}
+
+export interface HyperliquidStrategyLabResponse {
+  updatedAt: number;
+  strategyId: string;
+  catalogRow: HyperliquidStrategyCatalogRow;
+  nextAction: HyperliquidStrategyNextAction;
+  latestArtifactPaths: HyperliquidStrategyCatalogRow['latestArtifactPaths'];
+  artifact: {
+    requestedArtifactId: string;
+    selectedArtifactId: string | null;
+    reportPath: string | null;
+    validationPath: string | null;
+    paperPath: string | null;
+  };
+  artifacts: HyperliquidBacktestArtifactSummary[];
+  summary: (Partial<HyperliquidBacktestRunResponse['summary']> & Record<string, unknown>) | null;
+  dataset: Record<string, unknown> | null;
+  config: Record<string, unknown> | null;
+  robustAssessment: HyperliquidStrategyCatalogRow['robustAssessment'];
+  validation: Record<string, unknown> | null;
+  paper: Record<string, unknown> | null;
+  equityCurve: Array<Record<string, unknown>>;
+  trades: {
+    backtest: HyperliquidBacktestTrade[];
+    paper: HyperliquidPaperTrade[];
+  };
+  chart: {
+    available: boolean;
+    reason: string | null;
+    dataset: string | null;
+    interval: string;
+    candles: HyperliquidStrategyLabChartCandle[];
+    markers: HyperliquidStrategyLabChartMarker[];
+  };
+  timeline: HyperliquidStrategyAuditRow['timeline'];
+  learning: HyperliquidStrategyLearningEvent[];
+  agentRuns: HyperliquidAgentRunSummary[];
+  errors: string[];
+}
+
+export interface HyperliquidStrategyScaffoldFile {
+  path: string;
+  relativePath: string;
+  exists: boolean;
+  wouldWrite: boolean;
+}
+
+export interface HyperliquidStrategyScaffoldPreview {
+  ok: boolean;
+  strategyId: string;
+  displayName: string;
+  docsId: string;
+  backendDir: string;
+  docsPath: string;
+  files: HyperliquidStrategyScaffoldFile[];
+  conflict: boolean;
+  conflicts: string[];
+}
+
+export interface HyperliquidStrategyScaffoldResult extends HyperliquidStrategyScaffoldPreview {
+  writtenFiles: string[];
+  skippedFiles: string[];
 }
 
 export interface HyperliquidValidationRunResponse {
@@ -1628,6 +1766,33 @@ class HyperliquidService {
     });
   }
 
+  async getStrategyMemoryStatus(): Promise<HyperliquidStrategyMemoryStatus> {
+    return withRequestCache('hyperliquid:memory:strategy-status', 8_000, async () => {
+      return fetchJson<HyperliquidStrategyMemoryStatus>('/api/hyperliquid/memory/strategy/status');
+    });
+  }
+
+  async syncStrategyMemory(options: { dryRun?: boolean; processJobs?: boolean } = {}): Promise<HyperliquidStrategyMemorySyncResponse> {
+    const params = new URLSearchParams({
+      dry_run: String(options.dryRun ?? false),
+      process_jobs: String(options.processJobs ?? true)
+    });
+    const response = await postJson<HyperliquidStrategyMemorySyncResponse>(`/api/hyperliquid/memory/strategy/sync?${params.toString()}`);
+    invalidateRequestCache('hyperliquid:memory:strategy-status');
+    return response;
+  }
+
+  async queryStrategyMemory(query: string, options: { strategyId?: string | null; limit?: number } = {}): Promise<HyperliquidStrategyMemoryQueryResponse> {
+    const params = new URLSearchParams({
+      query,
+      limit: String(options.limit ?? 8)
+    });
+    if (options.strategyId) {
+      params.set('strategy_id', options.strategyId);
+    }
+    return fetchJson<HyperliquidStrategyMemoryQueryResponse>(`/api/hyperliquid/memory/strategy/query?${params.toString()}`);
+  }
+
   async getOverview(limit = 40): Promise<HyperliquidOverviewResponse> {
     return withRequestCache(`hyperliquid:overview:${limit}`, 10_000, async () => {
       return fetchJson<HyperliquidOverviewResponse>(`/api/hyperliquid/overview?limit=${limit}`);
@@ -1756,6 +1921,55 @@ class HyperliquidService {
     });
   }
 
+  async getStrategyLab(
+    strategyId: string,
+    options: { artifactId?: string; interval?: string } = {}
+  ): Promise<HyperliquidStrategyLabResponse> {
+    const artifactId = options.artifactId ?? 'latest';
+    const interval = options.interval ?? '1d';
+    return withRequestCache(`hyperliquid:strategy-lab:${strategyId}:${artifactId}:${interval}`, 5_000, async () => {
+      const params = new URLSearchParams({
+        artifact_id: artifactId,
+        interval
+      });
+      const response = await fetchJson<HyperliquidStrategyLabResponse>(
+        `/api/hyperliquid/strategies/${encodeURIComponent(strategyId)}/lab?${params.toString()}`
+      );
+      const rawLearning = response.learning as unknown;
+      const learningEvents = Array.isArray(rawLearning)
+        ? rawLearning
+        : isRecord(rawLearning) && Array.isArray(rawLearning.events)
+          ? rawLearning.events
+          : [];
+      return {
+        ...response,
+        catalogRow: normalizeCatalogRowForPipeline(response.catalogRow),
+        learning: learningEvents.map(normalizeStrategyLearningEvent)
+      };
+    });
+  }
+
+  async previewStrategyScaffold(input: {
+    title: string;
+    strategyId?: string | null;
+  }): Promise<HyperliquidStrategyScaffoldPreview> {
+    return postJson<HyperliquidStrategyScaffoldPreview>('/api/hyperliquid/strategies/scaffold/preview', {
+      title: input.title,
+      strategy_id: input.strategyId || undefined
+    });
+  }
+
+  async scaffoldStrategy(input: {
+    title: string;
+    strategyId?: string | null;
+  }): Promise<HyperliquidStrategyScaffoldResult> {
+    invalidateRequestCache('hyperliquid:strategy-catalog:');
+    return postJson<HyperliquidStrategyScaffoldResult>('/api/hyperliquid/strategies/scaffold', {
+      title: input.title,
+      strategy_id: input.strategyId || undefined
+    });
+  }
+
   async getStrategyLearning(strategyId?: string, limit = 200): Promise<HyperliquidStrategyLearningResponse> {
     const params = new URLSearchParams({ limit: String(limit) });
     if (strategyId) {
@@ -1802,6 +2016,7 @@ class HyperliquidService {
     invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
     invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
     invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
+    invalidateRequestCache(`hyperliquid:strategy-lab:${strategyId}:`);
     return response;
   }
 
@@ -1814,6 +2029,7 @@ class HyperliquidService {
     invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
     invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
     invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
+    invalidateRequestCache(`hyperliquid:strategy-lab:${strategyId}:`);
     return response;
   }
 
@@ -1833,6 +2049,7 @@ class HyperliquidService {
     invalidateRequestCache(`hyperliquid:latest-backtest:${strategyId}`);
     invalidateRequestCache(`hyperliquid:backtest-artifacts:${strategyId}`);
     invalidateRequestCache(`hyperliquid:backtest-artifact:${strategyId}:`);
+    invalidateRequestCache(`hyperliquid:strategy-lab:${strategyId}:`);
     return response;
   }
 

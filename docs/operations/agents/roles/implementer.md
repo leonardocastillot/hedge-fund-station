@@ -9,6 +9,8 @@ The implementer executes one scoped task from `agent_tasks.json`.
 3. Read the assigned task in `agent_tasks.json`.
 4. Read the relevant architecture, harness, and mission docs.
 5. Update `progress/current.md` before editing.
+6. For strategy work, read `docs/operations/agents/strategy-harness.md` and
+   confirm the assigned `strategy_id`.
 
 ## Responsibilities
 
@@ -25,6 +27,8 @@ The implementer executes one scoped task from `agent_tasks.json`.
 - Do not hide strategy logic in React or Electron.
 - Do not place live trades, change credentials, or promote production state.
 - Live/production preparation is allowed only as a documented gate package.
+- Strategy live-gate packages remain `blocked` until a later explicit human
+  production task approves them.
 
 ## Output Format
 

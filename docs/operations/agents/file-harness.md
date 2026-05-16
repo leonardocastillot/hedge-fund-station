@@ -22,6 +22,7 @@ external CLI, or an in-app mission runner.
 | `progress/impl_<task>.md` | Implementation reports. |
 | `progress/review_<task>.md` | Reviewer verdicts. |
 | `docs/operations/agents/roles/` | Vendor-neutral role contracts. |
+| `docs/operations/agents/strategy-harness.md` | Strategy-specific lifecycle and live-gate contract. |
 | `scripts/agent_harness.py` | No-dependency harness checker. |
 
 ## Task Queue Contract
@@ -53,6 +54,12 @@ Valid statuses:
 By default, only one non-parallel implementation task may be `in_progress`.
 Exploration reports may run in parallel when their scope is disjoint and the
 leader records the split.
+
+For strategy work, `docs/operations/agents/strategy-harness.md` adds a
+`strategy_id` ownership rule: one leader claims the active strategy, explorers
+write `progress/explore_strategy_<strategy_id>_<topic>.md`, implementers write
+`progress/impl_<strategy_id>.md` when no stable task id exists, and reviewers
+write `progress/review_<strategy_id>.md`.
 
 ## Anti-Telephone Rule
 
@@ -88,6 +95,10 @@ For simple work, one agent may act as implementer and still leave the same
 files. The review step should remain separate when the change affects trading,
 backend contracts, production readiness, or broad repo conventions.
 
+For strategy work, the leader records the lifecycle gate in `progress/current.md`
+and prevents overlapping edits to the same strategy package, docs, registry
+entry, validation thresholds, paper artifacts, or live-gate package.
+
 ## Production And Live Work
 
 Live trading is a possible future stage, not a forbidden end state. It is also
@@ -105,6 +116,9 @@ or promotion must remain `blocked` until it names:
 - monitoring and kill-switches
 - rollback procedure
 - production runbook
+- blocked live-gate package under
+  `docs/operations/strategy-live-gates/<strategy-id>.md` when production review
+  is being prepared
 
 Agents may prepare the gate package. They may not skip it.
 

@@ -1,609 +1,211 @@
-import React, { Suspense, useMemo } from 'react';
-import { Bot, Code2, ExternalLink, Play, RefreshCw, Server, Terminal, Wifi } from 'lucide-react';
-import { DeskBrowserPanel } from '../components/DeskBrowserPanel';
-import { useDeskSpaceContext, type DeskSpaceView } from '../DeskSpaceContext';
-import { useAgentProfilesContext } from '@/contexts/AgentProfilesContext';
-import { useCommanderTasksContext } from '@/contexts/CommanderTasksContext';
-import { useTerminalContext } from '@/contexts/TerminalContext';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import {
+  CandlestickChart,
+  CheckCircle2,
+  ChevronDown,
+  FlaskConical,
+  History,
+  Loader2,
+  MoreHorizontal,
+  Terminal
+} from 'lucide-react';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
-import { hyperliquidService, type HyperliquidAppReadiness, type HyperliquidHedgeFundStationSnapshot, type HyperliquidStrategyAuditRow } from '@/services/hyperliquidService';
-import { useMarketPolling } from '@/hooks/useMarketPolling';
-import { buildTerminalLabel } from '@/utils/workspaceLaunch';
-import { resolveTerminalShell } from '@/utils/terminalShell';
-import type { Workspace } from '@/types/electron';
+import {
+  hyperliquidService,
+  type HyperliquidStrategyLabResponse
+} from '@/services/hyperliquidService';
+import { publishWorkspaceDockMode } from '../workspaceDockEvents';
 
-const AgentsPanel = React.lazy(() => import('@/features/agents/panels/AgentsPanel').then((module) => ({ default: module.AgentsPanel })));
-const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid').then((module) => ({ default: module.TerminalGrid })));
+const WorkspaceAgentView = React.lazy(() => import('@/features/agents/components/WorkspaceAgentView').then((module) => ({ default: module.WorkspaceAgentView })));
 
-function formatKind(kind: Workspace['kind']): string {
-  if (kind === 'hedge-fund') return 'Hedge Fund Desk';
-  if (kind === 'command-hub') return 'Command Hub';
-  if (kind === 'ops') return 'Ops Desk';
-  return 'Project Desk';
+function compactCommand(command?: string | null): string {
+  if (!command) return 'rtk npm run hf:status';
+  return command.length > 54 ? `${command.slice(0, 51)}...` : command;
 }
 
-function countStage(strategies: HyperliquidStrategyAuditRow[], stage: HyperliquidStrategyAuditRow['pipelineStage']): number {
-  return strategies.filter((strategy) => strategy.pipelineStage === stage).length;
-}
-
-function getDeskCopy(workspace: Workspace): string {
-  if (workspace.kind === 'hedge-fund') {
-    return 'Strategy agents, terminal evidence, browser dashboards, and hedge fund readiness stay inside this desk.';
-  }
-  if (workspace.kind === 'command-hub') {
-    return 'Global shells, AI runtime probes, tunnels, and quick operational commands live here.';
-  }
-  if (workspace.kind === 'ops') {
-    return 'Service health, logs, tunnels, diagnostics, and process work stay scoped to this ops desk.';
-  }
-  return 'Project agents, browser tabs, commands, and terminals stay scoped to this local workspace.';
-}
-
-function StatTile({ label, value, detail, tone = '#e2e8f0' }: { label: string; value: string; detail: string; tone?: string }) {
-  return (
-    <div style={statTileStyle}>
-      <div style={statLabelStyle}>{label}</div>
-      <div style={{ color: tone, fontSize: '22px', fontWeight: 850, marginTop: '7px' }}>{value}</div>
-      <div style={statDetailStyle}>{detail}</div>
-    </div>
-  );
-}
-
-function EmptyDesk() {
-  return (
-    <div style={emptyPageStyle}>
-      <div style={emptyCardStyle}>
-        <div style={emptyTitleStyle}>No active desk</div>
-        <div style={emptyCopyStyle}>Select Command Hub, a hedge fund desk, ops desk, or project desk from the left panel.</div>
-      </div>
-    </div>
-  );
+function compactPath(path?: string | null): string {
+  if (!path) return 'repo-native';
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length <= 3) return path;
+  return `.../${parts.slice(-3).join('/')}`;
 }
 
 export default function DeskSpacePage() {
-  const { activeWorkspace, updateWorkspace } = useWorkspaceContext();
-  const { getDeskState, setDeskState } = useDeskSpaceContext();
-  const { agents } = useAgentProfilesContext();
-  const { tasks, runs } = useCommanderTasksContext();
-  const { terminals, createTerminal } = useTerminalContext();
-  const workspaceId = activeWorkspace?.id;
-  const deskState = getDeskState(workspaceId);
-  const isHedgeFundDesk = activeWorkspace?.kind === 'hedge-fund';
+  const { activeWorkspace } = useWorkspaceContext();
+  const activeStrategyPod = activeWorkspace?.kind === 'strategy-pod' ? activeWorkspace : null;
+  const [lab, setLab] = useState<HyperliquidStrategyLabResponse | null>(null);
+  const [labLoading, setLabLoading] = useState(false);
+  const [podActionsOpen, setPodActionsOpen] = useState(false);
+  const assetSymbol = activeStrategyPod?.asset_symbol || activeStrategyPod?.strategy_symbol || 'BTC';
+  const assetDisplayName = activeStrategyPod?.asset_display_name || assetSymbol;
+  const activeStrategyId = activeStrategyPod?.active_strategy_id || activeStrategyPod?.strategy_id;
 
-  const readinessPoll = useMarketPolling<HyperliquidAppReadiness>(
-    `desk:${workspaceId || 'none'}:readiness`,
-    () => hyperliquidService.getAppReadiness(500),
-    { intervalMs: 30_000, staleAfterMs: 90_000, enabled: Boolean(isHedgeFundDesk) }
-  );
-  const stationPoll = useMarketPolling<HyperliquidHedgeFundStationSnapshot>(
-    `desk:${workspaceId || 'none'}:station`,
-    () => hyperliquidService.getHedgeFundStationSnapshot(500),
-    { intervalMs: 30_000, staleAfterMs: 90_000, enabled: Boolean(isHedgeFundDesk) }
-  );
-
-  const scopedAgents = useMemo(
-    () => agents.filter((agent) => agent.workspaceId === workspaceId),
-    [agents, workspaceId]
-  );
-  const scopedTasks = useMemo(
-    () => tasks.filter((task) => task.workspaceId === workspaceId),
-    [tasks, workspaceId]
-  );
-  const scopedRuns = useMemo(
-    () => runs.filter((run) => run.workspaceId === workspaceId),
-    [runs, workspaceId]
-  );
-  const scopedTerminals = useMemo(() => {
-    if (!activeWorkspace) {
-      return [];
-    }
-    return terminals.filter((terminal) => (
-      terminal.workspaceId === activeWorkspace.id
-      || (!terminal.workspaceId && terminal.cwd === activeWorkspace.path)
-    ));
-  }, [activeWorkspace, terminals]);
-
-  const ptyReady = scopedTerminals.filter((terminal) => terminal.ptyState === 'ready').length;
-  const ptyFailed = scopedTerminals.filter((terminal) => terminal.ptyState === 'failed').length;
-  const runningRuns = scopedRuns.filter((run) => run.status === 'running' || run.status === 'routing').length;
-  const strategyRows = stationPoll.data?.audit?.strategies?.filter((strategy) => !strategy.strategyId.startsWith('runtime:')) ?? [];
-  const openGaps = strategyRows.reduce((total, strategy) => total + (strategy.gateReasons.length || strategy.missingAuditItems.length), 0);
-  const paperCount = countStage(strategyRows, 'paper');
-
-  const launchCommand = (command?: string) => {
-    if (!activeWorkspace) {
+  useEffect(() => {
+    let cancelled = false;
+    const strategyId = activeStrategyId;
+    if (!strategyId) {
+      setLab(null);
       return;
     }
 
-    const shell = resolveTerminalShell(activeWorkspace.shell).shell;
-    createTerminal(
-      activeWorkspace.path,
-      shell,
-      buildTerminalLabel(activeWorkspace, command),
-      command,
-      { workspaceId: activeWorkspace.id }
-    );
-    setDeskState(activeWorkspace.id, { activeView: 'terminals' });
-  };
+    setLabLoading(true);
+    hyperliquidService.getStrategyLab(strategyId, { artifactId: 'latest', interval: '1d' })
+      .then((response) => {
+        if (!cancelled) {
+          setLab(response);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLab(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLabLoading(false);
+        }
+      });
 
-  if (!activeWorkspace) {
-    return <EmptyDesk />;
+    return () => {
+      cancelled = true;
+    };
+  }, [activeStrategyId]);
+
+  const suggestedCommands = useMemo(() => {
+    const nextAction = lab?.nextAction.command || activeStrategyPod?.default_commands?.[1] || 'rtk npm run hf:status';
+    const commands = [
+      'rtk npm run agent:brief',
+      nextAction,
+      activeStrategyPod?.default_commands?.[2]
+    ].filter((command): command is string => Boolean(command));
+    return Array.from(new Set(commands)).slice(0, 3);
+  }, [activeStrategyPod?.default_commands, lab?.nextAction.command]);
+
+  const openDock = React.useCallback((dockMode: 'inspector' | 'code' | 'browser' | 'runs') => {
+    if (activeStrategyPod) {
+      publishWorkspaceDockMode(dockMode, activeStrategyPod.id);
+    }
+  }, [activeStrategyPod]);
+
+  if (!activeStrategyPod) {
+    return (
+      <div className="grid h-full min-h-0 place-items-center bg-[var(--app-bg)] p-6 text-[var(--app-text)]">
+        <div className="max-w-md rounded-md border border-dashed border-[var(--app-border)] bg-white/[0.025] p-5 text-center">
+          <div className="text-sm font-black text-white">No active asset pod</div>
+          <div className="mt-2 text-xs leading-5 text-[var(--app-subtle)]">
+            Create or select a ticker from the left rail. Agent sessions and strategy inspection stay scoped to that asset.
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const activeView = deskState.activeView;
-  const viewTabs: Array<{ id: DeskSpaceView; label: string }> = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'browser', label: 'Browser' },
-    { id: 'agents', label: 'Agents' },
-    { id: 'terminals', label: 'Terminals' }
-  ];
+  const podStatus = activeStrategyPod.strategy_pod_status || (activeStrategyId ? 'catalog' : 'draft');
+  const strategyLabel = activeStrategyPod.strategy_display_name || lab?.catalogRow.displayName || activeStrategyId || 'Designing a new strategy';
+  const gateLabel = lab?.catalogRow.gateStatus || (podStatus === 'draft' ? 'draft' : 'gate pending');
 
   return (
-    <div style={pageStyle}>
-      <header style={headerStyle}>
-        <div style={{ minWidth: 0 }}>
-          <div style={eyebrowStyle}>{formatKind(activeWorkspace.kind)}</div>
-          <h1 style={titleStyle}>{activeWorkspace.name}</h1>
-          <div style={copyStyle}>{getDeskCopy(activeWorkspace)}</div>
-          <div style={pathRowStyle}>
-            <Code2 size={13} />
-            <span style={pathTextStyle}>{activeWorkspace.path}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
+      <header className="shrink-0 border-b border-[var(--app-border)] px-4 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">
+                Asset Pod
+              </span>
+              <span className="truncate text-xs font-bold text-[var(--app-subtle)]">{assetSymbol}</span>
+              <span className="rounded border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
+                {podStatus}
+              </span>
+            </div>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="truncate text-lg font-black tracking-[0] text-white">{assetDisplayName}</h1>
+              <span className="inline-flex h-6 max-w-[280px] items-center rounded-md border border-white/10 bg-white/[0.04] px-2 text-[11px] font-bold text-slate-300">
+                <span className="truncate">Active: {strategyLabel}</span>
+              </span>
+              <span className="inline-flex h-6 items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 text-[11px] font-bold text-slate-300">
+                {labLoading ? <Loader2 size={12} className="animate-spin text-cyan-300" /> : <CheckCircle2 size={12} className="text-cyan-300" />}
+                {gateLabel.replace(/-/g, ' ')}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <IconTextButton onClick={() => openDock('inspector')} icon={<CandlestickChart size={14} />} label="Inspector" />
+            <IconTextButton onClick={() => openDock('code')} icon={<Terminal size={14} />} label="Agent CLI" />
+            <button
+              type="button"
+              onClick={() => setPodActionsOpen((open) => !open)}
+              aria-expanded={podActionsOpen}
+              className="inline-flex h-8 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.07]"
+            >
+              <MoreHorizontal size={14} />
+              Pod actions
+              <ChevronDown size={13} className={podActionsOpen ? 'rotate-180 transition' : 'transition'} />
+            </button>
           </div>
         </div>
 
-        <div style={headerActionsStyle}>
-          <button type="button" onClick={() => launchCommand()} style={actionButtonStyle}>
-            <Terminal size={14} />
-            Shell
-          </button>
-          <button type="button" onClick={() => launchCommand('codex')} style={actionButtonStyle}>
-            <Bot size={14} />
-            Codex
-          </button>
-          {activeWorkspace.browser_tabs[0]?.url ? (
-            <button
-              type="button"
-              onClick={() => setDeskState(activeWorkspace.id, { activeView: 'browser', activeBrowserTabId: activeWorkspace.browser_tabs[0].id })}
-              style={actionButtonStyle}
-            >
-              <ExternalLink size={14} />
-              Browser
-            </button>
-          ) : null}
-        </div>
+        {podActionsOpen ? (
+          <div className="mt-2 grid min-w-0 gap-2 rounded-md border border-white/10 bg-white/[0.025] p-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--app-subtle)]">Suggested</span>
+              {suggestedCommands.map((command) => (
+                <button
+                  key={command}
+                  type="button"
+                  onClick={() => openDock('code')}
+                  title={command}
+                  className="inline-flex h-7 max-w-[240px] items-center gap-1 rounded-md border border-white/10 bg-white/[0.035] px-2 font-mono text-[11px] text-slate-300 transition hover:bg-white/[0.07]"
+                >
+                  <Terminal size={12} />
+                  <span className="truncate">{compactCommand(command)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center justify-start gap-2 md:justify-end">
+              <button type="button" onClick={() => openDock('inspector')} className="inline-flex h-7 items-center gap-1 rounded-md border border-cyan-300/25 bg-cyan-400/12 px-2 text-[11px] font-bold text-cyan-50 transition hover:bg-cyan-400/18">
+                <FlaskConical size={12} />
+                Create/Improve
+              </button>
+              <button type="button" onClick={() => openDock('runs')} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/10 bg-white/[0.035] px-2 text-[11px] font-bold text-slate-300 transition hover:bg-white/[0.07]">
+                <History size={12} />
+                Evidence
+              </button>
+              <span className="inline-flex h-7 max-w-[260px] items-center rounded-md border border-white/10 bg-white/[0.025] px-2 text-[11px] font-bold text-slate-500" title={activeStrategyPod.strategy_backend_dir || activeStrategyPod.path}>
+                {compactPath(activeStrategyPod.strategy_backend_dir || activeStrategyPod.path)}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </header>
 
-      <div style={tabsStyle}>
-        {viewTabs.map((view) => {
-          const selected = activeView === view.id;
-          return (
-            <button
-              key={view.id}
-              type="button"
-              onClick={() => setDeskState(activeWorkspace.id, { activeView: view.id })}
-              style={{
-                ...viewTabStyle,
-                background: selected ? 'rgba(56, 189, 248, 0.14)' : 'rgba(15, 23, 42, 0.58)',
-                borderColor: selected ? 'rgba(56, 189, 248, 0.32)' : 'rgba(148, 163, 184, 0.12)',
-                color: selected ? '#bae6fd' : '#cbd5e1'
-              }}
-            >
-              {view.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {activeView === 'overview' ? (
-        <main style={overviewStyle}>
-          <section style={statsGridStyle}>
-            <StatTile label="Agents" value={String(scopedAgents.length)} detail={`${runningRuns} active runs`} tone="#bae6fd" />
-            <StatTile label="Terminals" value={String(scopedTerminals.length)} detail={`${ptyReady} ready · ${ptyFailed} failed`} tone={ptyFailed ? '#fca5a5' : '#86efac'} />
-            <StatTile label="Tasks" value={String(scopedTasks.length)} detail={`${scopedRuns.length} total runs`} tone="#e2e8f0" />
-            <StatTile label="Browser" value={String(activeWorkspace.browser_tabs.length)} detail={`session ${activeWorkspace.id}`} tone="#c4b5fd" />
-            {isHedgeFundDesk ? (
-              <>
-                <StatTile label="Readiness" value={readinessPoll.data?.overallStatus || 'N/A'} detail={readinessPoll.error || 'hedge fund station gate'} tone={readinessPoll.data?.overallStatus === 'ready' ? '#86efac' : '#fbbf24'} />
-                <StatTile label="Strategies" value={String(strategyRows.length)} detail={`${paperCount} paper stage`} tone="#67e8f9" />
-                <StatTile label="Open Gaps" value={String(openGaps)} detail="validation and audit blockers" tone={openGaps > 0 ? '#fbbf24' : '#86efac'} />
-                <StatTile label="Review" value={`${Math.round(stationPoll.data?.audit?.summary?.reviewCoverage ?? 0)}%`} detail="paper review coverage" tone="#a7f3d0" />
-              </>
-            ) : null}
-          </section>
-
-          <section style={splitGridStyle}>
-            <div style={panelStyle}>
-              <div style={panelHeaderStyle}>
-                <div>
-                  <div style={panelLabelStyle}>Saved Commands</div>
-                  <div style={panelCopyStyle}>Launches stay attached to this desk.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void readinessPoll.refresh()}
-                  disabled={!isHedgeFundDesk}
-                  style={{ ...iconOnlyButtonStyle, opacity: isHedgeFundDesk ? 1 : 0.45 }}
-                  title="Refresh hedge stats"
-                  aria-label="Refresh hedge stats"
-                >
-                  <RefreshCw size={14} />
-                </button>
-              </div>
-              <div style={commandListStyle}>
-                {activeWorkspace.default_commands.slice(0, 8).map((command) => (
-                  <button key={command} type="button" onClick={() => launchCommand(command)} style={commandButtonStyle}>
-                    <span style={commandTextStyle}>{command}</span>
-                    <Play size={13} />
-                  </button>
-                ))}
-                {activeWorkspace.default_commands.length === 0 ? (
-                  <div style={emptyInlineStyle}>No saved commands for this desk.</div>
-                ) : null}
-              </div>
-            </div>
-
-            <div style={panelStyle}>
-              <div style={panelHeaderStyle}>
-                <div>
-                  <div style={panelLabelStyle}>Desk Runtime</div>
-                  <div style={panelCopyStyle}>Scope check for agents, PTY and browser isolation.</div>
-                </div>
-                <Wifi size={16} color="#67e8f9" />
-              </div>
-              <div style={runtimeListStyle}>
-                <RuntimeLine icon={<Bot size={14} />} label="Agent scope" value={`${scopedAgents.length} agents bound to ${activeWorkspace.id}`} />
-                <RuntimeLine icon={<Terminal size={14} />} label="PTY scope" value={`${ptyReady}/${scopedTerminals.length} ready in this desk`} />
-                <RuntimeLine icon={<Server size={14} />} label="Kind" value={formatKind(activeWorkspace.kind)} />
-                <RuntimeLine icon={<ExternalLink size={14} />} label="Browser partition" value={`persist:desk-${activeWorkspace.id}`} />
-              </div>
-            </div>
-          </section>
-        </main>
-      ) : null}
-
-      {activeView === 'browser' ? (
-        <main style={workAreaStyle}>
-          <DeskBrowserPanel workspace={activeWorkspace} updateWorkspace={updateWorkspace} />
-        </main>
-      ) : null}
-
-      {activeView === 'agents' ? (
-        <main style={workAreaStyle}>
-          <Suspense fallback={<div style={loadingStyle}>Loading agents...</div>}>
-            <AgentsPanel />
-          </Suspense>
-        </main>
-      ) : null}
-
-      {activeView === 'terminals' ? (
-        <main style={workAreaStyle}>
-          <Suspense fallback={<div style={loadingStyle}>Loading terminals...</div>}>
-            <TerminalGrid defaultDeskFilter="active" embedded />
-          </Suspense>
-        </main>
-      ) : null}
+      <main className="min-h-0 flex-1 overflow-hidden">
+        <Suspense fallback={<LoadingState />}>
+          <WorkspaceAgentView workspaceId={activeStrategyPod.id} />
+        </Suspense>
+      </main>
     </div>
   );
 }
 
-function RuntimeLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function IconTextButton({ onClick, icon, label }: { onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
-    <div style={runtimeLineStyle}>
-      <span style={runtimeIconStyle}>{icon}</span>
-      <span style={{ minWidth: 0 }}>
-        <span style={runtimeLabelStyle}>{label}</span>
-        <span style={runtimeValueStyle}>{value}</span>
-      </span>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-8 items-center gap-2 rounded-md border border-white/10 bg-white/[0.035] px-2 text-xs font-bold text-slate-300 transition hover:bg-white/[0.07]"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  background: 'linear-gradient(180deg, rgba(2, 6, 23, 0.98) 0%, rgba(3, 7, 18, 0.98) 100%)',
-  color: '#e2e8f0'
-};
-
-const headerStyle: React.CSSProperties = {
-  padding: '18px 20px 14px',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: '16px',
-  alignItems: 'start',
-  flexWrap: 'wrap'
-};
-
-const eyebrowStyle: React.CSSProperties = {
-  color: '#67e8f9',
-  fontSize: '11px',
-  fontWeight: 850,
-  textTransform: 'uppercase',
-  letterSpacing: '0.16em'
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: '6px 0 4px',
-  color: '#f8fafc',
-  fontSize: '24px',
-  fontWeight: 850,
-  letterSpacing: 0
-};
-
-const copyStyle: React.CSSProperties = {
-  color: '#94a3b8',
-  fontSize: '13px',
-  lineHeight: 1.45
-};
-
-const pathRowStyle: React.CSSProperties = {
-  marginTop: '10px',
-  display: 'flex',
-  gap: '7px',
-  alignItems: 'center',
-  color: '#64748b',
-  minWidth: 0,
-  fontSize: '11px'
-};
-
-const pathTextStyle: React.CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  fontFamily: "'JetBrains Mono', monospace"
-};
-
-const headerActionsStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: '8px',
-  flexWrap: 'wrap',
-  justifyContent: 'flex-end'
-};
-
-const actionButtonStyle: React.CSSProperties = {
-  height: '34px',
-  borderRadius: '7px',
-  border: '1px solid rgba(56, 189, 248, 0.22)',
-  background: 'rgba(8, 47, 73, 0.58)',
-  color: '#bae6fd',
-  padding: '0 11px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '7px',
-  cursor: 'pointer',
-  fontSize: '11px',
-  fontWeight: 800
-};
-
-const tabsStyle: React.CSSProperties = {
-  padding: '10px 20px',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
-  display: 'flex',
-  gap: '8px',
-  flexWrap: 'wrap'
-};
-
-const viewTabStyle: React.CSSProperties = {
-  height: '32px',
-  borderRadius: '999px',
-  border: '1px solid rgba(148, 163, 184, 0.12)',
-  padding: '0 12px',
-  cursor: 'pointer',
-  fontSize: '11px',
-  fontWeight: 850,
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em'
-};
-
-const overviewStyle: React.CSSProperties = {
-  padding: '18px 20px 24px',
-  display: 'grid',
-  gap: '16px'
-};
-
-const statsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-  gap: '10px'
-};
-
-const statTileStyle: React.CSSProperties = {
-  minHeight: '104px',
-  borderRadius: '8px',
-  border: '1px solid rgba(148, 163, 184, 0.12)',
-  background: 'rgba(15, 23, 42, 0.58)',
-  padding: '13px'
-};
-
-const statLabelStyle: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: '10px',
-  fontWeight: 850,
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em'
-};
-
-const statDetailStyle: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: '11px',
-  marginTop: '7px',
-  lineHeight: 1.35
-};
-
-const splitGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-  gap: '14px'
-};
-
-const panelStyle: React.CSSProperties = {
-  borderRadius: '8px',
-  border: '1px solid rgba(148, 163, 184, 0.12)',
-  background: 'rgba(15, 23, 42, 0.5)',
-  padding: '14px'
-};
-
-const panelHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'start',
-  gap: '10px'
-};
-
-const panelLabelStyle: React.CSSProperties = {
-  color: '#f8fafc',
-  fontSize: '13px',
-  fontWeight: 850
-};
-
-const panelCopyStyle: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: '11px',
-  marginTop: '4px'
-};
-
-const iconOnlyButtonStyle: React.CSSProperties = {
-  width: '32px',
-  height: '32px',
-  borderRadius: '7px',
-  border: '1px solid rgba(148, 163, 184, 0.14)',
-  background: 'rgba(15, 23, 42, 0.7)',
-  color: '#cbd5e1',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer'
-};
-
-const commandListStyle: React.CSSProperties = {
-  marginTop: '12px',
-  display: 'grid',
-  gap: '8px'
-};
-
-const commandButtonStyle: React.CSSProperties = {
-  minHeight: '38px',
-  borderRadius: '7px',
-  border: '1px solid rgba(148, 163, 184, 0.12)',
-  background: 'rgba(2, 6, 23, 0.6)',
-  color: '#e2e8f0',
-  padding: '8px 10px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: '10px',
-  alignItems: 'center',
-  cursor: 'pointer',
-  textAlign: 'left'
-};
-
-const commandTextStyle: React.CSSProperties = {
-  minWidth: 0,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-  fontFamily: "'JetBrains Mono', monospace",
-  fontSize: '11px'
-};
-
-const runtimeListStyle: React.CSSProperties = {
-  marginTop: '12px',
-  display: 'grid',
-  gap: '10px'
-};
-
-const runtimeLineStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '28px minmax(0, 1fr)',
-  gap: '9px',
-  alignItems: 'center'
-};
-
-const runtimeIconStyle: React.CSSProperties = {
-  width: '28px',
-  height: '28px',
-  borderRadius: '7px',
-  border: '1px solid rgba(56, 189, 248, 0.18)',
-  background: 'rgba(8, 47, 73, 0.42)',
-  color: '#7dd3fc',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center'
-};
-
-const runtimeLabelStyle: React.CSSProperties = {
-  display: 'block',
-  color: '#94a3b8',
-  fontSize: '10px',
-  fontWeight: 850,
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em'
-};
-
-const runtimeValueStyle: React.CSSProperties = {
-  display: 'block',
-  marginTop: '3px',
-  color: '#e2e8f0',
-  fontSize: '12px',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap'
-};
-
-const emptyInlineStyle: React.CSSProperties = {
-  borderRadius: '7px',
-  border: '1px dashed rgba(148, 163, 184, 0.14)',
-  color: '#64748b',
-  padding: '12px',
-  fontSize: '12px'
-};
-
-const workAreaStyle: React.CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  padding: '14px 20px 20px',
-  overflow: 'auto'
-};
-
-const loadingStyle: React.CSSProperties = {
-  minHeight: '360px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#64748b',
-  fontSize: '12px',
-  textTransform: 'uppercase',
-  letterSpacing: '0.08em'
-};
-
-const emptyPageStyle: React.CSSProperties = {
-  height: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: '#020617'
-};
-
-const emptyCardStyle: React.CSSProperties = {
-  maxWidth: '360px',
-  borderRadius: '8px',
-  border: '1px solid rgba(148, 163, 184, 0.14)',
-  background: 'rgba(15, 23, 42, 0.62)',
-  padding: '22px',
-  textAlign: 'center'
-};
-
-const emptyTitleStyle: React.CSSProperties = {
-  color: '#f8fafc',
-  fontSize: '17px',
-  fontWeight: 850
-};
-
-const emptyCopyStyle: React.CSSProperties = {
-  color: '#94a3b8',
-  fontSize: '13px',
-  lineHeight: 1.45,
-  marginTop: '8px'
-};
+function LoadingState() {
+  return (
+    <div className="grid h-full place-items-center text-xs font-bold text-[var(--app-subtle)]">
+      Loading agentic command surface...
+    </div>
+  );
+}

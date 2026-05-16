@@ -1,11 +1,18 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { isWorkspaceDockMode, type WorkspaceDockMode } from './workspaceDockEvents';
 
 export type DeskSpaceView = 'overview' | 'browser' | 'agents' | 'terminals';
+export type TerminalSortMode = 'manual' | 'status' | 'provider' | 'strategy' | 'recent';
 
 export interface DeskSpaceState {
   activeView: DeskSpaceView;
   activeBrowserTabId?: string;
   terminalLayout: 'grid' | 'vertical';
+  rightDockMode?: WorkspaceDockMode;
+  terminalSortMode: TerminalSortMode;
+  terminalOrder: string[];
+  pinnedTerminalKeys: string[];
+  activeTerminalKey?: string;
 }
 
 interface DeskSpaceContextValue {
@@ -18,7 +25,12 @@ const STORAGE_KEY = 'hedge-station:desk-space-state:v1';
 const defaultDeskState: DeskSpaceState = {
   activeView: 'overview',
   activeBrowserTabId: undefined,
-  terminalLayout: 'grid'
+  terminalLayout: 'grid',
+  rightDockMode: undefined,
+  terminalSortMode: 'manual',
+  terminalOrder: [],
+  pinnedTerminalKeys: [],
+  activeTerminalKey: undefined
 };
 
 const DeskSpaceContext = createContext<DeskSpaceContextValue | undefined>(undefined);
@@ -31,10 +43,27 @@ function normalizeDeskState(state?: Partial<DeskSpaceState>): DeskSpaceState {
     ? state.activeView
     : defaultDeskState.activeView;
 
+  const terminalSortMode = state?.terminalSortMode === 'status'
+    || state?.terminalSortMode === 'provider'
+    || state?.terminalSortMode === 'strategy'
+    || state?.terminalSortMode === 'recent'
+    || state?.terminalSortMode === 'manual'
+    ? state.terminalSortMode
+    : defaultDeskState.terminalSortMode;
+
   return {
     activeView,
     activeBrowserTabId: typeof state?.activeBrowserTabId === 'string' ? state.activeBrowserTabId : undefined,
-    terminalLayout: state?.terminalLayout === 'vertical' ? 'vertical' : 'grid'
+    terminalLayout: state?.terminalLayout === 'vertical' ? 'vertical' : 'grid',
+    rightDockMode: isWorkspaceDockMode(state?.rightDockMode) ? state.rightDockMode : undefined,
+    terminalSortMode,
+    terminalOrder: Array.isArray(state?.terminalOrder)
+      ? state.terminalOrder.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : [],
+    pinnedTerminalKeys: Array.isArray(state?.pinnedTerminalKeys)
+      ? state.pinnedTerminalKeys.filter((item): item is string => typeof item === 'string' && item.length > 0)
+      : [],
+    activeTerminalKey: typeof state?.activeTerminalKey === 'string' ? state.activeTerminalKey : undefined
   };
 }
 

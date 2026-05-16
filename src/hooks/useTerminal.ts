@@ -20,21 +20,21 @@ export function useTerminal(id: string, options: UseTerminalOptions = {}) {
 
   // Write data to terminal
   const write = useCallback((data: string) => {
-    window.electronAPI.terminal.write(id, data);
+    window.electronAPI?.terminal?.write?.(id, data);
   }, [id]);
 
   // Resize terminal
   const resize = useCallback((cols: number, rows: number) => {
-    window.electronAPI.terminal.resize(id, cols, rows);
+    window.electronAPI?.terminal?.resize?.(id, cols, rows);
   }, [id]);
 
   // Kill terminal
   const kill = useCallback(() => {
-    window.electronAPI.terminal.kill(id);
+    window.electronAPI?.terminal?.kill?.(id);
   }, [id]);
 
   const getSnapshot = useCallback(() => {
-    if (typeof window.electronAPI.terminal.getSnapshot !== 'function') {
+    if (typeof window.electronAPI?.terminal?.getSnapshot !== 'function') {
       return Promise.resolve(null);
     }
 
@@ -43,6 +43,10 @@ export function useTerminal(id: string, options: UseTerminalOptions = {}) {
 
   // Listen for terminal data
   useEffect(() => {
+    if (typeof window.electronAPI?.terminal?.onData !== 'function') {
+      return undefined;
+    }
+
     const cleanup = window.electronAPI.terminal.onData(id, (data) => {
       if (onDataRef.current) {
         onDataRef.current(data.data);
@@ -54,6 +58,10 @@ export function useTerminal(id: string, options: UseTerminalOptions = {}) {
 
   // Listen for terminal exit
   useEffect(() => {
+    if (typeof window.electronAPI?.terminal?.onExit !== 'function') {
+      return undefined;
+    }
+
     const cleanup = window.electronAPI.terminal.onExit(id, (data) => {
       if (onExitRef.current) {
         onExitRef.current(data.exitCode);

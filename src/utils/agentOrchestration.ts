@@ -17,6 +17,10 @@ interface LaunchAgentRunDependencies {
       agentName?: string;
       terminalPurpose?: string;
       workspaceId?: string;
+      assetSymbol?: string;
+      strategySessionId?: string;
+      strategySessionTitle?: string;
+      strategySessionStatus?: 'draft' | 'linked' | 'completed';
       runtimeProvider?: AgentProfile['provider'];
       missionPrompt?: string;
       runId?: string;
@@ -52,6 +56,7 @@ function getRoleOutputContract(agent: AgentProfile): string {
 }
 
 function buildMissionPrompt(task: CommanderTask, agent: AgentProfile, workspace: Workspace): string {
+  const assetSymbol = workspace.asset_symbol || workspace.strategy_symbol;
   const workflowStep = task.mission?.workflow.find((step) => step.role === agent.role);
   const missionMetadata = task.mission
     ? [
@@ -86,6 +91,7 @@ function buildMissionPrompt(task: CommanderTask, agent: AgentProfile, workspace:
     `You are ${agent.name}, the ${formatRoleLabel(agent.role)} agent for workspace "${workspace.name}".`,
     'Mission Console workspace capsule:',
     `Workspace name: ${workspace.name}.`,
+    assetSymbol ? `Asset: ${assetSymbol}.` : '',
     `Workspace path: ${workspace.path}.`,
     `Saved commands: ${workspaceCommands}.`,
     `Launch profiles: ${workspaceProfiles}.`,
@@ -94,6 +100,7 @@ function buildMissionPrompt(task: CommanderTask, agent: AgentProfile, workspace:
     `Role objective: ${agent.objective || getRoleOperatingBrief(agent.role)}`,
     `Operating brief: ${getRoleOperatingBrief(agent.role)}`,
     `Mission: ${task.goal.trim()}.`,
+    assetSymbol ? `Asset constraint: keep this mission scoped to ${assetSymbol} strategies unless the operator explicitly overrides it.` : '',
     missionMetadata,
     workflowMetadata,
     guardrails,
@@ -123,6 +130,8 @@ export function launchAgentRun(
   const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
   const runtimeCommand = resolveAgentRuntimeCommand(agent.provider, runtimeShell);
   const missionPrompt = approvedMission?.finalPrompt || buildMissionPrompt(task, agent, workspace);
+  const assetSymbol = workspace.asset_symbol || workspace.strategy_symbol;
+  const strategySessionId = assetSymbol ? `strategy-session-${assetSymbol.toLowerCase()}-${Date.now()}` : undefined;
 
   const run = createRun({
     taskId: task.id,
@@ -149,6 +158,10 @@ export function launchAgentRun(
     agentName: agent.name,
     terminalPurpose: agent.autoAssignTerminalPurpose,
     workspaceId: workspace.id,
+    assetSymbol,
+    strategySessionId,
+    strategySessionTitle: assetSymbol ? `${assetSymbol}: ${task.title || task.goal.slice(0, 64)}` : undefined,
+    strategySessionStatus: assetSymbol ? ('draft' as const) : undefined,
     runtimeProvider: agent.provider,
     missionPrompt,
     runId: run.id

@@ -1,7 +1,6 @@
-import React, { Suspense, useCallback, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import {
-  Bot,
   Monitor,
   PanelLeftClose,
   PanelLeftOpen,
@@ -9,17 +8,20 @@ import {
   PanelRightOpen
 } from 'lucide-react';
 import { WidgetPanel } from '@/features/cockpit/WidgetPanel';
+import { WORKSPACE_DOCK_MODE_EVENT } from '@/features/desks/workspaceDockEvents';
 
 const Sidebar = React.lazy(() => import('./Sidebar').then((module) => ({ default: module.Sidebar })));
-const MissionChatWorkbench = React.lazy(() => import('@/features/agents/components/MissionChatWorkbench').then((module) => ({ default: module.MissionChatWorkbench })));
-const VOICE_PANEL_COLLAPSED_KEY = 'hedge-station:layout:voice-panel-collapsed';
+const WorkspaceDock = React.lazy(() => import('@/features/desks/components/WorkspaceDock').then((module) => ({ default: module.WorkspaceDock })));
+const WORKSPACE_DOCK_COLLAPSED_KEY = 'hedge-station:layout:workspace-dock-collapsed';
+const LEGACY_VOICE_PANEL_COLLAPSED_KEY = 'hedge-station:layout:voice-panel-collapsed';
 
-function loadVoicePanelCollapsedDefault(): boolean {
+function loadWorkspaceDockCollapsedDefault(): boolean {
   if (typeof window === 'undefined') {
     return true;
   }
-  const stored = window.localStorage.getItem(VOICE_PANEL_COLLAPSED_KEY);
-  return stored === null ? true : stored === '1';
+  const stored = window.localStorage.getItem(WORKSPACE_DOCK_COLLAPSED_KEY)
+    ?? window.localStorage.getItem(LEGACY_VOICE_PANEL_COLLAPSED_KEY);
+  return stored === null ? false : stored === '1';
 }
 
 type ElectronLayoutProps = {
@@ -28,17 +30,23 @@ type ElectronLayoutProps = {
 
 export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isVoicePanelCollapsed, setIsVoicePanelCollapsedState] = useState(loadVoicePanelCollapsedDefault);
-  const setVoicePanelCollapsed = useCallback((collapsed: boolean) => {
-    setIsVoicePanelCollapsedState(collapsed);
-    window.localStorage.setItem(VOICE_PANEL_COLLAPSED_KEY, collapsed ? '1' : '0');
+  const [isWorkspaceDockCollapsed, setIsWorkspaceDockCollapsedState] = useState(loadWorkspaceDockCollapsedDefault);
+  const setWorkspaceDockCollapsed = useCallback((collapsed: boolean) => {
+    setIsWorkspaceDockCollapsedState(collapsed);
+    window.localStorage.setItem(WORKSPACE_DOCK_COLLAPSED_KEY, collapsed ? '1' : '0');
   }, []);
-  const centerDefaultSize = !isSidebarCollapsed && !isVoicePanelCollapsed
-    ? 52
+  useEffect(() => {
+    const handleDockModeRequest = () => setWorkspaceDockCollapsed(false);
+    window.addEventListener(WORKSPACE_DOCK_MODE_EVENT, handleDockModeRequest);
+    return () => window.removeEventListener(WORKSPACE_DOCK_MODE_EVENT, handleDockModeRequest);
+  }, [setWorkspaceDockCollapsed]);
+
+  const centerDefaultSize = !isSidebarCollapsed && !isWorkspaceDockCollapsed
+    ? 58
     : !isSidebarCollapsed
       ? 78
-      : !isVoicePanelCollapsed
-        ? 66
+    : !isWorkspaceDockCollapsed
+        ? 72
         : 92;
 
   return (
@@ -46,7 +54,7 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
       <div style={layoutBodyStyle}>
         {navigationRail ? <div style={navigationRailHostStyle}>{navigationRail}</div> : null}
         <div style={panelHostStyle}>
-          <PanelGroup key={`${isSidebarCollapsed}-${isVoicePanelCollapsed}`} direction="horizontal">
+          <PanelGroup key={`${isSidebarCollapsed}-${isWorkspaceDockCollapsed}`} direction="horizontal">
             {isSidebarCollapsed ? (
               <Panel
                 defaultSize={4}
@@ -57,7 +65,7 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
               >
                 <CollapsedRail
                   side="left"
-                  title="Open desk panel"
+                  title="Open strategy context"
                   icon={<Monitor size={17} />}
                   actionIcon={<PanelLeftOpen size={15} />}
                   onExpand={() => setIsSidebarCollapsed(false)}
@@ -78,7 +86,7 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
                 </Panel>
 
                 <ResizeHandle
-                  title="Collapse desk panel"
+                  title="Collapse strategy context"
                   onCollapse={() => setIsSidebarCollapsed(true)}
                   icon={<PanelLeftClose size={14} />}
                 />
@@ -87,45 +95,45 @@ export const ElectronLayout: React.FC<ElectronLayoutProps> = ({ navigationRail }
 
             <Panel
               defaultSize={centerDefaultSize}
-              minSize={!isSidebarCollapsed || !isVoicePanelCollapsed ? 42 : 70}
+              minSize={!isSidebarCollapsed || !isWorkspaceDockCollapsed ? 42 : 70}
               id="center-panel"
               order={2}
             >
               <WidgetPanel />
             </Panel>
 
-            {isVoicePanelCollapsed ? (
+            {isWorkspaceDockCollapsed ? (
               <Panel
                 defaultSize={4}
                 minSize={4}
                 maxSize={4}
-                id="voice-rail"
+                id="workspace-dock-rail"
                 order={3}
               >
                 <CollapsedRail
                   side="right"
-                  title="Open voice mission source"
-                  icon={<Bot size={17} />}
+                  title="Open strategy tools dock"
+                  icon={<Monitor size={17} />}
                   actionIcon={<PanelRightOpen size={15} />}
-                  onExpand={() => setVoicePanelCollapsed(false)}
+                  onExpand={() => setWorkspaceDockCollapsed(false)}
                 />
               </Panel>
             ) : (
               <>
                 <ResizeHandle
-                  title="Collapse voice mission source"
-                  onCollapse={() => setVoicePanelCollapsed(true)}
+                  title="Collapse strategy tools dock"
+                  onCollapse={() => setWorkspaceDockCollapsed(true)}
                   icon={<PanelRightClose size={14} />}
                 />
 
                 <Panel
-                  defaultSize={30}
+                  defaultSize={24}
                   minSize={22}
-                  id="voice-mission-source"
+                  id="workspace-dock"
                   order={3}
                 >
                   <Suspense fallback={<DockLoading />}>
-                    <MissionChatWorkbench variant="dock" />
+                    <WorkspaceDock />
                   </Suspense>
                 </Panel>
               </>
@@ -171,7 +179,7 @@ const DockLoading: React.FC = () => (
     textTransform: 'uppercase',
     background: 'rgba(6, 10, 20, 0.35)'
   }}>
-    Loading workbench...
+    Loading Strategy Lab...
   </div>
 );
 

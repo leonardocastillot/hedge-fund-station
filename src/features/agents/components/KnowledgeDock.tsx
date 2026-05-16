@@ -8,7 +8,7 @@ import type {
   DiagnosticsMissionDrillResult
 } from '@/types/electron';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
-import { resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
+import { AGENT_PROVIDERS, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
 
 function formatRelativeTime(timestamp: number): string {
   const deltaMs = Date.now() - timestamp;
@@ -227,7 +227,7 @@ export const KnowledgeDock: React.FC<{
     }
 
     const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
-    const commands = ['codex', 'claude', 'gemini'].map((provider) => resolveAgentRuntimeCommand(provider as 'codex' | 'claude' | 'gemini', runtimeShell));
+    const commands = AGENT_PROVIDERS.map((provider) => resolveAgentRuntimeCommand(provider, runtimeShell));
 
     setDrillRunning(true);
     setDrillResult(null);

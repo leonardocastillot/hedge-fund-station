@@ -5,6 +5,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -28,6 +29,283 @@ from backend.hyperliquid_gateway.backtesting import workflow
 
 
 class StrategyCatalogTest(unittest.TestCase):
+    def _install_strategy_scaffold_roots(self, root: Path) -> dict[str, object]:
+        original = {
+            "DOCS_STRATEGIES_ROOT": gateway_app.DOCS_STRATEGIES_ROOT,
+            "STRATEGIES_ROOT": gateway_app.STRATEGIES_ROOT,
+        }
+        gateway_app.DOCS_STRATEGIES_ROOT = root / "docs" / "strategies"
+        gateway_app.STRATEGIES_ROOT = root / "backend" / "hyperliquid_gateway" / "strategies"
+        return original
+
+    def test_strategy_scaffold_preview_normalizes_without_writing_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = self._install_strategy_scaffold_roots(root)
+            try:
+                payload = asyncio.run(
+                    gateway_app.strategy_scaffold_preview(
+                        gateway_app.StrategyScaffoldPreviewCreate(title="BTC Convex Test")
+                    )
+                )
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+            self.assertEqual(payload["strategyId"], "btc_convex_test")
+            self.assertEqual(payload["docsId"], "btc-convex-test")
+            self.assertTrue(payload["backendDir"].endswith("backend/hyperliquid_gateway/strategies/btc_convex_test"))
+            self.assertTrue(payload["docsPath"].endswith("docs/strategies/btc-convex-test.md"))
+            self.assertFalse(payload["conflict"])
+            self.assertFalse((root / "backend" / "hyperliquid_gateway" / "strategies" / "btc_convex_test").exists())
+            self.assertFalse((root / "docs" / "strategies" / "btc-convex-test.md").exists())
+
+    def test_strategy_scaffold_creates_backend_and_docs_templates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = self._install_strategy_scaffold_roots(root)
+            try:
+                payload = asyncio.run(
+                    gateway_app.strategy_scaffold(
+                        gateway_app.StrategyScaffoldCreate(
+                            strategy_id="BTC Convex Test",
+                            title="BTC Convex Test",
+                        )
+                    )
+                )
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+            backend_dir = root / "backend" / "hyperliquid_gateway" / "strategies" / "btc_convex_test"
+            docs_path = root / "docs" / "strategies" / "btc-convex-test.md"
+            self.assertTrue((backend_dir / "logic.py").exists())
+            self.assertTrue((backend_dir / "scoring.py").exists())
+            self.assertTrue((backend_dir / "risk.py").exists())
+            self.assertTrue((backend_dir / "paper.py").exists())
+            self.assertTrue((backend_dir / "spec.md").exists())
+            self.assertTrue(docs_path.exists())
+            self.assertEqual(len(payload["writtenFiles"]), 7)
+            self.assertEqual(payload["skippedFiles"], [])
+
+    def test_strategy_scaffold_does_not_overwrite_existing_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original = self._install_strategy_scaffold_roots(root)
+            try:
+                asyncio.run(
+                    gateway_app.strategy_scaffold(
+                        gateway_app.StrategyScaffoldCreate(
+                            strategy_id="BTC Convex Test",
+                            title="BTC Convex Test",
+                        )
+                    )
+                )
+                logic_path = root / "backend" / "hyperliquid_gateway" / "strategies" / "btc_convex_test" / "logic.py"
+                logic_path.write_text("# keep me\n", encoding="utf-8")
+                payload = asyncio.run(
+                    gateway_app.strategy_scaffold(
+                        gateway_app.StrategyScaffoldCreate(
+                            strategy_id="BTC Convex Test",
+                            title="BTC Convex Test",
+                        )
+                    )
+                )
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+            self.assertEqual(logic_path.read_text(encoding="utf-8"), "# keep me\n")
+            self.assertTrue(payload["conflict"])
+            self.assertEqual(payload["writtenFiles"], [])
+            self.assertEqual(len(payload["skippedFiles"]), 7)
+
+    def _install_strategy_lab_roots(self, root: Path) -> tuple[dict[str, object], dict[str, Path]]:
+        paths = {
+            "reports": root / "backtests",
+            "validations": root / "validations",
+            "paper": root / "paper",
+            "audits": root / "audits",
+            "docs": root / "docs" / "strategies",
+            "strategies": root / "backend" / "hyperliquid_gateway" / "strategies",
+            "memory": root / "strategy_memory",
+        }
+        for path in paths.values():
+            path.mkdir(parents=True, exist_ok=True)
+        original = {
+            "REPORTS_ROOT": gateway_app.REPORTS_ROOT,
+            "VALIDATIONS_ROOT": gateway_app.VALIDATIONS_ROOT,
+            "PAPER_ROOT": gateway_app.PAPER_ROOT,
+            "AUDITS_ROOT": gateway_app.AUDITS_ROOT,
+            "DOCS_STRATEGIES_ROOT": gateway_app.DOCS_STRATEGIES_ROOT,
+            "STRATEGIES_ROOT": gateway_app.STRATEGIES_ROOT,
+            "STRATEGY_MEMORY_ROOT": gateway_app.STRATEGY_MEMORY_ROOT,
+            "DB_PATH": gateway_app.DB_PATH,
+            "available_strategies": gateway_app.available_strategies,
+        }
+        gateway_app.REPORTS_ROOT = paths["reports"]
+        gateway_app.VALIDATIONS_ROOT = paths["validations"]
+        gateway_app.PAPER_ROOT = paths["paper"]
+        gateway_app.AUDITS_ROOT = paths["audits"]
+        gateway_app.DOCS_STRATEGIES_ROOT = paths["docs"]
+        gateway_app.STRATEGIES_ROOT = paths["strategies"]
+        gateway_app.STRATEGY_MEMORY_ROOT = paths["memory"]
+        gateway_app.DB_PATH = str(root / "hyperliquid.db")
+        gateway_app.available_strategies = lambda: []  # type: ignore[assignment]
+        gateway_app.init_db()
+        return original, paths
+
+    def test_strategy_lab_endpoint_loads_btc_daily_json_chart_and_trade_markers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original, paths = self._install_strategy_lab_roots(root)
+            try:
+                dataset_path = root / "market_data" / "btc_usd_daily.json"
+                dataset_path.parent.mkdir(parents=True, exist_ok=True)
+                base_day = datetime(2020, 1, 1, tzinfo=timezone.utc)
+                dataset_path.write_text(
+                    json.dumps(
+                        {
+                            "source": "test_btc_daily",
+                            "source_symbol": "BTC-USD",
+                            "prices": [
+                                {
+                                    "date": (base_day + timedelta(days=index)).strftime("%Y-%m-%d"),
+                                    "open": 100 + index,
+                                    "high": 104 + index,
+                                    "low": 98 + index,
+                                    "close": 102 + index,
+                                    "volume": 1000 + index,
+                                }
+                                for index in range(60)
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                (paths["reports"] / "btc_lab_strategy-test.json").write_text(
+                    json.dumps(
+                        {
+                            "artifact_id": "backtest_report:btc_lab_strategy:test",
+                            "artifact_type": "backtest_report",
+                            "strategy_id": "btc_lab_strategy",
+                            "generated_at": "2026-05-15T00:00:00Z",
+                            "dataset": {
+                                "path": str(dataset_path),
+                                "type": "btc_usd_daily",
+                                "source_symbol": "BTC-USD",
+                            },
+                            "summary": {"total_trades": 1, "net_profit": 25.0, "return_pct": 5.0},
+                            "equity_curve": [{"timestamp": "2020-01-01", "equity": 500.0}],
+                            "trades": [
+                                {
+                                    "strategy_id": "btc_lab_strategy",
+                                    "symbol": "BTC",
+                                    "side": "long",
+                                    "entry_timestamp": "2020-01-10",
+                                    "exit_timestamp": "2020-01-15",
+                                    "entry_price": 110,
+                                    "exit_price": 120,
+                                    "size_usd": 500,
+                                    "net_pnl": 25,
+                                    "exit_reason": "take_profit",
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                payload = asyncio.run(gateway_app.strategy_lab("btc-lab-strategy"))
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+        self.assertEqual(payload["strategyId"], "btc_lab_strategy")
+        self.assertTrue(payload["chart"]["available"])
+        self.assertEqual(len(payload["chart"]["candles"]), 60)
+        self.assertEqual([marker["kind"] for marker in payload["chart"]["markers"]], ["entry", "exit"])
+        self.assertEqual(payload["artifact"]["selectedArtifactId"], "backtest_report:btc_lab_strategy:test")
+
+    def test_strategy_lab_endpoint_loads_ohlcv_csv_chart(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original, paths = self._install_strategy_lab_roots(root)
+            try:
+                dataset_path = root / "market_data" / "btc_1h.csv"
+                dataset_path.parent.mkdir(parents=True, exist_ok=True)
+                base_time = datetime(2020, 1, 1, tzinfo=timezone.utc)
+                lines = ["datetime,open,high,low,close,volume"]
+                for index in range(60):
+                    stamp = (base_time + timedelta(hours=index)).isoformat().replace("+00:00", "Z")
+                    lines.append(f"{stamp},{100 + index},{104 + index},{98 + index},{102 + index},{1000 + index}")
+                dataset_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                (paths["reports"] / "csv_lab_strategy-test.json").write_text(
+                    json.dumps(
+                        {
+                            "artifact_id": "backtest_report:csv_lab_strategy:test",
+                            "strategy_id": "csv_lab_strategy",
+                            "generated_at": "2026-05-15T00:00:00Z",
+                            "dataset": {"path": str(dataset_path), "interval": "1h"},
+                            "summary": {"total_trades": 1},
+                            "trades": [
+                                {
+                                    "strategy_id": "csv_lab_strategy",
+                                    "symbol": "BTC",
+                                    "side": "short",
+                                    "entry_timestamp": "2020-01-01T10:00:00Z",
+                                    "exit_timestamp": "2020-01-01T12:00:00Z",
+                                    "entry_price": 110,
+                                    "exit_price": 107,
+                                    "net_pnl": 12,
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                payload = asyncio.run(gateway_app.strategy_lab("csv_lab_strategy", interval="1h"))
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+        self.assertTrue(payload["chart"]["available"])
+        self.assertEqual(payload["chart"]["interval"], "1h")
+        self.assertEqual(payload["chart"]["candles"][0]["open"], 100.0)
+        self.assertEqual(len(payload["chart"]["markers"]), 2)
+
+    def test_strategy_lab_endpoint_returns_chart_unavailable_for_unsupported_dataset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            original, paths = self._install_strategy_lab_roots(root)
+            try:
+                dataset_path = root / "market_data" / "unsupported.parquet"
+                dataset_path.parent.mkdir(parents=True, exist_ok=True)
+                dataset_path.write_text("not a chart dataset", encoding="utf-8")
+                (paths["reports"] / "unsupported_lab_strategy-test.json").write_text(
+                    json.dumps(
+                        {
+                            "artifact_id": "backtest_report:unsupported_lab_strategy:test",
+                            "strategy_id": "unsupported_lab_strategy",
+                            "generated_at": "2026-05-15T00:00:00Z",
+                            "dataset": {"path": str(dataset_path), "type": "parquet"},
+                            "summary": {"total_trades": 0},
+                            "trades": [],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                payload = asyncio.run(gateway_app.strategy_lab("unsupported_lab_strategy"))
+            finally:
+                for name, value in original.items():
+                    setattr(gateway_app, name, value)
+
+        self.assertFalse(payload["chart"]["available"])
+        self.assertIn("Unsupported", payload["chart"]["reason"])
+        self.assertEqual(payload["summary"]["total_trades"], 0)
+
     def test_strategy_document_discovery_normalizes_research_suffixes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             docs_root = Path(tmp)

@@ -33,11 +33,12 @@ Guardrails: no raw logs, prompts, command dumps, secrets, temporary notes, or ge
 ```text
 Mission: strategy research
 Objective: turn a strategy idea or donor material into an inspectable plan.
-Scope: docs/strategies/<strategy-id>.md and matching backend strategy package.
-Allowed actions: research note, donor audit, strategy spec, backend-first plan.
+Scope: docs/strategies/<strategy-id>.md, matching backend strategy package, and docs/operations/strategy-live-gates/<strategy-id>.md when production review is being prepared.
+Required reads: docs/operations/agents/strategy-harness.md.
+Allowed actions: research note, donor audit, strategy spec, backend-first plan, blocked live-gate notes.
 Required checks: rtk npm run hf:backtest and rtk npm run hf:validate when implementation exists.
-Output: edge, regime, anti-regime, inputs, entry, invalidation, exit, risk, costs, validation plan.
-Guardrails: do not claim edge without a validation path; do not put strategy logic in React.
+Output: edge, regime, anti-regime, inputs, entry, invalidation, exit, risk, costs, validation plan, lifecycle gate.
+Guardrails: do not claim edge without a validation path; do not put strategy logic in React; live-gate status remains blocked.
 ```
 
 ## Strategy Validation Audit
@@ -45,11 +46,12 @@ Guardrails: do not claim edge without a validation path; do not put strategy log
 ```text
 Mission: strategy validation audit
 Objective: decide whether evidence supports the next workflow stage.
-Scope: strategy docs, backend module, backtest reports, validation reports, paper artifacts.
+Scope: strategy docs, backend module, backtest reports, validation reports, paper artifacts, live-gate package if present.
+Required reads: docs/operations/agents/strategy-harness.md.
 Allowed actions: report, validation thresholds, small tests, docs patch.
 Required checks: rtk npm run hf:validate -- --strategy <strategy_id> when available.
-Output: blockers, missing artifacts, cost/slippage assumptions, anti-regime tests, next command.
-Guardrails: paper candidate is not live approval; promotion remains human-reviewed.
+Output: blockers, missing artifacts, cost/slippage assumptions, anti-regime tests, next command, blocked live-gate status.
+Guardrails: paper candidate is not live approval; Agent Research OS is auxiliary evidence; promotion remains human-reviewed.
 ```
 
 ## Data Quality Audit

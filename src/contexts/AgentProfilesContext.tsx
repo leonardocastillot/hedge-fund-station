@@ -50,7 +50,7 @@ function normalizeAgentProvider(agent: AgentProfile): AgentProfile['provider'] {
 
 function createDefaultAgentsForWorkspace(workspace: Workspace): AgentProfile[] {
   const kind = workspace.kind || 'project';
-  const isTrading = kind === 'hedge-fund';
+  const isTrading = kind === 'hedge-fund' || kind === 'strategy-pod';
   const planningProfileId = workspace.launch_profiles[0]?.id;
   const opsProfileId = workspace.launch_profiles[1]?.id || planningProfileId;
 

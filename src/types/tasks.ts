@@ -26,6 +26,7 @@ export type MissionApprovalStatus =
   | 'cancelled';
 
 export type MissionChatMessageRole = 'user' | 'assistant' | 'system';
+export type MissionConversationStatus = 'active' | 'archived';
 
 export type MissionBackendActionKind = 'agent-research' | 'agent-audit' | 'hf-command';
 export type MissionBackendActionStatus = 'proposed' | 'running' | 'completed' | 'failed' | 'skipped';
@@ -136,6 +137,7 @@ export interface MissionActionRecord {
 export interface MissionChatMessage {
   id: string;
   workspaceId: string;
+  conversationId?: string;
   taskId?: string;
   draftId?: string;
   role: MissionChatMessageRole;
@@ -143,9 +145,19 @@ export interface MissionChatMessage {
   createdAt: number;
 }
 
+export interface MissionConversation {
+  id: string;
+  workspaceId: string;
+  title: string;
+  status: MissionConversationStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface MissionDraft {
   id: string;
   workspaceId: string;
+  conversationId?: string;
   taskId?: string;
   title: string;
   goal: string;
@@ -197,7 +209,7 @@ export interface TaskRun {
   agentRole?: AgentRole;
   stageIndex?: number;
   stageLabel?: string;
-  runtimeProvider: 'claude' | 'codex' | 'gemini';
+  runtimeProvider: AgentProvider;
   workspaceId: string;
   status: TaskStatus;
   launchMode: RunLaunchMode;

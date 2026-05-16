@@ -160,6 +160,7 @@ function normalizeCommands(commands: string[]): string[] {
 
 export function buildMissionDraftInput(params: {
   workspaceId: string;
+  conversationId?: string;
   goal: string;
   runtimeStatus: HyperliquidAgentRuntimeStatus | null;
   claudeAvailable: boolean;
@@ -217,6 +218,7 @@ export function buildMissionDraftInput(params: {
 
   return {
     workspaceId: params.workspaceId,
+    conversationId: params.conversationId,
     title,
     goal: params.goal,
     mode,

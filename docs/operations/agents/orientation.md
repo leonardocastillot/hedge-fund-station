@@ -30,6 +30,7 @@ also read `docs/operations/agents/graph-memory-operating-system.md`.
 
 For strategy work, also read:
 
+- `docs/operations/agents/strategy-harness.md`
 - `docs/hedge-fund-agent-operating-model.md`
 - `docs/hyperliquid-strategy-roadmap.md`
 - `docs/strategies/README.md`
@@ -81,6 +82,8 @@ Use `harness.md` for the full mission matrix.
 - Prefer backend artifacts over UI-only state.
 - Prefer stable `npm run hf:*` commands over one-off scripts, and run them
   through `rtk` from agent shells when available.
+- For strategy work, use one leader per `strategy_id` and keep live-gate
+  packages blocked under `docs/operations/agents/strategy-harness.md`.
 - Do not promote live trading, change credentials, or perform large migrations
   without explicit human instruction.
 

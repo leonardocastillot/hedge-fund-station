@@ -89,9 +89,28 @@ export function launchProfileSequence(
     shell?: string,
     label?: string,
     autoCommand?: string,
-    metadata?: { agentId?: string; agentName?: string; terminalPurpose?: string; runtimeProvider?: AgentProvider; workspaceId?: string }
+    metadata?: {
+      agentId?: string;
+      agentName?: string;
+      terminalPurpose?: string;
+      runtimeProvider?: AgentProvider;
+      workspaceId?: string;
+      assetSymbol?: string;
+      strategySessionId?: string;
+      strategySessionTitle?: string;
+      strategySessionStatus?: 'draft' | 'linked' | 'completed';
+    }
   ) => string,
-  terminalMetadata?: { agentId?: string; agentName?: string; terminalPurpose?: string; runtimeProvider?: AgentProvider },
+  terminalMetadata?: {
+    agentId?: string;
+    agentName?: string;
+    terminalPurpose?: string;
+    runtimeProvider?: AgentProvider;
+    assetSymbol?: string;
+    strategySessionId?: string;
+    strategySessionTitle?: string;
+    strategySessionStatus?: 'draft' | 'linked' | 'completed';
+  },
   onLaunched?: (record: LaunchDeskRecord) => void,
   onTerminalCreated?: (terminalId: string) => void
 ) {

@@ -16,6 +16,7 @@
   "scripts": {
     "dev": "electron-vite dev --watch",
     "dev:mac": "./open-hedge-fund-station-dev.command",
+    "dev:doctor": "node scripts/dev-doctor.mjs",
     "build": "electron-vite build",
     "terminal:doctor": "node scripts/fix-node-pty-permissions.mjs --smoke",
     "mission:drill": "node scripts/mission-drill.mjs --workspace .",
@@ -46,6 +47,9 @@
     "hf:agent:audit": "python3 scripts/hf.py agent audit",
     "hf:agent:status": "python3 scripts/hf.py agent status",
     "hf:agent:runtime": "python3 scripts/hf.py agent runtime",
+    "hf:memory:sync": "python3 scripts/hf.py memory sync",
+    "hf:memory:query": "python3 scripts/hf.py memory query",
+    "hf:memory:status": "python3 scripts/hf.py memory status",
     "hf:status": "python3 scripts/hf.py status",
     "backend:tunnel": "scripts/backend-tunnel.sh run",
     "backend:tunnel:install": "scripts/backend-tunnel.sh install",

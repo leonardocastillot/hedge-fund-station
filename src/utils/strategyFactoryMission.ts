@@ -110,9 +110,11 @@ export function buildStrategyFactoryBenchmarkBoard(
 export function buildStrategyFactoryGoal(params: {
   focus: StrategyFactoryFocus;
   strategies: HyperliquidStrategyCatalogRow[];
+  assetSymbol?: string;
 }): string {
   const benchmarkBoard = buildStrategyFactoryBenchmarkBoard(params.strategies);
   const evidenceLean = inferEvidenceLean(params.strategies);
+  const assetSymbol = params.assetSymbol?.trim().toUpperCase();
   const focusInstruction = params.focus === 'auto'
     ? `Auto-select scalper or swing only after comparing evidence. Initial catalog lean: ${evidenceLean}.`
     : `Operator override: build a ${params.focus} candidate unless evidence clearly says it is a bad use of this repo.`;
@@ -123,6 +125,8 @@ export function buildStrategyFactoryGoal(params: {
   return [
     'Strategy Factory mission: create one complete, backend-first strategy candidate for Hedge Fund Station.',
     '',
+    assetSymbol ? `Asset constraint: build or improve a ${assetSymbol} strategy only. Do not switch assets unless the operator explicitly overrides this constraint.` : '',
+    assetSymbol ? '' : '',
     `Focus: ${getStrategyFactoryFocusLabel(params.focus)}.`,
     focusInstruction,
     '',
@@ -161,6 +165,7 @@ export function buildStrategyFactoryGoal(params: {
 
 export function buildStrategyFactoryMissionDraftInput(params: {
   workspaceId: string;
+  assetSymbol?: string;
   focus: StrategyFactoryFocus;
   strategies: HyperliquidStrategyCatalogRow[];
   runtimeStatus: HyperliquidAgentRuntimeStatus | null;
@@ -168,7 +173,8 @@ export function buildStrategyFactoryMissionDraftInput(params: {
 }): MissionDraftInput {
   const goal = buildStrategyFactoryGoal({
     focus: params.focus,
-    strategies: params.strategies
+    strategies: params.strategies,
+    assetSymbol: params.assetSymbol
   });
   const focusLabel = getStrategyFactoryFocusLabel(params.focus);
   const risks = [

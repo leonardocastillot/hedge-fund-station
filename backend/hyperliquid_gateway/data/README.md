@@ -19,6 +19,9 @@ Expected subfolders:
 - `validations/` for validation gate reports
 - `paper/` for paper-candidate artifacts
 - `agent_runs/` for generated agent evidence and checkpoints
+- `strategy_memory/` for strategy learning events plus the local
+  `strategy_memory.db` evidence index built from repo-owned docs, backtests,
+  validations, paper candidates, audits, agent runs, and handoffs
 
 These files are artifacts, not source logic. Curated small examples may be kept
 for review and regression context, but large runtime outputs, private datasets,
@@ -40,6 +43,9 @@ Cleanup policy:
 - do not commit `agent_runs/`, checkpoints, `tmp-*.json`, SQLite files, WAL/SHM
   files, macro calendar cache files, timestamped reports, local exports, or
   cache files
+- use `npm run hf:memory:sync -- --dry-run` before building the memory index,
+  then `npm run hf:memory:query -- "<question>"` to retrieve concise cited
+  snippets for agents and review surfaces
 - run `npm run hf:status` to inspect what curated evidence remains
 
 Source code belongs outside this folder. Strategy logic belongs under

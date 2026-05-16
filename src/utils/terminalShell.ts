@@ -124,6 +124,10 @@ export function normalizeRuntimeCommandForShell(command: string | undefined, she
   if (normalizedCommand === 'codex.cmd') return windowsShell ? 'codex.cmd' : 'codex';
   if (normalizedCommand === 'claude.exe') return windowsShell ? 'claude.exe' : 'claude';
   if (normalizedCommand === 'gemini.cmd') return windowsShell ? 'gemini.cmd' : 'gemini';
+  if (normalizedCommand === 'opencode.cmd') return windowsShell ? 'opencode.cmd' : 'opencode';
+  if (normalizedCommand.startsWith('opencode.cmd ')) {
+    return windowsShell ? command : `opencode ${command.trim().slice('opencode.cmd'.length).trimStart()}`;
+  }
 
   return command;
 }

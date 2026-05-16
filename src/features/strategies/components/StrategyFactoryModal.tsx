@@ -18,10 +18,12 @@ import {
   getStrategyFactoryFocusLabel,
   type StrategyFactoryFocus
 } from '@/utils/strategyFactoryMission';
+import { publishWorkspaceDockMode } from '@/features/desks/workspaceDockEvents';
 
 interface StrategyFactoryModalProps {
   open: boolean;
   strategies: HyperliquidStrategyCatalogRow[];
+  assetSymbol?: string;
   onClose: () => void;
 }
 
@@ -40,7 +42,7 @@ function getDraftStatusLabel(status: MissionDraft['approvalStatus']): string {
   return status.replace('-', ' ');
 }
 
-export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open, strategies, onClose }) => {
+export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open, strategies, assetSymbol, onClose }) => {
   const { activeWorkspace } = useWorkspaceContext();
   const { agents, ensureWorkspaceAgents } = useAgentProfilesContext();
   const {
@@ -130,6 +132,7 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
 
     const draftInput = buildStrategyFactoryMissionDraftInput({
       workspaceId: activeWorkspace.id,
+      assetSymbol: assetSymbol || activeWorkspace.asset_symbol || activeWorkspace.strategy_symbol || 'BTC',
       focus,
       strategies,
       runtimeStatus,
@@ -150,7 +153,7 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
     setDraft(nextDraft);
     setMessage('Draft ready for approval.');
     setError(null);
-  }, [activeWorkspace, addMissionMessage, claudeAvailable, createMissionDraft, focus, runtimeStatus, strategies]);
+  }, [activeWorkspace, addMissionMessage, assetSymbol, claudeAvailable, createMissionDraft, focus, runtimeStatus, strategies]);
 
   const approveAndLaunch = React.useCallback(() => {
     if (!activeWorkspace || !draft) {
@@ -214,6 +217,7 @@ export const StrategyFactoryModal: React.FC<StrategyFactoryModalProps> = ({ open
       role: 'system',
       content: `Approved. ${getProviderMeta(launchResult.agent.provider).label} launched from Strategy Pipeline.`
     });
+    publishWorkspaceDockMode('code', activeWorkspace.id);
     setMessage('Codex launched from Strategy Pipeline.');
     setError(null);
   }, [

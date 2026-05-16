@@ -13,10 +13,15 @@ future agents can orient quickly without trusting generated summaries as truth.
 
 Graphify answers "where should I look?" Obsidian answers "what did we already
 decide or learn?" The file harness answers "what is happening right now?"
+The backend strategy memory DB under `HYPERLIQUID_DATA_ROOT/strategy_memory/`
+is a searchable evidence index, not a curated memory layer: it chunks repo-owned
+strategy docs, backend artifacts, learning events, agent runs, and handoffs so
+agents retrieve concise cited snippets instead of raw dumps.
 
 The `/memory` Strategy Memory explorer is the visual bridge for strategy work:
 it links backend catalog rows, repo evidence artifacts, Obsidian notes, and
-learning events into an interactive review graph. The heavier Graphify
+learning events into an interactive review graph, and can query the backend
+strategy memory index for top relevant snippets. The heavier Graphify
 repository map lives separately at `/repo-graph` so strategy memory can load
 without mounting both graphs. Treat both routes as orientation and review-speed
 surfaces; canonical truth remains in backend artifacts, strategy docs, and the

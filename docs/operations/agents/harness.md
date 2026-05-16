@@ -14,6 +14,8 @@ For the repo-file layer inspired by `betta-tech/ejemplo-harness-subagentes`,
 use `docs/operations/agents/file-harness.md`, `agent_tasks.json`,
 `progress/current.md`, and `CHECKPOINTS.md`. This document defines the broader
 mission contract; the file harness defines how agents coordinate through files.
+For strategy creation, improvement, validation, and Strategy Factory work, use
+`docs/operations/agents/strategy-harness.md` as the stricter strategy contract.
 
 ## Core Rule
 
@@ -67,8 +69,8 @@ If a mission cannot complete a step, the handoff must say why.
 | Mission | Purpose | Default Scope | Allowed Actions | Expected Evidence | Checks |
 | --- | --- | --- | --- | --- | --- |
 | Repo health audit | Keep the repo understandable and agent-ready. | `AGENTS.md`, `README.md`, `docs/`, `skills/`, `package.json`, `.gitignore` | read-only report or docs patch | findings, stale conventions, proposed cleanup | `rtk npm run hf:doctor`, `rtk npm run build` when UI/docs imports may be affected |
-| Strategy research | Turn an idea into an inspectable strategy path. | `docs/strategies/`, `backend/hyperliquid_gateway/strategies/`, latest artifacts | docs/spec patch, backend-first recommendations | strategy spec, source audit, validation plan | `rtk npm run hf:backtest`, `rtk npm run hf:validate` when implementation exists |
-| Strategy validation audit | Decide whether evidence is strong enough for the next stage. | strategy docs, backend module, backtests, validations, paper artifacts | report, validation thresholds, small tests | blockers, anti-regime gaps, cost/slippage notes | `rtk npm run hf:validate`, strategy-specific tests |
+| Strategy research | Turn an idea into an inspectable strategy path under `strategy-harness.md`. | `docs/strategies/`, `backend/hyperliquid_gateway/strategies/`, latest artifacts, `docs/operations/strategy-live-gates/` when preparing production review | docs/spec patch, backend-first recommendations, blocked live-gate notes when evidence supports review | strategy spec, source audit, validation plan, gate stage | `rtk npm run hf:backtest`, `rtk npm run hf:validate` when implementation exists |
+| Strategy validation audit | Decide whether evidence is strong enough for the next stage under `strategy-harness.md`. | strategy docs, backend module, backtests, validations, paper artifacts, live-gate package if present | report, validation thresholds, small tests, docs patch | blockers, anti-regime gaps, cost/slippage notes, live gate remains blocked | `rtk npm run hf:validate`, strategy-specific tests |
 | Data quality audit | Protect research from bad or drifting data. | `backend/hyperliquid_gateway/data/`, `app.py`, `src/services/` | report, schema docs, small parser/contract fixes | schema gaps, null/timestamp issues, source-of-truth notes | `rtk npm run hf:doctor`, endpoint probes when services are running |
 | UI review-speed audit | Make backend evidence faster for humans to inspect. | `src/features/`, `src/services/`, shared UI | UI patch after backend contract is clear | review path, missing drilldowns, stale UI assumptions | `rtk npm run build`, browser/app smoke test when practical |
 | Operations/runbook audit | Make recurring work and local operations safer. | `docs/operations/`, `scripts/`, stable commands | runbook patch, command docs, report | command sequence, failure handling, handoff format | command-specific dry run or smoke check |
@@ -148,7 +150,10 @@ An agent mission is successful when:
 
 For strategy-related work, success also requires a validation path. A claim about
 edge is not complete without costs, failure modes, replay/backtest/paper plan,
-and human review surface.
+human review surface, and the lifecycle gates defined in
+`strategy-harness.md`. A strategy prepared for production review must name the
+blocked live-gate package, risk review, monitoring notes, rollback notes, and
+unchecked operator sign-off.
 
 ## Output Contracts
 
@@ -156,6 +161,8 @@ Use these docs for standard outputs:
 
 - `templates/handoff.md` for end-of-work handoffs
 - `templates/tasks.md` for mission prompts and scope
+- `templates/strategy-live-gate.md` for blocked strategy production packages
+- `strategy-harness.md` for strategy-specific lifecycle gates and role flow
 - `templates/change-summary.md` for reviewable change summaries
 - `orientation.md` for first-run orientation
 - `graph-memory-operating-system.md` for the Graphify, Obsidian, and harness

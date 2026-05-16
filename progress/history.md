@@ -4,6 +4,107 @@ Append meaningful completed session summaries here. Do not rewrite earlier
 entries unless the human explicitly asks for cleanup.
 
 ---
+## 2026-05-16 - Agent View Ready Console State
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added a renderer-only `Ready` group for live agent consoles waiting
+  for optional operator input. `Input` remains reserved for blocking approval or
+  permission prompts, and composer/reply sends now move runtime terminals back
+  to `waiting-response`.
+- Evidence:
+  `src/features/agents/utils/workspaceAgentViewModel.ts`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/components/electron/TerminalPane.tsx`,
+  `src/components/electron/TerminalGrid.tsx`, and
+  `progress/impl_agent_view_ready_console_state.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and HTTP `/workbench` smoke passed. Manual Electron
+  PTY smoke still needs an interactive pass.
+- Status: done. Renderer/terminal UI behavior only; no IPC, preload,
+  PTY manager, backend, strategy logic, credentials, order routing, or live
+  trading changed.
+
+---
+## 2026-05-16 - Strategy Agentic Harness v1
+
+- Agent: Codex
+- Mission class: architecture or agent workflow
+- Summary: Added a docs-only strategy harness so agents creating, improving, or
+  auditing strategies use one leader per `strategy_id`, backend artifacts as
+  source of truth, and explicitly blocked live-gate packages for production
+  review prep.
+- Evidence:
+  `docs/operations/agents/strategy-harness.md`,
+  `docs/operations/agents/templates/strategy-live-gate.md`,
+  `docs/operations/strategy-live-gates/README.md`,
+  `AGENTS.md`, `CHECKPOINTS.md`, agent docs, strategy skills,
+  `docs/operations/agents/memory/shared-memory.md`, and
+  `progress/impl_strategy_agentic_harness_v1.md`.
+- Verification: `rtk npm run agent:check`, `rtk npm run hf:status`, link
+  search for `strategy-harness|live-gate|Strategy Factory`,
+  `rtk git diff --check`, and `rtk npm run graph:status` passed. Graphify
+  remains dirty and recommends `npm run graph:build`; it was not rebuilt for
+  this docs-only v1.
+- Status: done. No CLI, backend, FastAPI, React, Electron, `agent_tasks.json`
+  schema, automation config, credentials, order routing, or live trading
+  changed.
+
+---
+
+## 2026-05-15 - Agent View Pro Strategy Pods
+
+- Agent: Codex
+- Mission class: UI review-speed audit / strategy operations surface
+- Summary: Rebuilt `/workbench` as Agent View Pro with the session/console
+  cockpit as the center, Strategy Inspector in the right dock, and Strategy
+  Pods as the only main rail unit. New Strategy pods now use a backend
+  preview/approve scaffold flow before writing repo-native backend strategy
+  folders and docs. Added backend/docs pod metadata, persistent provider
+  preference per pod, Open Strategy Shell, and default `btc_convex_cycle_trend`
+  pod seeding for empty configs/browser preview.
+- Evidence:
+  `backend/hyperliquid_gateway/strategy_scaffold.py`,
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`,
+  `electron/main/native/workspace-manager.ts`, and
+  `progress/impl_agent_view_pro_strategy_pods.md`.
+- Verification: scaffold unit tests, `rtk npm run agent:check`,
+  `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, and browser `/workbench` smoke passed.
+- Status: done. Local pod config, scaffold API/templates, and renderer/native
+  workbench UI only; no live trading, credentials, order routing, production
+  promotion, or strategy archive deletion behavior changed.
+
+---
+
+## 2026-05-15 - Strategy Lab Workbench
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Converted `/workbench` from a generic workspace/agent center into
+  Strategy Lab: strategy selector, Improve/Create/Indicator modes, metrics,
+  local chart with entry/exit markers, evidence timeline, gated backend actions,
+  and agent drafts as helpers. The right dock keeps mode IDs but is now labeled
+  as Agent CLI, TradingView/Web, and Runs/Evidence.
+- Evidence:
+  `backend/hyperliquid_gateway/app.py`,
+  `tests/test_strategy_catalog.py`,
+  `src/services/hyperliquidService.ts`,
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`, and
+  `progress/impl_strategy_lab_workbench.md`.
+- Verification: strategy catalog and strategy memory tests, lab API curl,
+  gateway restart, `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk git diff --check`, and browser smoke of
+  `/workbench` no-selection plus selected-strategy chart states passed.
+- Status: done. Backend read endpoint and renderer review/control surface only;
+  no live trading, credential changes, or production promotion behavior changed.
+
+---
 
 ## 2026-05-15 - OpenCode Terminal Runtime
 
@@ -2250,5 +2351,194 @@ entries unless the human explicitly asks for cleanup.
   automation was unavailable and Node REPL could not import Playwright.
 - Status: done. Renderer/UI only; no backend API, IPC contract, backend schema,
   strategy logic, live trading, credentials, or production routing changed.
+
+---
+## 2026-05-15 - Strategy Pod Agentic Workbench
+
+- Agent: Codex
+- Mission class: UI review-speed audit / strategy operations surface
+- Summary: Reframed `/workbench` around Strategy Pods. The center is again the
+  agentic command surface with chat and sessions, while chart/metrics/evidence,
+  gates, Strategy Factory, and Pine Indicator Lab moved into a right-dock
+  `Strategy Inspector`. The left rail now creates local strategy pods from the
+  backend catalog or as new drafts, with edit/duplicate/delete-local-config and
+  open Inspector/CLI actions.
+- Evidence:
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/components/electron/WorkspaceModal.tsx`,
+  `electron/main/native/workspace-manager.ts`, and
+  `progress/impl_strategy_pod_agentic_workbench.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk npm run dev:doctor`, and browser `/workbench`
+  smoke passed. Browser smoke covered no-pod state plus pod creator catalog
+  load; Electron-only persisted create/edit/delete still needs shell smoke.
+- Status: done. Local workspace/pod config and renderer UI only; no live
+  trading, credentials, order routing, or production promotion behavior changed.
+
+---
+## 2026-05-16 - Agent View State And Header Cleanup
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed Agent View state semantics so `Needs Input` means real
+  approval/input only, while quiet live sessions stay `Working`. Runtime retry
+  now suppresses provider relaunch commands once the TUI is alive, and the
+  Strategy Pod header is compacted behind `Pod actions`.
+- Evidence:
+  `src/features/agents/utils/workspaceAgentViewModel.ts`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/components/electron/TerminalPane.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/features/desks/pages/DeskSpacePage.tsx`, and
+  `progress/impl_agent_view_state_and_header_cleanup.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and HTTP `/workbench` smoke passed. Visual browser
+  screenshot was skipped because the Node REPL runtime does not have
+  `playwright` installed.
+- Status: done. Renderer/terminal UI behavior only; no IPC, preload,
+  PTY manager, backend, strategy logic, credentials, order routing, or live
+  trading changed.
+
+---
+## 2026-05-16 - Asset Strategy Pods Right Dock Sessions
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Added active-asset right dock session restore and ordering. Terminal
+  sessions now keep stable session keys and become relaunchable cards after an
+  app restart if their PTY is gone. The right dock has manual move controls,
+  pins, sort presets, and active terminal memory per workspace. Agent View uses
+  the same order and can relaunch restored sessions via Attach/Retry.
+- Evidence:
+  `src/contexts/TerminalContext.tsx`,
+  `src/features/desks/DeskSpaceContext.tsx`,
+  `src/components/electron/TerminalGrid.tsx`,
+  `src/features/desks/components/WorkspaceDock.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/features/agents/utils/workspaceAgentViewModel.ts`, and
+  `progress/impl_asset_strategy_pods.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk npm run dev:doctor`, and
+  `rtk git diff --check` passed.
+- Status: done for this UI/session slice. Manual Electron restart smoke remains
+  the next best interactive check. No backend strategy logic, credentials,
+  live trading, order routing, or production promotion changed.
+
+---
+## 2026-05-16 - Agent View Active Terminal Composer
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Fixed Agent View composer routing so normal messages target the
+  active writable terminal in the current workspace first, then the selected
+  Peek row terminal, then live main CLI fallbacks. Peek now marks its terminal
+  active, and the composer displays `Target` with the actual send destination.
+- Evidence:
+  `src/features/agents/components/WorkspaceAgentView.tsx` and
+  `progress/impl_agent_view_active_terminal_composer.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and HTTP `/workbench` smoke passed. Node REPL
+  Playwright smoke was skipped because `playwright` is not installed in that
+  environment; manual Electron PTY write-routing smoke still needs an
+  interactive pass.
+- Status: done. Renderer target selection only; no IPC, preload, PTY manager,
+  backend, strategy logic, credentials, live trading, or production routing
+  changed.
+
+---
+## 2026-05-16 - Agent View Peek Summary
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Replaced Agent View's raw Peek transcript with a compact session
+  summary. Peek no longer reads `terminal.getSnapshot()` or renders PTY buffers
+  as plain text, so full-screen OpenCode/Codex redraws no longer appear as
+  duplicated frames and block glyphs. Attach remains the full console path.
+- Evidence:
+  `src/features/agents/components/WorkspaceAgentView.tsx` and
+  `progress/impl_agent_view_peek_summary.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and HTTP `/workbench` smoke passed. Manual Electron
+  PTY smoke still needs an interactive pass.
+- Status: done. Renderer presentation only; no IPC, preload, PTY manager,
+  backend, strategy logic, credentials, live trading, or production routing
+  changed.
+
+---
+## 2026-05-16 - Agent View Simplified Layout
+
+- Agent: Codex
+- Mission class: UI review-speed audit
+- Summary: Simplified Agent View's footer into a normal composer with provider,
+  target, message, Send, and one `Agent actions` toggle. Advanced actions now
+  hold New main CLI, selected launch, roster launch, Claude View, and role
+  chips. Selected-session detail now has explicit Reply/Attach actions, with
+  Reply collapsed by default.
+- Evidence:
+  `src/features/agents/components/WorkspaceAgentView.tsx` and
+  `progress/impl_agent_view_simplified_layout.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and HTTP `/workbench` smoke passed. `dev:doctor`
+  failed once on transient Alpha tunnel `ECONNRESET`, then passed on retry.
+  Manual Electron UI smoke still needs an interactive pass.
+- Status: done. Renderer layout only; no IPC, preload, PTY manager, backend,
+  strategy logic, credentials, live trading, or production routing changed.
+
+---
+## 2026-05-16 - Strategy Pods Por Asset
+
+- Agent: Codex
+- Mission class: UI review-speed audit / workspace semantics
+- Summary: Converted Strategy Pods from per-strategy workspaces to per-asset
+  pods. The existing BTC Convex workspace id is preserved, but the rail/header
+  render it as `BTC`; BTC Convex remains linked and active inside that asset.
+- Evidence:
+  `electron/main/native/workspace-manager.ts`, `src/contexts/WorkspaceContext.tsx`,
+  `src/components/electron/Sidebar.tsx`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`,
+  `src/features/desks/pages/DeskSpacePage.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/contexts/TerminalContext.tsx`,
+  `progress/asset_strategy_pods_workbench_smoke.png`, and
+  `progress/impl_asset_strategy_pods.md`.
+- Verification: `rtk npm run agent:check`, `rtk npx tsc --noEmit`,
+  `rtk npm run build`, `rtk npm run dev:doctor`, `rtk git diff --check`, and
+  browser `/workbench` smoke passed.
+- Status: done. UI/workspace/session semantics only; no backend strategy logic,
+  credentials, order routing, paper supervisor loop, live trading, or production
+  promotion changed.
+
+---
+## 2026-05-16 - Draft Strategy Session Review
+
+- Agent: Codex
+- Mission class: UI review-speed audit / strategy pod review
+- Summary: Draft strategy sessions launched inside an asset pod now appear
+  immediately in Strategy Inspector Review, grouped by local
+  `strategySessionId` and scoped to the active workspace plus asset. First-send
+  Agent View launches now create a Commander task/run wrapper so the session has
+  reviewable evidence from the start.
+- Evidence:
+  `src/contexts/TerminalContext.tsx`,
+  `src/features/agents/components/WorkspaceAgentView.tsx`,
+  `src/features/desks/components/StrategyInspectorPanel.tsx`,
+  `src/features/desks/strategySessionReviewModel.ts`, and
+  `progress/impl_asset_strategy_pods.md`.
+- Verification: `rtk npx tsc --noEmit`, `rtk npm run build`,
+  `rtk npm run dev:doctor`, `rtk npm run agent:check`,
+  `rtk git diff --check`, and HTTP `/workbench` smoke passed. Interactive
+  Electron UI smoke still needs a manual pass because browser automation and
+  Playwright were unavailable in this environment.
+- Status: done. UI-local draft review only; backend strategy audit, strategy
+  logic, credentials, order routing, live trading, and production promotion were
+  not changed.
 
 ---

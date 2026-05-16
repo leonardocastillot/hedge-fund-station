@@ -46,6 +46,9 @@ Core files:
   verification, handoff, and future production readiness.
 - `docs/operations/agents/roles/` contains role contracts for leader,
   explorer, implementer, and reviewer agents.
+- `docs/operations/agents/strategy-harness.md` defines the strategy-specific
+  agent contract: one leader per `strategy_id`, lifecycle gates, artifacts,
+  blocked live-gate package, and evidence rules.
 - `graphify-out/GRAPH_REPORT.md`, when present, is the shared repo graph report
   for fast orientation across code, docs, harness, and memory. Use
   `rtk npm run graph:status`, `rtk npm run graph:build`,
@@ -64,6 +67,11 @@ Hard harness rules:
   explicitly marked `parallelizable`.
 - Subagents write findings to files and respond in chat with a short reference
   such as `done -> progress/explore_backend_boundaries.md`.
+- Strategy subagents follow `docs/operations/agents/strategy-harness.md`:
+  leaders claim one `strategy_id`, explorers write
+  `progress/explore_strategy_<strategy_id>_<topic>.md`, implementers write
+  `progress/impl_<strategy_id>.md`, and reviewers write
+  `progress/review_<strategy_id>.md` unless the task already has a stable id.
 - Completed tasks must name evidence, verification, and review or handoff
   files.
 - Future live/production work is allowed only through explicit promotion gates:
@@ -80,7 +88,8 @@ Hard harness rules:
   `skills/hedge-fund-repo-architect/SKILL.md`. If the work touches Graphify,
   Obsidian, shared memory, or repo orientation, also read
   `docs/operations/agents/graph-memory-operating-system.md`.
-- Strategy work: also read `docs/hedge-fund-agent-operating-model.md`,
+- Strategy work: also read `docs/operations/agents/strategy-harness.md`,
+  `docs/hedge-fund-agent-operating-model.md`,
   `docs/hyperliquid-strategy-roadmap.md`, `docs/strategies/README.md`, and
   `backend/hyperliquid_gateway/strategies/README.md`.
 - Recurring or autonomous work: also read
@@ -148,10 +157,11 @@ Before changing anything for hedge fund work, read:
 2. `docs/operations/hedge-fund-company-constitution.md`
 3. `docs/operations/product-objective.md`
 4. `docs/operations/agents/harness.md`
-5. `docs/hedge-fund-agent-operating-model.md`
-6. `docs/hyperliquid-strategy-roadmap.md`
-7. `docs/strategies/README.md`
-8. `backend/hyperliquid_gateway/strategies/README.md`
+5. `docs/operations/agents/strategy-harness.md`
+6. `docs/hedge-fund-agent-operating-model.md`
+7. `docs/hyperliquid-strategy-roadmap.md`
+8. `docs/strategies/README.md`
+9. `backend/hyperliquid_gateway/strategies/README.md`
 
 If the task is strategy-related, also read the relevant file under `skills/`.
 If the task is repo structure or agent workflow, read
@@ -193,6 +203,13 @@ For hedge fund strategy work, use this order:
 7. Production review only after backend artifacts, risk limits, and human
    sign-off are inspectable
 8. UI integration only after backend artifacts are inspectable
+
+Strategy agents must also follow
+`docs/operations/agents/strategy-harness.md`. A strategy is not complete because
+an LLM debate says it is complete. It must carry inspectable docs, backend
+mapping, backtest, validation, paper evidence when eligible, risk review,
+monitoring and rollback notes, an unchecked operator sign-off box, and an
+explicitly blocked live-gate package when production review is being prepared.
 
 For non-strategy platform work, first classify the task:
 
@@ -357,6 +374,8 @@ For strategy work, also report:
 - current promotion stage
 - backtest/validation/paper artifact paths when generated
 - remaining data quality or validation gaps
+- live-gate status, which remains `blocked` unless a separate human-approved
+  production task exists
 
 ## Validation Standard
 

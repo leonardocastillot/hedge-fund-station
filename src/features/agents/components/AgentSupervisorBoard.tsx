@@ -3,8 +3,7 @@ import { useAgentProfilesContext } from '@/contexts/AgentProfilesContext';
 import { useDeskHistoryContext } from '@/contexts/DeskHistoryContext';
 import { useTerminalContext } from '@/contexts/TerminalContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
-import type { AgentProvider } from '@/types/agents';
-import { getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
+import { AGENT_PROVIDERS, getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
 import { launchProfileSequence } from '@/utils/workspaceLaunch';
 
 function formatRelativeTime(timestamp?: number): string {
@@ -51,11 +50,16 @@ export const AgentSupervisorBoard: React.FC<{ workspaceId?: string | null }> = (
       return;
     }
 
+    const assetSymbol = workspace.asset_symbol || workspace.strategy_symbol;
     const metadata = {
       agentId: agent.id,
       agentName: agent.name,
       terminalPurpose: agent.autoAssignTerminalPurpose,
       workspaceId: workspace.id,
+      assetSymbol,
+      strategySessionId: assetSymbol ? `strategy-session-${assetSymbol.toLowerCase()}-${Date.now()}` : undefined,
+      strategySessionTitle: assetSymbol ? `${assetSymbol} draft strategy session` : undefined,
+      strategySessionStatus: assetSymbol ? 'draft' as const : undefined,
       runtimeProvider: agent.provider
     };
     const runtimeShell = resolveAgentRuntimeShell(workspace.shell);
@@ -150,7 +154,7 @@ export const AgentSupervisorBoard: React.FC<{ workspaceId?: string | null }> = (
                   </div>
 
                   <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {(['claude', 'codex', 'gemini'] as AgentProvider[]).map((providerId) => {
+                    {AGENT_PROVIDERS.map((providerId) => {
                       const meta = getProviderMeta(providerId);
                       const active = agent.provider === providerId;
                       return (

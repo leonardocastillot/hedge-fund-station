@@ -8,6 +8,7 @@ import type { AgentLoopRunSnapshot, ObsidianRelevantNote } from '@/types/electro
 import type { AgentProfile } from '@/types/agents';
 import type { CommanderTask, MissionDecision, MissionDepth, MissionReviewConfidence } from '@/types/tasks';
 import { getDefaultProviderForRole, getProviderMeta, inferRequestedProvider } from '@/utils/agentRuntime';
+import { hyperliquidService, type HyperliquidStrategyMemoryResult } from '@/services/hyperliquidService';
 import {
   buildGuidedMissionInput,
   buildMissionMetadata,
@@ -22,6 +23,27 @@ import { launchAgentRun } from '@/utils/agentOrchestration';
 import { runMissionAction } from '@/utils/missionActions';
 import { LaunchSignalStrip } from './LaunchSignalStrip';
 
+function pathForBackendMemoryNote(path: string, workspacePath?: string): string {
+  if (path.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(path) || !workspacePath) {
+    return path;
+  }
+  return `${workspacePath.replace(/\/+$/g, '')}/${path.replace(/^\.\//, '')}`;
+}
+
+function mapBackendMemoryNote(result: HyperliquidStrategyMemoryResult, workspacePath?: string): ObsidianRelevantNote {
+  return {
+    name: `Backend: ${result.title}`,
+    path: pathForBackendMemoryNote(result.path, workspacePath),
+    updatedAt: Date.now(),
+    score: result.score,
+    snippet: result.snippet,
+    type: `strategy-memory:${result.sourceType}`,
+    domain: result.strategyId || 'strategy-memory',
+    tags: ['strategy-memory', result.sourceType, ...result.entities.slice(0, 4)],
+    pinned: false
+  };
+}
+
 export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ workspaceId }) => {
   const { agents, ensureWorkspaceAgents } = useAgentProfilesContext();
   const { createTask, updateTask, updateTaskAction, updateTaskReview, updateTaskStageReview, updateTaskStatus, createRun, updateRun, runs, tasks } = useCommanderTasksContext();
@@ -31,6 +53,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
   const [missionMode, setMissionMode] = React.useState<MissionMode>('market-scan');
   const [missionDepth, setMissionDepth] = React.useState<MissionDepth>('focused');
   const [memoryNotes, setMemoryNotes] = React.useState<ObsidianRelevantNote[]>([]);
+  const [backendMemoryNotes, setBackendMemoryNotes] = React.useState<ObsidianRelevantNote[]>([]);
   const [pinnedNotes, setPinnedNotes] = React.useState<ObsidianRelevantNote[]>([]);
   const [isMemoryLoading, setIsMemoryLoading] = React.useState(false);
   const [reviewSummary, setReviewSummary] = React.useState('');
@@ -83,21 +106,29 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
   React.useEffect(() => {
     if (!workspace || !goal.trim()) {
       setMemoryNotes([]);
+      setBackendMemoryNotes([]);
       return;
     }
 
     const timeout = window.setTimeout(() => {
       setIsMemoryLoading(true);
-      if (!window.electronAPI?.obsidian?.searchRelevant) {
-        setMemoryNotes([]);
-        setIsMemoryLoading(false);
-        return;
-      }
+      const searchText = goal.trim();
+      const obsidianSearch = window.electronAPI?.obsidian?.searchRelevant
+        ? window.electronAPI.obsidian.searchRelevant(workspace.path, searchText, workspace.obsidian_vault_path, 4)
+        : Promise.resolve([]);
+      const backendSearch = hyperliquidService
+        .queryStrategyMemory(searchText, { limit: 4 })
+        .then((response) => response.results.map((result) => mapBackendMemoryNote(result, workspace.path)));
 
-      window.electronAPI.obsidian
-        .searchRelevant(workspace.path, goal.trim(), workspace.obsidian_vault_path, 4)
-        .then((notes) => setMemoryNotes(notes))
-        .catch(() => setMemoryNotes([]))
+      Promise.allSettled([obsidianSearch, backendSearch])
+        .then(([obsidianResult, backendResult]) => {
+          setMemoryNotes(obsidianResult.status === 'fulfilled' ? obsidianResult.value : []);
+          setBackendMemoryNotes(backendResult.status === 'fulfilled' ? backendResult.value : []);
+        })
+        .catch(() => {
+          setMemoryNotes([]);
+          setBackendMemoryNotes([]);
+        })
         .finally(() => setIsMemoryLoading(false));
     }, 220);
 
@@ -113,12 +144,20 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
   }, [goal]);
 
   const missionConfig = MISSION_MODE_CONFIG[missionMode];
+  const missionMemoryNotes = React.useMemo(() => {
+    const seen = new Set<string>();
+    return [...backendMemoryNotes, ...memoryNotes].filter((note) => {
+      if (seen.has(note.path)) return false;
+      seen.add(note.path);
+      return true;
+    });
+  }, [backendMemoryNotes, memoryNotes]);
 
   const suggestedRoles = React.useMemo(() => {
     const fromGoal = inferAgentRoles(goal);
-    const fromMemory = inferRolesFromMemory([...pinnedNotes, ...memoryNotes]);
+    const fromMemory = inferRolesFromMemory([...pinnedNotes, ...missionMemoryNotes]);
     return Array.from(new Set([...missionConfig.routeRoles, ...fromGoal, ...fromMemory]));
-  }, [goal, memoryNotes, missionConfig.routeRoles, pinnedNotes]);
+  }, [goal, missionMemoryNotes, missionConfig.routeRoles, pinnedNotes]);
 
   const suggestedAgents = React.useMemo(() => {
     const routeRoles = missionDepth === 'focused'
@@ -168,9 +207,9 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
       missionMode,
       missionDepth,
       pinnedNotes,
-      memoryNotes
+      memoryNotes: missionMemoryNotes
     }),
-    [goal, memoryNotes, missionDepth, missionMode, pinnedNotes]
+    [goal, missionMemoryNotes, missionDepth, missionMode, pinnedNotes]
   );
   const requestedProvider = React.useMemo(() => inferRequestedProvider(goal), [goal]);
   const effectiveProvider = requestedProvider ?? 'codex';
@@ -246,7 +285,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
         objective: step.objective,
         output: step.output
       })),
-      notes: [...pinnedNotes, ...memoryNotes].slice(0, 6).map((note) => ({
+      notes: [...pinnedNotes, ...missionMemoryNotes].slice(0, 6).map((note) => ({
         title: note.name,
         snippet: note.snippet,
         path: note.path
@@ -273,7 +312,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
     });
 
     applyLoopSnapshotToTask(task.id, run.id, snapshot);
-  }, [applyLoopSnapshotToTask, createRun, loopMaxIterations, memoryNotes, missionMode, pinnedNotes, workspace]);
+  }, [applyLoopSnapshotToTask, createRun, loopMaxIterations, missionMemoryNotes, missionMode, pinnedNotes, workspace]);
 
   const launchAgentsForTask = React.useCallback((task: CommanderTask, targetAgents: typeof workspaceAgents, summaryPrefix?: string) => {
     if (!workspace) {
@@ -759,7 +798,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
   }, [missionConfig.quickPrompt]);
 
   const missionBrief = React.useMemo(() => {
-    const combined = [...pinnedNotes, ...memoryNotes.filter((note) => !pinnedNotes.some((pinned) => pinned.path === note.path))];
+    const combined = [...pinnedNotes, ...missionMemoryNotes.filter((note) => !pinnedNotes.some((pinned) => pinned.path === note.path))];
     if (combined.length === 0) {
       return [];
     }
@@ -775,7 +814,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
       ].filter(Boolean).join(' • '),
       snippet: note.snippet
     }));
-  }, [memoryNotes, pinnedNotes]);
+  }, [missionMemoryNotes, pinnedNotes]);
 
   const handleVoiceClick = React.useCallback(() => {
     if (voiceStatus === 'listening') {
@@ -1018,7 +1057,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
           <div style={panelLabelStyle}>Mission Brief</div>
           <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '8px', lineHeight: 1.45 }}>
             {isMemoryLoading
-              ? 'Searching Obsidian memory...'
+              ? 'Searching strategy memory...'
               : missionBrief.length > 0
                 ? 'The orchestrator found relevant memory before launch.'
                 : 'No relevant memory found yet for this mission.'}
@@ -1050,7 +1089,7 @@ export const CommanderConsoleV2: React.FC<{ workspaceId?: string | null }> = ({ 
           ) : null}
           <div style={{ display: 'grid', gap: '8px', marginTop: '10px' }}>
             {missionBrief.length === 0 ? (
-              <div style={emptyStyle}>Use playbooks, architecture notes, and post-mortems in Obsidian to strengthen routing.</div>
+              <div style={emptyStyle}>Use backend evidence, playbooks, and post-mortems to strengthen routing.</div>
             ) : (
               missionBrief.map((item) => (
                 <button

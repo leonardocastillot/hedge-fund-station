@@ -20,6 +20,10 @@ interface LaunchMissionDraftDependencies {
       agentName?: string;
       terminalPurpose?: string;
       workspaceId?: string;
+      assetSymbol?: string;
+      strategySessionId?: string;
+      strategySessionTitle?: string;
+      strategySessionStatus?: 'draft' | 'linked' | 'completed';
       runtimeProvider?: AgentProfile['provider'];
       missionPrompt?: string;
       runId?: string;

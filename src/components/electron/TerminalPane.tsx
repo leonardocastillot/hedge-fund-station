@@ -85,6 +85,32 @@ function isLikelyCommandEcho(value: string, command?: string): boolean {
   return getNormalizedLines(value).every((line) => line.toLowerCase() === normalizedCommand);
 }
 
+function isRuntimeIdlePrompt(value: string): boolean {
+  const compact = getNormalizedLines(value)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+  if (!compact) {
+    return false;
+  }
+
+  const hasAskPrompt = /\bask anything\b/.test(compact);
+  const hasCommandHints = /\btype\s+\/\s+for commands?\b/.test(compact)
+    && /\bctrl\+p\b.*\bcommands?\b/.test(compact);
+  const hasAgentPickerHint = /\btab\b.*\bagents?\b/.test(compact);
+
+  return hasAskPrompt || (hasCommandHints && hasAgentPickerHint);
+}
+
+function isLiveRuntimeState(state?: TerminalRuntimeState): boolean {
+  return state === 'handoff'
+    || state === 'ready'
+    || state === 'waiting-response'
+    || state === 'running'
+    || state === 'awaiting-approval';
+}
+
 function getRuntimeDisplay(
   runtimeState: TerminalRuntimeState,
   ptyState: TerminalPtyState,
@@ -108,12 +134,21 @@ function getRuntimeDisplay(
     };
   }
 
-  if (runtimeState === 'stalled' || runtimeState === 'awaiting-approval') {
+  if (runtimeState === 'awaiting-approval') {
     return {
-      label: 'Attention',
+      label: 'Needs Input',
       color: '#fbbf24',
       background: 'rgba(245, 158, 11, 0.13)',
       border: 'rgba(251, 191, 36, 0.24)'
+    };
+  }
+
+  if (runtimeState === 'stalled') {
+    return {
+      label: 'Waiting',
+      color: '#67e8f9',
+      background: 'rgba(6, 182, 212, 0.12)',
+      border: 'rgba(103, 232, 249, 0.22)'
     };
   }
 
@@ -463,8 +498,21 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }, 8000);
   }, [autoCommand, dispatchMissionPrompt, onRuntimeStateChange, resolveRuntimeState, runtimeProvider]);
 
+  const runtimeLooksLive = React.useCallback(() => (
+    sawRuntimeOutputRef.current
+    || missionDispatchRef.current
+    || approvalPendingRef.current
+    || isLiveRuntimeState(runtimeStateCacheRef.current.state)
+    || isLiveRuntimeState(runtimeState)
+  ), [runtimeState]);
+
   const triggerAutoRetry = React.useCallback((reason: string) => {
     if (!runtimeProvider || !autoCommand || !onRuntimeRetry || autoRetryRef.current || runtimeAttempts >= 2) {
+      return;
+    }
+
+    if (runtimeLooksLive() || hasExitedRef.current) {
+      resolveRuntimeState('running', `Runtime is active; suppressed relaunch (${reason})`);
       return;
     }
 
@@ -475,7 +523,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       startRuntimeAttempt(`Retrying ${autoCommand}`);
       window.electronAPI.terminal.write(id, `${autoCommand}\r`);
     }, 450);
-  }, [autoCommand, id, onRuntimeRetry, runtimeAttempts, runtimeProvider, startRuntimeAttempt]);
+  }, [autoCommand, id, onRuntimeRetry, resolveRuntimeState, runtimeAttempts, runtimeLooksLive, runtimeProvider, startRuntimeAttempt]);
 
   const armRuntimeMonitor = React.useCallback(() => {
     startRuntimeAttempt(`Launching ${autoCommand}`);
@@ -511,7 +559,9 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       return;
     }
 
-    if (isRuntimeFailure(normalized)) {
+    const runtimeIsLive = runtimeLooksLive();
+
+    if (isRuntimeFailure(normalized) && !runtimeIsLive) {
       resolveRuntimeState('failed', normalized.slice(0, 180));
       triggerAutoRetry(normalized.slice(0, 120));
       return;
@@ -521,19 +571,26 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       return;
     }
 
-    if (isLikelyShellPrompt(normalized)) {
-      sawShellPromptRef.current = true;
-
-      if (!missionDispatchRef.current && Date.now() - runtimeMonitorRef.current.armedAt > 1500) {
-        resolveRuntimeState('failed', 'Runtime returned control to the shell before accepting the mission');
-        triggerAutoRetry('runtime returned to shell prompt');
-      }
-      return;
-    }
-
     if (isApprovalPrompt(normalized)) {
       approvalPendingRef.current = true;
       resolveRuntimeState('awaiting-approval', normalized.slice(0, 180));
+      return;
+    }
+
+    if (isRuntimeIdlePrompt(normalized)) {
+      approvalPendingRef.current = false;
+      sawRuntimeOutputRef.current = true;
+      resolveRuntimeState('ready', normalized.slice(0, 180));
+      return;
+    }
+
+    if (isLikelyShellPrompt(normalized)) {
+      sawShellPromptRef.current = true;
+
+      if (!runtimeIsLive && !missionDispatchRef.current && Date.now() - runtimeMonitorRef.current.armedAt > 1500) {
+        resolveRuntimeState('failed', 'Runtime returned control to the shell before accepting the mission');
+        triggerAutoRetry('runtime returned to shell prompt');
+      }
       return;
     }
 
@@ -567,7 +624,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }
 
     resolveRuntimeState('running', normalized.slice(0, 180));
-  }, [autoCommand, dispatchMissionPrompt, missionPrompt, resolveRuntimeState, runtimeProvider, triggerAutoRetry]);
+  }, [autoCommand, dispatchMissionPrompt, missionPrompt, resolveRuntimeState, runtimeLooksLive, runtimeProvider, triggerAutoRetry]);
 
   // Terminal communication hook
   const { write, resize, getSnapshot } = useTerminal(id, {
@@ -597,6 +654,15 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       return;
     }
 
+    if (runtimeLooksLive()) {
+      resolveRuntimeState('running', 'Runtime is already active; open a new CLI to relaunch.');
+      return;
+    }
+
+    if (runtimeState !== 'failed' && runtimeState !== 'stalled') {
+      return;
+    }
+
     autoRetryRef.current = false;
     missionDispatchRef.current = false;
     approvalPendingRef.current = false;
@@ -606,7 +672,7 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
       startRuntimeAttempt(`Retrying ${autoCommand}`);
       write(`${autoCommand}\r`);
     }, 120);
-  }, [autoCommand, onRuntimeRetry, runtimeProvider, startRuntimeAttempt, write]);
+  }, [autoCommand, onRuntimeRetry, resolveRuntimeState, runtimeLooksLive, runtimeProvider, runtimeState, startRuntimeAttempt, write]);
 
   useEffect(() => {
     if (runtimeAttempts <= 1) {
@@ -839,7 +905,8 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
     }
   };
 
-  const hasRuntimeAttention = Boolean(runtimeProvider && (runtimeState === 'failed' || runtimeState === 'stalled'));
+  const hasRuntimeAttention = Boolean(runtimeProvider && (runtimeState === 'failed' || runtimeState === 'awaiting-approval'));
+  const canRetryRuntime = Boolean(runtimeProvider && autoCommand && !hasExited && runtimeState === 'failed');
   const statusDetail = ptyState !== 'ready' ? (ptyDetail || runtimeDetail) : runtimeDetail;
   const shouldShowStatusFooter = Boolean(
     hasRuntimeAttention
@@ -1299,22 +1366,24 @@ const TerminalPaneComponent: React.FC<TerminalPaneProps> = ({
           </span>
           {hasRuntimeAttention ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleManualRuntimeRetry();
-                }}
-                disabled={hasExited || !autoCommand}
-                title={hasExited ? 'Terminal process exited; open a new console to retry' : 'Retry runtime in this terminal'}
-                style={{
-                  ...footerButtonStyle,
-                  opacity: hasExited || !autoCommand ? 0.45 : 1,
-                  cursor: hasExited || !autoCommand ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Retry runtime
-              </button>
+              {runtimeState === 'failed' ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleManualRuntimeRetry();
+                  }}
+                  disabled={!canRetryRuntime}
+                  title={canRetryRuntime ? 'Retry runtime before handoff' : 'Open a new console to relaunch this runtime'}
+                  style={{
+                    ...footerButtonStyle,
+                    opacity: canRetryRuntime ? 1 : 0.45,
+                    cursor: canRetryRuntime ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  Retry runtime
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={(event) => {

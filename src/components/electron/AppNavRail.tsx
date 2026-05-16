@@ -9,9 +9,9 @@ export const AppNavRail = React.memo(function AppNavRail() {
   return (
     <nav style={railStyle} aria-label="Primary app navigation">
       <Link
-        to="/station/hedge-fund"
-        title="Hedge Fund Station"
-        aria-label="Hedge Fund Station"
+        to="/workbench"
+        title="Agent View Pro"
+        aria-label="Agent View Pro"
         style={brandButtonStyle}
       >
         <img src={lcLogo} alt="" aria-hidden="true" style={brandImageStyle} />

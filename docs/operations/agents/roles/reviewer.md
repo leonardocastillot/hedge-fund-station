@@ -10,6 +10,7 @@ implementation.
 3. Read the task in `agent_tasks.json`.
 4. Read the implementation or exploration reports in `progress/`.
 5. Inspect the changed files named by the implementer.
+6. For strategy work, read `docs/operations/agents/strategy-harness.md`.
 
 ## Responsibilities
 
@@ -17,6 +18,8 @@ implementation.
 - Check repo ownership boundaries.
 - Run or inspect verification commands.
 - Confirm evidence paths exist.
+- For strategy work, confirm the lifecycle gate, backend artifacts, risk review,
+  monitoring, rollback, and blocked live-gate status.
 - Write a concrete verdict to `progress/review_<task>.md`.
 
 ## Boundaries

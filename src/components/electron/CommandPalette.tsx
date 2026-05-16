@@ -4,7 +4,10 @@ import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
 import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useContextContext } from '../../contexts/ContextContext';
 import { useDeskSpaceContext } from '@/features/desks/DeskSpaceContext';
+import { publishWorkspaceDockMode } from '@/features/desks/workspaceDockEvents';
 import type { Workspace } from '../../types/electron';
+import type { AgentProvider } from '../../types/agents';
+import { resolveAgentRuntimeCommand } from '../../utils/agentRuntime';
 import { buildTerminalLabel, getLaunchProfileCommandSummary, launchProfileSequence } from '../../utils/workspaceLaunch';
 import { navigateCenterPanel } from '../../utils/centerNavigation';
 
@@ -31,7 +34,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  const runWorkspaceCommand = React.useCallback((workspace: Workspace, command?: string, switchWorkspace = true) => {
+  const runWorkspaceCommand = React.useCallback((workspace: Workspace, command?: string, runtimeProvider?: AgentProvider, switchWorkspace = true) => {
     if (switchWorkspace) {
       void setActiveWorkspace(workspace.id);
     }
@@ -41,9 +44,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       workspace.shell,
       buildTerminalLabel(workspace, command),
       command,
-      { workspaceId: workspace.id }
+      {
+        workspaceId: workspace.id,
+        ...(runtimeProvider ? { runtimeProvider, terminalPurpose: 'agent-runtime' } : {})
+      }
     );
     setDeskState(workspace.id, { activeView: 'terminals' });
+    publishWorkspaceDockMode('code', workspace.id);
     navigateCenterPanel('/workbench');
   }, [createTerminal, setActiveWorkspace, setDeskState]);
 
@@ -56,6 +63,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     if (profile) {
       launchProfileSequence(workspace, profile, createTerminal, undefined, recordLaunch);
       setDeskState(workspace.id, { activeView: 'terminals' });
+      publishWorkspaceDockMode('code', workspace.id);
       navigateCenterPanel('/workbench');
       return;
     }
@@ -70,6 +78,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
       );
     });
     setDeskState(workspace.id, { activeView: 'terminals' });
+    publishWorkspaceDockMode('code', workspace.id);
     navigateCenterPanel('/workbench');
   }, [createTerminal, recordLaunch, setActiveWorkspace, setDeskState]);
 
@@ -79,12 +88,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
     workspaces.forEach((workspace) => {
       next.push({
         id: `workspace-switch-${workspace.id}`,
-        title: `Switch desk to ${workspace.name}`,
+        title: `Switch workspace to ${workspace.name}`,
         subtitle: workspace.path,
         keywords: `switch desk workspace ${workspace.name} ${workspace.path}`,
         run: async () => {
           await setActiveWorkspace(workspace.id);
-          setDeskState(workspace.id, { activeView: 'overview' });
           navigateCenterPanel('/workbench');
         }
       });
@@ -104,7 +112,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         title: `Run Codex in ${activeWorkspace.name}`,
         subtitle: 'Launches a new terminal with Codex',
         keywords: `codex ${activeWorkspace.name}`,
-        run: () => runWorkspaceCommand(activeWorkspace, 'codex')
+        run: () => runWorkspaceCommand(activeWorkspace, 'codex', 'codex')
+      });
+
+      next.push({
+        id: 'active-opencode',
+        title: `Run OpenCode in ${activeWorkspace.name}`,
+        subtitle: 'Launches OpenCode with DeepSeek V4 Flash free',
+        keywords: `opencode open code deepseek ${activeWorkspace.name}`,
+        run: () => runWorkspaceCommand(activeWorkspace, resolveAgentRuntimeCommand('opencode', activeWorkspace.shell), 'opencode')
       });
 
       next.push({
@@ -112,7 +128,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
         title: `Run Claude in ${activeWorkspace.name}`,
         subtitle: 'Launches a new terminal with Claude',
         keywords: `claude ${activeWorkspace.name}`,
-        run: () => runWorkspaceCommand(activeWorkspace, 'claude')
+        run: () => runWorkspaceCommand(activeWorkspace, 'claude', 'claude')
       });
 
       activeWorkspace.launch_profiles.forEach((profile) => {
@@ -120,7 +136,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
           id: `profile-${activeWorkspace.id}-${profile.id}`,
           title: `${profile.name}`,
           subtitle: `${activeWorkspace.name} - ${getLaunchProfileCommandSummary(profile)}`,
-          keywords: `${profile.name} ${profile.steps.map((step) => step.command).join(' ')} ${activeWorkspace.name} launch profile agent desk`,
+          keywords: `${profile.name} ${profile.steps.map((step) => step.command).join(' ')} ${activeWorkspace.name} launch profile agent workspace`,
           run: () => runWorkspaceProfile(activeWorkspace, profile.id)
         });
       });
@@ -296,7 +312,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose 
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search commands, desks, profiles, contexts..."
+            placeholder="Search commands, workspaces, profiles, contexts..."
             style={{
               width: '100%',
               background: 'rgba(255, 255, 255, 0.02)',

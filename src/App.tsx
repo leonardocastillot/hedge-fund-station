@@ -14,6 +14,7 @@ import { PreloadApiNotice } from './components/electron/PreloadApiNotice';
 import { AppErrorBoundary } from './components/ui/AppErrorBoundary';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useDeskSpaceContext } from './features/desks/DeskSpaceContext';
+import { publishWorkspaceDockMode } from './features/desks/workspaceDockEvents';
 import {
   APP_SETTINGS_CHANGED_EVENT,
   applyAppTheme,
@@ -49,6 +50,7 @@ function AppWithShortcuts() {
         if (activeWorkspace) {
           createTerminal(activeWorkspace.path, activeWorkspace.shell, undefined, undefined, { workspaceId: activeWorkspace.id });
           setDeskState(activeWorkspace.id, { activeView: 'terminals' });
+          publishWorkspaceDockMode('code', activeWorkspace.id);
           navigateCenterPanel('/workbench');
         }
       }
@@ -63,11 +65,11 @@ function AppWithShortcuts() {
         }
       }
     },
-    // Desk switching (Ctrl+1 through Ctrl+9)
+    // Workspace switching (Ctrl+1 through Ctrl+9)
     ...Array.from({ length: 9 }, (_, i) => ({
       key: String(i + 1),
       ctrlKey: true,
-      description: `Switch to Desk ${i + 1}`,
+      description: `Switch to Workspace ${i + 1}`,
       handler: () => {
         if (workspaces[i]) {
           setActiveWorkspace(workspaces[i].id);
@@ -151,7 +153,7 @@ function App() {
                             { key: '⌘K', label: 'Palette' },
                             { key: '⌘T', label: 'New Term' },
                             { key: '⌘W', label: 'Close' },
-                            { key: '⌘1-9', label: 'Desks' }
+                            { key: '⌘1-9', label: 'Workspaces' }
                           ].map((shortcut, idx) => (
                             <div
                               key={idx}

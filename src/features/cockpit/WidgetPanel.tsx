@@ -170,7 +170,7 @@ export const WidgetPanel: React.FC = () => {
             <RouteGuard>
               <Suspense fallback={<ModuleLoading />}>
                 <Routes>
-                  <Route path="/" element={<Navigate replace to="/station/hedge-fund" />} />
+                  <Route path="/" element={<Navigate replace to="/workbench" />} />
                   <Route path="/station/hedge-fund" element={<HedgeFundStationPage />} />
                   <Route path="/station/live" element={<LiveTradingStationPage />} />
                   <Route path="/cockpit" element={<TradingCockpitPage />} />
@@ -191,7 +191,7 @@ export const WidgetPanel: React.FC = () => {
                   <Route path="/workbench" element={<DeskSpacePage />} />
                   <Route path="/diagnostics" element={<DiagnosticsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="*" element={<Navigate replace to="/station/hedge-fund" />} />
+                  <Route path="*" element={<Navigate replace to="/workbench" />} />
                 </Routes>
               </Suspense>
             </RouteGuard>

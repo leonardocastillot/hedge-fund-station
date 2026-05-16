@@ -10,6 +10,8 @@ evidence, and reviewability.
 3. Read `agent_tasks.json` and `progress/current.md`.
 4. Choose one task, or continue the active handoff.
 5. Write the session plan in `progress/current.md`.
+6. For strategy work, read `docs/operations/agents/strategy-harness.md` and
+   claim exactly one active `strategy_id`.
 
 ## Responsibilities
 
@@ -17,6 +19,8 @@ evidence, and reviewability.
 - Keep the task small enough to review.
 - Split independent research into explorer tasks when useful.
 - Assign implementer and reviewer roles.
+- For strategy work, prevent overlapping edits to the same `strategy_id` unless
+  the task is explicitly parallelizable and the split is recorded.
 - Keep the anti-telephone rule: subagents write files and return pointers.
 - Update task status only when evidence supports the change.
 

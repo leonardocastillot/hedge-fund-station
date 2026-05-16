@@ -16,6 +16,9 @@ canonical docs.
 - File-based agent coordination starts from `agent_tasks.json`,
   `progress/current.md`, `CHECKPOINTS.md`, and
   `docs/operations/agents/file-harness.md`.
+- Strategy agent work follows `docs/operations/agents/strategy-harness.md`:
+  one leader per `strategy_id`, backend artifacts as truth, and live-gate
+  packages remain blocked.
 - Generated agent evidence belongs under
   `backend/hyperliquid_gateway/data/agent_runs/`.
 - Shared memory is curated under `docs/operations/agents/memory/`; follow
@@ -33,6 +36,7 @@ canonical docs.
 - Agent orientation: `docs/operations/agents/orientation.md`
 - Harness: `docs/operations/agents/harness.md`
 - File harness: `docs/operations/agents/file-harness.md`
+- Strategy harness: `docs/operations/agents/strategy-harness.md`
 - Memory policy: `docs/operations/agents/memory/memory-policy.md`
 - Graph and memory operating system:
   `docs/operations/agents/graph-memory-operating-system.md`

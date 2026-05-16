@@ -11,6 +11,7 @@ import {
   GitBranch,
   Network,
   RefreshCw,
+  Search,
   ShieldCheck,
   Target
 } from 'lucide-react';
@@ -34,7 +35,9 @@ import {
   type HyperliquidStrategyCatalogRow,
   type HyperliquidStrategyLearningEvent,
   type HyperliquidStrategyLearningKind,
-  type HyperliquidStrategyLearningOutcome
+  type HyperliquidStrategyLearningOutcome,
+  type HyperliquidStrategyMemoryResult,
+  type HyperliquidStrategyMemoryStatus
 } from '@/services/hyperliquidService';
 import type {
   ObsidianGraphEdge,
@@ -796,6 +799,11 @@ export default function MemoryGraphPage() {
   const [strategies, setStrategies] = useState<HyperliquidStrategyCatalogRow[]>([]);
   const [learningEvents, setLearningEvents] = useState<HyperliquidStrategyLearningEvent[]>([]);
   const [obsidianGraph, setObsidianGraph] = useState<ObsidianGraphResponse | null>(null);
+  const [strategyMemoryStatus, setStrategyMemoryStatus] = useState<HyperliquidStrategyMemoryStatus | null>(null);
+  const [strategyMemoryQuery, setStrategyMemoryQuery] = useState('');
+  const [strategyMemoryResults, setStrategyMemoryResults] = useState<HyperliquidStrategyMemoryResult[]>([]);
+  const [strategyMemorySearching, setStrategyMemorySearching] = useState(false);
+  const [strategyMemorySyncing, setStrategyMemorySyncing] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [activeLens, setActiveLens] = useState<MemoryLensId>('actionable');
@@ -817,12 +825,14 @@ export default function MemoryGraphPage() {
     else setRefreshing(true);
     setError(null);
     try {
-      const [catalog, learning] = await Promise.all([
+      const [catalog, learning, indexStatus] = await Promise.all([
         hyperliquidService.getStrategyCatalog(500),
-        hyperliquidService.getStrategyLearning(undefined, 500)
+        hyperliquidService.getStrategyLearning(undefined, 500),
+        hyperliquidService.getStrategyMemoryStatus().catch(() => null)
       ]);
       setStrategies(catalog.strategies);
       setLearningEvents(learning.events);
+      setStrategyMemoryStatus(indexStatus);
       if (activeWorkspace && window.electronAPI?.obsidian?.getGraph) {
         try {
           const graph = await withTimeout(
@@ -965,6 +975,44 @@ export default function MemoryGraphPage() {
       setError(err instanceof Error ? err.message : 'Failed to sync strategy memory.');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const runStrategyMemorySync = async () => {
+    setStrategyMemorySyncing(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await hyperliquidService.syncStrategyMemory({ processJobs: true });
+      setStrategyMemoryStatus(result.status ?? await hyperliquidService.getStrategyMemoryStatus());
+      setMessage(`Indexed ${result.sourceCount} sources into ${result.chunkCount} chunks. ${result.processedJobs} follow-up jobs processed.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync backend strategy memory.');
+    } finally {
+      setStrategyMemorySyncing(false);
+    }
+  };
+
+  const runStrategyMemoryQuery = async () => {
+    const searchText = strategyMemoryQuery.trim() || selectedSummary?.strategy.strategyId || query.trim();
+    if (!searchText) {
+      setError('Enter a memory search query or select a strategy.');
+      return;
+    }
+
+    setStrategyMemorySearching(true);
+    setError(null);
+    try {
+      const response = await hyperliquidService.queryStrategyMemory(searchText, {
+        strategyId: selectedSummary?.strategy.strategyId ?? undefined,
+        limit: 8
+      });
+      setStrategyMemoryResults(response.results);
+      setStrategyMemoryQuery(searchText);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to query backend strategy memory.');
+    } finally {
+      setStrategyMemorySearching(false);
     }
   };
 
@@ -1125,6 +1173,18 @@ export default function MemoryGraphPage() {
             onCancel={() => setCaptureOpen(false)}
           />
         ) : null}
+        <StrategyMemoryIndexPanel
+          status={strategyMemoryStatus}
+          query={strategyMemoryQuery}
+          results={strategyMemoryResults}
+          selectedStrategyId={selectedSummary?.strategy.strategyId || null}
+          workspacePath={activeWorkspace?.path}
+          syncing={strategyMemorySyncing}
+          searching={strategyMemorySearching}
+          onQueryChange={setStrategyMemoryQuery}
+          onSearch={() => void runStrategyMemoryQuery()}
+          onSync={() => void runStrategyMemorySync()}
+        />
       </section>
 
       <section className="grid min-w-0 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_25rem]">
@@ -1155,6 +1215,119 @@ export default function MemoryGraphPage() {
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+function StrategyMemoryIndexPanel({
+  status,
+  query,
+  results,
+  selectedStrategyId,
+  workspacePath,
+  syncing,
+  searching,
+  onQueryChange,
+  onSearch,
+  onSync
+}: {
+  status: HyperliquidStrategyMemoryStatus | null;
+  query: string;
+  results: HyperliquidStrategyMemoryResult[];
+  selectedStrategyId: string | null;
+  workspacePath?: string;
+  syncing: boolean;
+  searching: boolean;
+  onQueryChange: (value: string) => void;
+  onSearch: () => void;
+  onSync: () => void;
+}) {
+  const openResultPath = async (path: string) => {
+    if (!window.electronAPI?.obsidian?.openPath) return;
+    await window.electronAPI.obsidian.openPath(toOpenPath(path, workspacePath) || path);
+  };
+
+  return (
+    <div className="mt-4 rounded-md border border-cyan-300/20 bg-cyan-500/[0.07] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-100/75">
+            <Database className="h-4 w-4" />
+            Backend Memory Index
+          </div>
+          <div className="mt-1 text-sm text-white/70">
+            {status?.available
+              ? `${status.sourceCount} sources / ${status.chunkCount} chunks / ${status.ftsAvailable ? 'FTS' : 'LIKE'} search`
+              : 'No backend index yet. Run sync to build it from repo evidence.'}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onSync}
+          disabled={syncing}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-cyan-300/25 bg-cyan-400/12 px-3 py-2 text-sm font-semibold text-cyan-50 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-white/35"
+        >
+          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Indexing' : 'Sync Index'}
+        </button>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 lg:flex-row">
+        <div className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-md border border-white/10 bg-black/30 px-3">
+          <Search className="h-4 w-4 shrink-0 text-cyan-100/65" />
+          <input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') onSearch();
+            }}
+            placeholder={selectedStrategyId ? `Search indexed evidence for ${selectedStrategyId}` : 'Search indexed strategy evidence'}
+            className="min-h-10 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onSearch}
+          disabled={searching}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:bg-white/[0.03] disabled:text-white/35"
+        >
+          <Search className={`h-4 w-4 ${searching ? 'animate-pulse' : ''}`} />
+          {searching ? 'Searching' : 'Search'}
+        </button>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        {results.length ? results.map((result) => (
+          <button
+            key={result.chunkId}
+            type="button"
+            onClick={() => void openResultPath(result.path)}
+            className="min-w-0 rounded-md border border-white/10 bg-black/25 p-3 text-left transition hover:border-cyan-300/30 hover:bg-black/35"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0 truncate text-sm font-semibold text-white">{result.title}</div>
+              <div className="shrink-0 rounded border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-white/45">
+                {result.sourceType.replace(/_/g, ' ')}
+              </div>
+            </div>
+            <div className="mt-1 break-words font-mono text-[10px] text-white/35">{result.path}</div>
+            <div className="mt-2 text-xs leading-5 text-white/65">{result.snippet}</div>
+            {result.entities.length ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {result.entities.slice(0, 6).map((entity) => (
+                  <span key={`${result.chunkId}:${entity}`} className="rounded border border-cyan-200/15 bg-cyan-400/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-50/75">
+                    {entity}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </button>
+        )) : (
+          <div className="rounded-md border border-dashed border-white/10 bg-black/20 p-3 text-sm text-white/40">
+            Indexed snippets will appear here after a search.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

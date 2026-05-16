@@ -13,6 +13,7 @@ Recommended contents:
 - [backend connectivity runbook](./backend-connectivity-runbook.md)
 - [agent operating system](./agents/README.md)
 - [agent harness engineering guide](./agents/harness.md)
+- [strategy agent harness](./agents/strategy-harness.md)
 - [new agent orientation](./agents/orientation.md)
 - [agent shared memory](./agents/memory/README.md)
 - [strategy readiness matrix](./strategy-readiness-matrix.md)
@@ -32,6 +33,8 @@ Start here for agent automation:
 - `product-objective.md` defines what recurring agents should optimize for
 - `agents/harness.md` defines mission classes, permissions, checks, artifacts,
   and anti-live-trading rules
+- `agents/strategy-harness.md` defines the strategy-specific agent workflow,
+  lifecycle gates, and blocked live-gate package contract
 - `agents/automation-system.md` defines safe automation classes and outputs
 - `agents/backlog.md` is the default improvement queue
 - `agents/templates/handoff.md` standardizes handoffs between agents

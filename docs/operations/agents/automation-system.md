@@ -64,7 +64,8 @@ Expected output:
 
 ### 2. Hedge Fund Workflow Audit
 
-Goal: make sure strategy work follows the official research pipeline.
+Goal: make sure strategy work follows the official research pipeline and
+`docs/operations/agents/strategy-harness.md`.
 
 Default scope:
 
@@ -80,6 +81,7 @@ Expected output:
 - backend modules without backtest/validation path
 - paper candidates without clear review path
 - missing risk, cost, or failure-mode sections
+- missing blocked live-gate package when production review is being prepared
 
 ### 3. Data Quality Audit
 
@@ -102,7 +104,8 @@ Expected output:
 
 ### 4. Validation Improvement Agent
 
-Goal: improve evidence before any strategy is promoted.
+Goal: improve evidence before any strategy is promoted and keep live-gate work
+blocked until explicit human approval.
 
 Default scope:
 
@@ -118,6 +121,8 @@ Expected output:
 - better cost/slippage assumptions
 - clearer anti-regime tests
 - replay or paper-review requirements
+- risk, monitoring, rollback, or operator sign-off gaps in blocked live-gate
+  packages
 
 ### 5. UI Review Agent
 
@@ -145,7 +150,7 @@ The current approved cadence for this repo is:
   loop that should create or materially improve exactly one backend-first
   strategy candidate, test it, validate it, compare it with the current
   comparable champion, and carry it as far toward paper/live-gate readiness as
-  evidence allows.
+  evidence allows under `docs/operations/agents/strategy-harness.md`.
 - daily at 03:30: follow-through improvement on the latest factory output or
   highest-upside validation-blocked strategy, biased toward fixing one concrete
   blocker, generating missing evidence, strengthening paper-readiness, or
@@ -160,7 +165,8 @@ Use these recurring checks inside that cadence:
   backend implementation, focused tests, backtest, validation, paper candidate
   when eligible, and a handoff. Report-only is reserved for hard blockers such
   as unsafe overlapping source changes, missing replay data, unavailable
-  services, or duplicated theses.
+  services, or duplicated theses. Strategy Factory runs use one leader per
+  `strategy_id` and leave the live gate blocked.
 - daily improvement: harness, `hf:doctor`, Graphify status, strategy/paper
   artifact status, latest factory handoff, and one focused improvement when
   safe.
@@ -171,6 +177,10 @@ Do not auto-merge or auto-promote strategy changes. Strategy promotion to live
 requires human review, paper evidence, risk limits, monitoring/kill-switches,
 rollback plan, production runbook, and explicit operator sign-off. Automations
 may prepare a blocked live-gate package; they must not route live orders.
+
+CLI enforcement for the strategy harness is a future v2 improvement. Until then,
+the docs contract is canonical and reviewers enforce it through handoffs,
+checkpoints, and task verification.
 
 ## Weekly Health Report Format
 

@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowDown, ArrowUp, Pin, PinOff, RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { TerminalPane } from './TerminalPane';
 import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useCommanderTasksContext } from '../../contexts/CommanderTasksContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
+import { useDeskSpaceContext, type TerminalSortMode } from '../../features/desks/DeskSpaceContext';
 import { loadAppSettings } from '../../utils/appSettings';
 import { getProviderMeta, resolveAgentRuntimeCommand } from '../../utils/agentRuntime';
 import { resolveTerminalShell } from '../../utils/terminalShell';
@@ -12,6 +14,13 @@ import type { TerminalSession } from '../../contexts/TerminalContext';
 import type { AgentProvider } from '../../types/agents';
 
 const MAX_TERMINALS = 12;
+const TERMINAL_SORT_OPTIONS: Array<{ value: TerminalSortMode; label: string }> = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'status', label: 'Status' },
+  { value: 'provider', label: 'Provider' },
+  { value: 'strategy', label: 'Strategy' },
+  { value: 'recent', label: 'Recent' }
+];
 type QuickTerminalType = 'shell' | 'codex' | 'opencode' | 'claude' | 'gemini' | 'dev' | 'git' | 'python';
 type AgentLauncherItem = {
   type: QuickTerminalType;
@@ -73,6 +82,19 @@ function buildAgentLauncherItems(shell?: string): AgentLauncherItem[] {
   ];
 }
 
+function buildTerminalStrategySessionMetadata(workspace?: { asset_symbol?: string; strategy_symbol?: string; name?: string } | null) {
+  const assetSymbol = (workspace?.asset_symbol || workspace?.strategy_symbol || '').toUpperCase();
+  if (!assetSymbol) {
+    return {};
+  }
+  return {
+    assetSymbol,
+    strategySessionId: `strategy-session-${assetSymbol.toLowerCase()}-${Date.now()}`,
+    strategySessionTitle: `${assetSymbol} draft strategy session`,
+    strategySessionStatus: 'draft' as const
+  };
+}
+
 function getLauncherStatus(item: AgentLauncherItem, terminals: TerminalSession[], limitReached: boolean): string {
   if (limitReached) {
     return 'limit reached';
@@ -100,7 +122,6 @@ function getLauncherStatus(item: AgentLauncherItem, terminals: TerminalSession[]
 
   const attentionCount = matching.filter((terminal) => (
     terminal.runtimeState === 'failed'
-    || terminal.runtimeState === 'stalled'
     || terminal.ptyState === 'failed'
   )).length;
   if (attentionCount > 0) {
@@ -112,6 +133,7 @@ function getLauncherStatus(item: AgentLauncherItem, terminals: TerminalSession[]
     || terminal.runtimeState === 'waiting-response'
     || terminal.runtimeState === 'handoff'
     || terminal.runtimeState === 'launching'
+    || terminal.runtimeState === 'stalled'
     || terminal.ptyState === 'creating'
   )).length;
 
@@ -122,18 +144,110 @@ function getLauncherStatus(item: AgentLauncherItem, terminals: TerminalSession[]
   return `${matching.length} open`;
 }
 
+function terminalKey(terminal: TerminalSession): string {
+  return terminal.sessionKey || terminal.id;
+}
+
+function terminalUpdatedAt(terminal: TerminalSession): number {
+  return terminal.lastOutputAt || terminal.lastStateChangeAt || terminal.createdAt || 0;
+}
+
+function terminalStatusRank(terminal: TerminalSession): number {
+  if (terminal.restoreState === 'reopenable') return 5;
+  if (terminal.runtimeState === 'failed' || terminal.ptyState === 'failed') return 0;
+  if (terminal.runtimeState === 'awaiting-approval') return 1;
+  if (
+    terminal.runtimeState === 'running'
+    || terminal.runtimeState === 'waiting-response'
+    || terminal.runtimeState === 'handoff'
+    || terminal.runtimeState === 'launching'
+    || terminal.runtimeState === 'stalled'
+    || terminal.ptyState === 'creating'
+  ) {
+    return 2;
+  }
+  if (terminal.runtimeState === 'ready') return 3;
+  if (terminal.runtimeState === 'completed') return 6;
+  return 4;
+}
+
+function terminalProviderLabel(terminal: TerminalSession): string {
+  if (terminal.runtimeProvider) return terminal.runtimeProvider;
+  if (terminal.terminalPurpose === 'dev-server' || terminal.autoCommand === 'npm run dev') return 'dev';
+  return 'shell';
+}
+
+function terminalStrategyLabel(terminal: TerminalSession): string {
+  return [
+    terminal.assetSymbol,
+    terminal.strategySessionTitle,
+    terminal.strategySessionId,
+    terminal.label
+  ].filter(Boolean).join(' / ');
+}
+
+function orderIndex(order: string[], key: string): number {
+  const index = order.indexOf(key);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+function sortWorkspaceTerminals(
+  terminals: TerminalSession[],
+  mode: TerminalSortMode,
+  order: string[],
+  pinnedKeys: string[]
+): TerminalSession[] {
+  const pinned = new Set(pinnedKeys);
+  return [...terminals].sort((a, b) => {
+    const aPinned = a.pinned || pinned.has(terminalKey(a));
+    const bPinned = b.pinned || pinned.has(terminalKey(b));
+    if (aPinned !== bPinned) {
+      return aPinned ? -1 : 1;
+    }
+
+    if (mode === 'status') {
+      return terminalStatusRank(a) - terminalStatusRank(b)
+        || terminalUpdatedAt(b) - terminalUpdatedAt(a)
+        || orderIndex(order, terminalKey(a)) - orderIndex(order, terminalKey(b));
+    }
+
+    if (mode === 'provider') {
+      return terminalProviderLabel(a).localeCompare(terminalProviderLabel(b))
+        || terminalUpdatedAt(b) - terminalUpdatedAt(a)
+        || orderIndex(order, terminalKey(a)) - orderIndex(order, terminalKey(b));
+    }
+
+    if (mode === 'strategy') {
+      return terminalStrategyLabel(a).localeCompare(terminalStrategyLabel(b))
+        || terminalUpdatedAt(b) - terminalUpdatedAt(a)
+        || orderIndex(order, terminalKey(a)) - orderIndex(order, terminalKey(b));
+    }
+
+    if (mode === 'recent') {
+      return terminalUpdatedAt(b) - terminalUpdatedAt(a)
+        || orderIndex(order, terminalKey(a)) - orderIndex(order, terminalKey(b));
+    }
+
+    return orderIndex(order, terminalKey(a)) - orderIndex(order, terminalKey(b))
+      || a.createdAt - b.createdAt;
+  });
+}
+
 export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 'all', embedded = false, compact = false }) => {
   const navigate = useNavigate();
   const {
     terminals,
     activeTerminalId,
     createTerminal,
+    relaunchTerminal,
     closeTerminal,
     setActiveTerminal,
     updateTerminalCwd,
     updateTerminalLabel,
     updateTerminalColor,
     updateTerminalRuntimeState,
+    moveTerminal,
+    toggleTerminalPinned,
     touchTerminalActivity,
     retryTerminalRuntime,
     toggleRainbowEffect,
@@ -141,10 +255,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
   } = useTerminalContext();
   const { runs, tasks, updateRun, updateTaskStatus } = useCommanderTasksContext();
   const { activeWorkspace, workspaces } = useWorkspaceContext();
+  const { getDeskState, setDeskState } = useDeskSpaceContext();
   const [layoutMode, setLayoutMode] = React.useState<'grid' | 'vertical'>(compact ? 'vertical' : 'grid');
   const [deskFilter, setDeskFilter] = React.useState<TerminalDeskFilter>(defaultDeskFilter);
   const [handoffNotice, setHandoffNotice] = React.useState<string | null>(null);
   const minimalCodeChrome = embedded && compact;
+  const deskState = React.useMemo(() => getDeskState(activeWorkspace?.id), [activeWorkspace?.id, getDeskState]);
   const terminalLimitReached = terminals.length >= MAX_TERMINALS;
   const settings = React.useMemo(() => loadAppSettings(), []);
   const activeShell = React.useMemo(
@@ -176,7 +292,67 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
 
     return terminals;
   }, [activeWorkspace?.id, activeWorkspace?.path, commandHubWorkspace?.id, commandHubWorkspace?.path, deskFilter, terminals]);
-  const visibleTerminals = workspaceVisibleTerminals;
+  const workspaceTerminalKeys = React.useMemo(
+    () => workspaceVisibleTerminals.map((terminal) => terminalKey(terminal)),
+    [workspaceVisibleTerminals]
+  );
+
+  React.useEffect(() => {
+    if (!activeWorkspace?.id || deskFilter !== 'active') {
+      return;
+    }
+
+    const currentOrder = deskState.terminalOrder;
+    const nextOrder = [
+      ...currentOrder.filter((key) => workspaceTerminalKeys.includes(key)),
+      ...workspaceTerminalKeys.filter((key) => !currentOrder.includes(key))
+    ];
+    const nextPinned = deskState.pinnedTerminalKeys.filter((key) => workspaceTerminalKeys.includes(key));
+
+    if (
+      nextOrder.length !== currentOrder.length
+      || nextOrder.some((key, index) => key !== currentOrder[index])
+      || nextPinned.length !== deskState.pinnedTerminalKeys.length
+    ) {
+      setDeskState(activeWorkspace.id, {
+        terminalOrder: nextOrder,
+        pinnedTerminalKeys: nextPinned
+      });
+    }
+  }, [
+    activeWorkspace?.id,
+    deskFilter,
+    deskState.pinnedTerminalKeys,
+    deskState.terminalOrder,
+    setDeskState,
+    workspaceTerminalKeys
+  ]);
+
+  React.useEffect(() => {
+    if (!activeWorkspace?.id || !activeTerminalId) {
+      return;
+    }
+
+    const activeTerminal = workspaceVisibleTerminals.find((terminal) => terminal.id === activeTerminalId);
+    if (!activeTerminal) {
+      return;
+    }
+
+    const key = terminalKey(activeTerminal);
+    if (deskState.activeTerminalKey !== key) {
+      setDeskState(activeWorkspace.id, { activeTerminalKey: key });
+    }
+  }, [activeTerminalId, activeWorkspace?.id, deskState.activeTerminalKey, setDeskState, workspaceVisibleTerminals]);
+
+  const visibleTerminals = React.useMemo(
+    () => sortWorkspaceTerminals(
+      workspaceVisibleTerminals,
+      deskState.terminalSortMode,
+      deskState.terminalOrder,
+      deskState.pinnedTerminalKeys
+    ),
+    [deskState.pinnedTerminalKeys, deskState.terminalOrder, deskState.terminalSortMode, workspaceVisibleTerminals]
+  );
   const missionTerminals = React.useMemo(
     () => visibleTerminals.filter((terminal) => Boolean(terminal.missionTitle || terminal.terminalPurpose === 'mission-console')),
     [visibleTerminals]
@@ -233,13 +409,14 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
 
       for (const run of candidateRuns) {
         const terminalId = run.terminalIds[0];
-        if (!terminalId || typeof window.electronAPI.terminal.getSnapshot !== 'function') {
+        const getSnapshot = window.electronAPI?.terminal?.getSnapshot;
+        if (!terminalId || typeof getSnapshot !== 'function') {
           continue;
         }
 
         try {
           // eslint-disable-next-line no-await-in-loop
-          const snapshot = await window.electronAPI.terminal.getSnapshot(terminalId);
+          const snapshot = await getSnapshot(terminalId);
           if (cancelled || !snapshot) {
             continue;
           }
@@ -286,7 +463,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
 
     const syncMissionSnapshots = async () => {
       for (const terminal of terminals) {
-        const getSnapshot = window.electronAPI.terminal.getSnapshot;
+        const getSnapshot = window.electronAPI?.terminal?.getSnapshot;
         if (
           !terminal.runId
           || !terminal.missionTitle
@@ -416,6 +593,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
       autoCommand,
       {
         workspaceId: activeWorkspace?.id,
+        ...buildTerminalStrategySessionMetadata(activeWorkspace),
         terminalPurpose,
         ...(runtimeProvider ? { runtimeProvider, agentName: `${label} Agent` } : {})
       }
@@ -425,6 +603,73 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
   const handleCloseTerminal = (terminalId: string) => {
     closeTerminal(terminalId);
   };
+
+  const handleSortModeChange = React.useCallback((mode: TerminalSortMode) => {
+    if (!activeWorkspace?.id) {
+      return;
+    }
+    setDeskState(activeWorkspace.id, { terminalSortMode: mode });
+  }, [activeWorkspace?.id, setDeskState]);
+
+  const handleMoveTerminal = React.useCallback((terminal: TerminalSession, direction: 'up' | 'down') => {
+    if (!activeWorkspace?.id) {
+      return;
+    }
+
+    const orderedKeys = visibleTerminals.map((item) => terminalKey(item));
+    const key = terminalKey(terminal);
+    const index = orderedKeys.indexOf(key);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (index < 0 || targetIndex < 0 || targetIndex >= orderedKeys.length) {
+      return;
+    }
+
+    const nextOrder = [...orderedKeys];
+    const [item] = nextOrder.splice(index, 1);
+    nextOrder.splice(targetIndex, 0, item);
+    setDeskState(activeWorkspace.id, {
+      terminalSortMode: 'manual',
+      terminalOrder: nextOrder
+    });
+    moveTerminal(terminal.id, direction);
+  }, [activeWorkspace?.id, moveTerminal, setDeskState, visibleTerminals]);
+
+  const handleTogglePin = React.useCallback((terminal: TerminalSession) => {
+    if (!activeWorkspace?.id) {
+      return;
+    }
+
+    const key = terminalKey(terminal);
+    const pinned = new Set(deskState.pinnedTerminalKeys);
+    const nextPinned = !(pinned.has(key) || terminal.pinned);
+    if (nextPinned) {
+      pinned.add(key);
+    } else {
+      pinned.delete(key);
+    }
+    if (Boolean(terminal.pinned) !== nextPinned) {
+      toggleTerminalPinned(terminal.id);
+    }
+    setDeskState(activeWorkspace.id, { pinnedTerminalKeys: Array.from(pinned) });
+  }, [activeWorkspace?.id, deskState.pinnedTerminalKeys, setDeskState, toggleTerminalPinned]);
+
+  const handleRelaunchTerminal = React.useCallback((terminal: TerminalSession) => {
+    const nextId = relaunchTerminal(terminalKey(terminal));
+    if (nextId && activeWorkspace?.id) {
+      setDeskState(activeWorkspace.id, { activeTerminalKey: terminalKey(terminal) });
+    }
+  }, [activeWorkspace?.id, relaunchTerminal, setDeskState]);
+
+  const handleFocusTerminal = React.useCallback((terminal: TerminalSession) => {
+    if (terminal.restoreState === 'reopenable') {
+      return;
+    }
+
+    setActiveTerminal(terminal.id);
+    if (activeWorkspace?.id) {
+      setDeskState(activeWorkspace.id, { activeTerminalKey: terminalKey(terminal) });
+    }
+  }, [activeWorkspace?.id, setActiveTerminal, setDeskState]);
 
   const handleExportMissionHandoff = async (terminal: TerminalSession) => {
     const getSnapshot = window.electronAPI.terminal.getSnapshot;
@@ -544,6 +789,16 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
       flexDirection: 'column',
       gap: minimalCodeChrome ? '0' : '8px'
     }}>
+      {minimalCodeChrome ? (
+        <TerminalOrderToolbar
+          value={deskState.terminalSortMode}
+          count={visibleTerminals.length}
+          restoreCount={visibleTerminals.filter((terminal) => terminal.restoreState === 'reopenable').length}
+          onChange={handleSortModeChange}
+          compact
+        />
+      ) : null}
+
       {!minimalCodeChrome ? (
         <div style={{
           display: 'flex',
@@ -607,6 +862,13 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
               onChange={setDeskFilter}
               activeDeskName={activeWorkspace?.name}
               commandHubName={commandHubWorkspace?.name}
+            />
+
+            <TerminalOrderToolbar
+              value={deskState.terminalSortMode}
+              count={visibleTerminals.length}
+              restoreCount={visibleTerminals.filter((terminal) => terminal.restoreState === 'reopenable').length}
+              onChange={handleSortModeChange}
             />
           </div>
 
@@ -700,48 +962,173 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ defaultDeskFilter = 
               overflow: 'hidden',
               contain: 'layout paint'
             }}
-            onClick={() => setActiveTerminal(terminal.id)}
+            onClick={() => handleFocusTerminal(terminal)}
           >
-            <div style={{ width: '100%', height: '100%' }}>
-              <TerminalPane
-                id={terminal.id}
-                cwd={terminal.cwd}
-                shell={terminal.shell}
-                label={terminal.label}
-                color={terminal.color}
-                rainbowEffect={terminal.rainbowEffect}
-                autoCommand={terminal.autoCommand}
-                missionPrompt={terminal.missionPrompt}
-                missionTitle={terminal.missionTitle}
-                agentName={terminal.agentName}
-                terminalPurpose={terminal.terminalPurpose}
-                runId={terminal.runId}
-                currentCommand={terminal.currentCommand}
-                runtimeProvider={terminal.runtimeProvider}
-                runtimeState={terminal.runtimeState}
-                runtimeDetail={terminal.runtimeDetail}
-                runtimeAttempts={terminal.runtimeAttempts}
-                ptyState={terminal.ptyState}
-                ptyDetail={terminal.ptyDetail}
-                onClose={() => handleCloseTerminal(terminal.id)}
-                onTitleChange={(nextTitle) => updateTerminalCwd(terminal.id, nextTitle)}
-                onLabelChange={(newLabel) => updateTerminalLabel(terminal.id, newLabel)}
-                onColorChange={(newColor) => updateTerminalColor(terminal.id, newColor)}
-                onToggleRainbow={() => toggleRainbowEffect(terminal.id)}
-                onRuntimeStateChange={(state, detail) => updateTerminalRuntimeState(terminal.id, state, detail)}
-                onActivity={() => touchTerminalActivity(terminal.id)}
-                onRuntimeRetry={(detail) => retryTerminalRuntime(terminal.id, detail)}
-                onOpenDiagnostics={handleOpenDiagnostics}
-                isActive={activeTerminalId === terminal.id}
-                compactChrome={minimalCodeChrome}
+            <TerminalItemControls
+              terminal={terminal}
+              pinned={Boolean(terminal.pinned || deskState.pinnedTerminalKeys.includes(terminalKey(terminal)))}
+              onMove={handleMoveTerminal}
+              onTogglePin={handleTogglePin}
+              onRelaunch={handleRelaunchTerminal}
+            />
+            {terminal.restoreState === 'reopenable' ? (
+              <RestoreTerminalCard
+                terminal={terminal}
+                onRelaunch={handleRelaunchTerminal}
+                onClose={handleCloseTerminal}
               />
-            </div>
+            ) : (
+              <div style={{ width: '100%', height: '100%' }}>
+                <TerminalPane
+                  id={terminal.id}
+                  cwd={terminal.cwd}
+                  shell={terminal.shell}
+                  label={terminal.label}
+                  color={terminal.color}
+                  rainbowEffect={terminal.rainbowEffect}
+                  autoCommand={terminal.autoCommand}
+                  missionPrompt={terminal.missionPrompt}
+                  missionTitle={terminal.missionTitle}
+                  agentName={terminal.agentName}
+                  terminalPurpose={terminal.terminalPurpose}
+                  runId={terminal.runId}
+                  currentCommand={terminal.currentCommand}
+                  runtimeProvider={terminal.runtimeProvider}
+                  runtimeState={terminal.runtimeState}
+                  runtimeDetail={terminal.runtimeDetail}
+                  runtimeAttempts={terminal.runtimeAttempts}
+                  ptyState={terminal.ptyState}
+                  ptyDetail={terminal.ptyDetail}
+                  onClose={() => handleCloseTerminal(terminal.id)}
+                  onTitleChange={(nextTitle) => updateTerminalCwd(terminal.id, nextTitle)}
+                  onLabelChange={(newLabel) => updateTerminalLabel(terminal.id, newLabel)}
+                  onColorChange={(newColor) => updateTerminalColor(terminal.id, newColor)}
+                  onToggleRainbow={() => toggleRainbowEffect(terminal.id)}
+                  onRuntimeStateChange={(state, detail) => updateTerminalRuntimeState(terminal.id, state, detail)}
+                  onActivity={() => touchTerminalActivity(terminal.id)}
+                  onRuntimeRetry={(detail) => retryTerminalRuntime(terminal.id, detail)}
+                  onOpenDiagnostics={handleOpenDiagnostics}
+                  isActive={activeTerminalId === terminal.id}
+                  compactChrome={minimalCodeChrome}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
     </div>
   );
 };
+
+function TerminalOrderToolbar({
+  value,
+  count,
+  restoreCount,
+  onChange,
+  compact = false
+}: {
+  value: TerminalSortMode;
+  count: number;
+  restoreCount: number;
+  onChange: (value: TerminalSortMode) => void;
+  compact?: boolean;
+}) {
+  return (
+    <div style={compact ? compactOrderToolbarStyle : orderToolbarStyle}>
+      <SlidersHorizontal size={compact ? 12 : 13} />
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as TerminalSortMode)}
+        style={orderSelectStyle}
+        title="Terminal order"
+        aria-label="Terminal order"
+      >
+        {TERMINAL_SORT_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+      <span style={orderCountStyle}>{count}</span>
+      {restoreCount > 0 ? <span style={restoreCountStyle}>{restoreCount} restore</span> : null}
+    </div>
+  );
+}
+
+function TerminalItemControls({
+  terminal,
+  pinned,
+  onMove,
+  onTogglePin,
+  onRelaunch
+}: {
+  terminal: TerminalSession;
+  pinned: boolean;
+  onMove: (terminal: TerminalSession, direction: 'up' | 'down') => void;
+  onTogglePin: (terminal: TerminalSession) => void;
+  onRelaunch: (terminal: TerminalSession) => void;
+}) {
+  return (
+    <div style={terminalItemControlsStyle} onClick={(event) => event.stopPropagation()}>
+      <button type="button" onClick={() => onMove(terminal, 'up')} style={floatingToolButtonStyle} title="Move up" aria-label="Move terminal up">
+        <ArrowUp size={12} />
+      </button>
+      <button type="button" onClick={() => onMove(terminal, 'down')} style={floatingToolButtonStyle} title="Move down" aria-label="Move terminal down">
+        <ArrowDown size={12} />
+      </button>
+      <button
+        type="button"
+        onClick={() => onTogglePin(terminal)}
+        style={{
+          ...floatingToolButtonStyle,
+          color: pinned ? 'var(--app-accent)' : '#cbd5e1',
+          borderColor: pinned ? 'var(--app-border-strong)' : 'rgba(148, 163, 184, 0.16)'
+        }}
+        title={pinned ? 'Unpin' : 'Pin'}
+        aria-label={pinned ? 'Unpin terminal' : 'Pin terminal'}
+      >
+        {pinned ? <PinOff size={12} /> : <Pin size={12} />}
+      </button>
+      {terminal.restoreState === 'reopenable' ? (
+        <button type="button" onClick={() => onRelaunch(terminal)} style={floatingToolButtonStyle} title="Relaunch" aria-label="Relaunch terminal">
+          <RotateCcw size={12} />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function RestoreTerminalCard({
+  terminal,
+  onRelaunch,
+  onClose
+}: {
+  terminal: TerminalSession;
+  onRelaunch: (terminal: TerminalSession) => void;
+  onClose: (terminalId: string) => void;
+}) {
+  const command = terminal.currentCommand || terminal.autoCommand || 'interactive shell';
+  const detail = terminal.restoreReason || terminal.runtimeDetail || terminal.ptyDetail || 'Terminal process is not running.';
+  return (
+    <section style={restoreCardStyle}>
+      <div style={restoreCardHeaderStyle}>
+        <div style={{ minWidth: 0 }}>
+          <div style={restoreCardTitleStyle}>{terminal.label}</div>
+          <div style={restoreCardMetaStyle}>{terminalProviderLabel(terminal)} / {command}</div>
+        </div>
+        <button type="button" onClick={() => onClose(terminal.id)} style={restoreIconButtonStyle} title="Remove" aria-label="Remove restored terminal">
+          <X size={13} />
+        </button>
+      </div>
+      <div style={restoreDetailStyle}>{detail}</div>
+      {terminal.lastKnownExcerpt ? (
+        <pre style={restoreExcerptStyle}>{terminal.lastKnownExcerpt}</pre>
+      ) : null}
+      <button type="button" onClick={() => onRelaunch(terminal)} style={restoreButtonStyle}>
+        <RotateCcw size={14} />
+        Relaunch
+      </button>
+    </section>
+  );
+}
 
 const missionTinyButtonStyle: React.CSSProperties = {
   border: '1px solid var(--app-border-strong)',
@@ -751,6 +1138,178 @@ const missionTinyButtonStyle: React.CSSProperties = {
   padding: '5px 8px',
   fontSize: '10px',
   fontWeight: 800,
+  cursor: 'pointer'
+};
+
+const orderToolbarStyle: React.CSSProperties = {
+  minHeight: '24px',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '5px',
+  border: '1px solid var(--app-border)',
+  borderRadius: '6px',
+  background: 'var(--app-panel-muted)',
+  color: 'var(--app-subtle)',
+  padding: '2px 6px',
+  fontSize: '10px',
+  fontWeight: 850
+};
+
+const compactOrderToolbarStyle: React.CSSProperties = {
+  ...orderToolbarStyle,
+  height: '28px',
+  minHeight: '28px',
+  borderRadius: '0',
+  borderLeft: 0,
+  borderRight: 0,
+  borderTop: 0,
+  justifyContent: 'flex-start',
+  flexShrink: 0
+};
+
+const orderSelectStyle: React.CSSProperties = {
+  height: '20px',
+  minWidth: '74px',
+  border: '1px solid var(--app-border)',
+  borderRadius: '5px',
+  background: 'rgba(2, 6, 23, 0.84)',
+  color: 'var(--app-text)',
+  fontSize: '10px',
+  fontWeight: 850,
+  outline: 'none'
+};
+
+const orderCountStyle: React.CSSProperties = {
+  minWidth: '18px',
+  height: '18px',
+  borderRadius: '999px',
+  background: 'var(--app-accent-soft)',
+  color: 'var(--app-accent)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '9px',
+  fontWeight: 900
+};
+
+const restoreCountStyle: React.CSSProperties = {
+  color: '#fbbf24',
+  fontSize: '9px',
+  fontWeight: 900,
+  whiteSpace: 'nowrap'
+};
+
+const terminalItemControlsStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '5px',
+  right: '5px',
+  zIndex: 12,
+  display: 'inline-flex',
+  gap: '3px',
+  padding: '3px',
+  borderRadius: '7px',
+  border: '1px solid rgba(148, 163, 184, 0.12)',
+  background: 'rgba(2, 6, 23, 0.72)',
+  backdropFilter: 'blur(10px)'
+};
+
+const floatingToolButtonStyle: React.CSSProperties = {
+  width: '20px',
+  height: '20px',
+  borderRadius: '5px',
+  border: '1px solid rgba(148, 163, 184, 0.16)',
+  background: 'rgba(15, 23, 42, 0.86)',
+  color: '#cbd5e1',
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer'
+};
+
+const restoreCardStyle: React.CSSProperties = {
+  height: '100%',
+  minHeight: '180px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '10px',
+  border: '1px solid var(--app-border-strong)',
+  borderRadius: '8px',
+  background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.95))',
+  color: 'var(--app-text)',
+  padding: '36px 12px 12px',
+  overflow: 'hidden'
+};
+
+const restoreCardHeaderStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
+  gap: '8px'
+};
+
+const restoreCardTitleStyle: React.CSSProperties = {
+  minWidth: 0,
+  color: 'var(--app-text)',
+  fontSize: '12px',
+  fontWeight: 900,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+};
+
+const restoreCardMetaStyle: React.CSSProperties = {
+  marginTop: '4px',
+  color: 'var(--app-subtle)',
+  fontFamily: '"Cascadia Mono", "SFMono-Regular", Consolas, monospace',
+  fontSize: '10px',
+  fontWeight: 750,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+};
+
+const restoreIconButtonStyle: React.CSSProperties = {
+  ...floatingToolButtonStyle,
+  position: 'relative',
+  flexShrink: 0
+};
+
+const restoreDetailStyle: React.CSSProperties = {
+  color: '#fbbf24',
+  fontSize: '11px',
+  fontWeight: 800,
+  lineHeight: 1.4
+};
+
+const restoreExcerptStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  margin: 0,
+  padding: '8px',
+  borderRadius: '7px',
+  border: '1px solid var(--app-border)',
+  background: 'rgba(2, 6, 23, 0.76)',
+  color: 'var(--app-muted)',
+  fontSize: '10px',
+  lineHeight: 1.45,
+  overflow: 'hidden',
+  whiteSpace: 'pre-wrap'
+};
+
+const restoreButtonStyle: React.CSSProperties = {
+  height: '30px',
+  borderRadius: '7px',
+  border: '1px solid var(--app-border-strong)',
+  background: 'var(--app-accent-soft)',
+  color: 'var(--app-accent)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '7px',
+  fontSize: '11px',
+  fontWeight: 900,
   cursor: 'pointer'
 };
 
@@ -1004,13 +1563,15 @@ function deriveRunState(
   if (terminal.runtimeState === 'ready' || terminal.runtimeState === 'handoff' || terminal.runtimeState === 'waiting-response' || terminal.runtimeState === 'running') {
     return {
       status: 'running',
-      launchState: staleRuntime ? 'attention' : 'ready',
+      launchState: 'ready',
       summary: staleRuntime
-        ? `No runtime output for ${Math.round((now - (terminal.lastOutputAt || now)) / 1000)}s`
+        ? `Working; no recent runtime output for ${Math.round((now - (terminal.lastOutputAt || now)) / 1000)}s`
         : terminal.runtimeDetail || (terminal.runtimeState === 'waiting-response'
         ? 'Mission dispatched, waiting for agent response'
         : terminal.runtimeState === 'handoff'
           ? 'Runtime handshake detected'
+        : terminal.runtimeState === 'ready'
+          ? 'Runtime ready for operator input'
         : 'Mission running in terminal')
     };
   }
@@ -1018,8 +1579,8 @@ function deriveRunState(
   if (terminal.runtimeState === 'stalled') {
     return {
       status: currentStatus === 'queued' ? 'queued' : 'running',
-      launchState: 'attention',
-      summary: terminal.runtimeDetail || 'Runtime stalled before producing output'
+      launchState: 'ready',
+      summary: terminal.runtimeDetail || 'Runtime is still opening or waiting for output'
     };
   }
 

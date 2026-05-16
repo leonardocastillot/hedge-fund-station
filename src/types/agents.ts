@@ -11,7 +11,7 @@ export type AgentRole =
   | 'execution'
   | 'risk'
   | 'data-engineer';
-export type AgentProvider = 'claude' | 'codex' | 'gemini';
+export type AgentProvider = 'claude' | 'codex' | 'gemini' | 'opencode';
 
 export interface AgentProfile {
   id: string;

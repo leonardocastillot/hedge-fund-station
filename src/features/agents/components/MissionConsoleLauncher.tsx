@@ -208,7 +208,7 @@ export const MissionConsoleLauncher: React.FC<MissionConsoleLauncherProps> = ({ 
         <div>
           <div style={eyebrowStyle}>Mission Console V1</div>
           <div style={titleStyle}>Useful CLI missions for this desk</div>
-          <div style={copyStyle}>Launch Codex, Claude, or Gemini with desk context, guardrails, and an auditable handoff path.</div>
+          <div style={copyStyle}>Launch Codex, OpenCode, Claude, or Gemini with desk context, guardrails, and an auditable handoff path.</div>
         </div>
         <div style={{ ...providerBadgeStyle, color: providerMeta.accent, background: providerMeta.glow }}>
           {providerMeta.label}
@@ -220,6 +220,7 @@ export const MissionConsoleLauncher: React.FC<MissionConsoleLauncherProps> = ({ 
           <span style={labelStyle}>Provider</span>
           <select value={provider} onChange={(event) => setProvider(event.target.value as AgentProvider)} style={inputStyle}>
             <option value="codex">Codex</option>
+            <option value="opencode">OpenCode</option>
             <option value="claude">Claude</option>
             <option value="gemini">Gemini</option>
           </select>

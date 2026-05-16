@@ -10,6 +10,7 @@ Hedge Fund Station. Reviewers should use this file before approving a task.
 - [ ] `progress/current.md` exists.
 - [ ] `progress/history.md` exists.
 - [ ] `docs/operations/agents/file-harness.md` exists.
+- [ ] `docs/operations/agents/strategy-harness.md` exists.
 - [ ] `docs/operations/agents/roles/` contains leader, explorer,
       implementer, and reviewer contracts.
 - [ ] `rtk npm run agent:check` exits 0.
@@ -36,6 +37,8 @@ Hedge Fund Station. Reviewers should use this file before approving a task.
 - [ ] Completed tasks include evidence paths and verification commands.
 - [ ] Generated trading or strategy evidence remains in the backend artifact
       layer, not hidden in React or chat.
+- [ ] Strategy work follows the leader-per-`strategy_id` report naming contract
+      from `docs/operations/agents/strategy-harness.md`.
 
 ## C4 - Verification Is Real
 
@@ -43,6 +46,8 @@ Hedge Fund Station. Reviewers should use this file before approving a task.
 - [ ] Mission-specific commands from `agent_tasks.json` were run or skipped
       with an explicit reason.
 - [ ] Strategy work uses stable `hf:*` commands when applicable.
+- [ ] Strategy work is not marked complete from Agent Research OS or LLM debate
+      alone; backend artifacts and docs remain source of truth.
 - [ ] UI work runs `rtk npm run build` or records why it was not practical.
 - [ ] No task is marked `done` based only on model confidence or chat claims.
 
@@ -63,6 +68,9 @@ Hedge Fund Station. Reviewers should use this file before approving a task.
 - [ ] Any live or production task stays `blocked` until it names research,
       backtest, validation, paper evidence, risk limits, operator sign-off, and
       production runbook requirements.
+- [ ] Strategy production review uses a blocked package under
+      `docs/operations/strategy-live-gates/<strategy-id>.md` or records why the
+      package is not yet warranted.
 - [ ] No agent places live orders, changes credentials, or promotes a strategy
       to production without the documented gate package and explicit human
       approval.

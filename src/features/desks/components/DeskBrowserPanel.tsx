@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ExternalLink, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { recordTelemetry } from '@/services/performanceTelemetry';
 import type { DeskBrowserTab, Workspace } from '@/types/electron';
 import { useDeskSpaceContext } from '../DeskSpaceContext';
@@ -7,6 +7,7 @@ import { useDeskSpaceContext } from '../DeskSpaceContext';
 interface DeskBrowserPanelProps {
   workspace: Workspace;
   updateWorkspace: (id: string, updates: Partial<Workspace>) => Promise<void>;
+  compact?: boolean;
 }
 
 function slugify(value: string): string {
@@ -31,6 +32,28 @@ function isSafeBrowserUrl(url: string): boolean {
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch {
     return false;
+  }
+}
+
+function normalizeBrowserUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 'about:blank';
+  }
+
+  if (trimmed === 'about:blank') {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    if (/^[^\s]+\.[^\s]+$/.test(trimmed)) {
+      return `https://${trimmed}`;
+    }
+
+    return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
   }
 }
 
@@ -60,7 +83,7 @@ function cleanupWebview(webview: any) {
   }
 }
 
-export function DeskBrowserPanel({ workspace, updateWorkspace }: DeskBrowserPanelProps) {
+export function DeskBrowserPanel({ workspace, updateWorkspace, compact = false }: DeskBrowserPanelProps) {
   const { getDeskState, setDeskState } = useDeskSpaceContext();
   const deskState = getDeskState(workspace.id);
   const tabs = workspace.browser_tabs.length > 0 ? workspace.browser_tabs : [fallbackTab(workspace)];
@@ -70,6 +93,10 @@ export function DeskBrowserPanel({ workspace, updateWorkspace }: DeskBrowserPane
   const webviewRef = useRef<any>(null);
   const [draftTitle, setDraftTitle] = useState(activeTab.title);
   const [draftUrl, setDraftUrl] = useState(activeTab.url);
+  const [currentUrl, setCurrentUrl] = useState(safeUrl);
+  const [isLoading, setIsLoading] = useState(false);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,9 +107,10 @@ export function DeskBrowserPanel({ workspace, updateWorkspace }: DeskBrowserPane
 
   useEffect(() => {
     setDraftTitle(activeTab.title);
-    setDraftUrl(activeTab.url);
+    setDraftUrl(safeUrl);
+    setCurrentUrl(safeUrl);
     setNotice(null);
-  }, [activeTab.id, activeTab.title, activeTab.url]);
+  }, [activeTab.id, activeTab.title, safeUrl]);
 
   useEffect(() => {
     const webview = webviewRef.current;
@@ -97,15 +125,127 @@ export function DeskBrowserPanel({ workspace, updateWorkspace }: DeskBrowserPane
     };
   }, [safeUrl, workspace.id]);
 
+  useEffect(() => {
+    const webview = webviewRef.current;
+    if (!webview) {
+      return;
+    }
+
+    const updateNavigationState = () => {
+      try {
+        setCanGoBack(Boolean(webview.canGoBack?.()));
+        setCanGoForward(Boolean(webview.canGoForward?.()));
+      } catch {
+        setCanGoBack(false);
+        setCanGoForward(false);
+      }
+    };
+    const commitLocation = (url?: string, title?: string) => {
+      if (!url || !isSafeBrowserUrl(url)) {
+        return;
+      }
+
+      setCurrentUrl(url);
+      setDraftUrl(url);
+      updateNavigationState();
+
+      const nextTitle = title?.trim() || draftTitle.trim() || activeTab.title || url;
+      if (activeTab.url === url && activeTab.title === nextTitle) {
+        return;
+      }
+
+      void persistTabs(tabs.map((tab) => (
+        tab.id === activeTab.id
+          ? { ...tab, url, title: nextTitle }
+          : tab
+      )));
+    };
+    const handleStartLoading = () => {
+      setIsLoading(true);
+      updateNavigationState();
+    };
+    const handleStopLoading = () => {
+      setIsLoading(false);
+      updateNavigationState();
+      try {
+        commitLocation(webview.getURL?.(), webview.getTitle?.());
+      } catch {
+        updateNavigationState();
+      }
+    };
+    const handleNavigate = (event: { url?: string }) => {
+      commitLocation(event.url);
+    };
+    const handleTitle = (event: { title?: string }) => {
+      const title = event.title?.trim();
+      if (!title) {
+        return;
+      }
+      setDraftTitle(title);
+      try {
+        commitLocation(webview.getURL?.() || currentUrl, title);
+      } catch {
+        commitLocation(currentUrl, title);
+      }
+    };
+    const handleFail = (event: { errorCode?: number; errorDescription?: string }) => {
+      setIsLoading(false);
+      if (event.errorCode === -3) {
+        return;
+      }
+      setNotice(event.errorDescription || 'Could not load this page.');
+    };
+
+    webview.addEventListener?.('did-start-loading', handleStartLoading);
+    webview.addEventListener?.('did-stop-loading', handleStopLoading);
+    webview.addEventListener?.('did-navigate', handleNavigate);
+    webview.addEventListener?.('did-navigate-in-page', handleNavigate);
+    webview.addEventListener?.('page-title-updated', handleTitle);
+    webview.addEventListener?.('did-fail-load', handleFail);
+    updateNavigationState();
+
+    return () => {
+      webview.removeEventListener?.('did-start-loading', handleStartLoading);
+      webview.removeEventListener?.('did-stop-loading', handleStopLoading);
+      webview.removeEventListener?.('did-navigate', handleNavigate);
+      webview.removeEventListener?.('did-navigate-in-page', handleNavigate);
+      webview.removeEventListener?.('page-title-updated', handleTitle);
+      webview.removeEventListener?.('did-fail-load', handleFail);
+    };
+  }, [activeTab.id, activeTab.title, activeTab.url, currentUrl, draftTitle, tabs]);
+
   const persistTabs = async (nextTabs: DeskBrowserTab[]) => {
     await updateWorkspace(workspace.id, { browser_tabs: nextTabs });
   };
 
+  const navigateToDraftUrl = async () => {
+    const nextUrl = normalizeBrowserUrl(draftUrl);
+    if (!nextUrl || !isSafeBrowserUrl(nextUrl)) {
+      setNotice('Blocked URL. Use http, https, about:blank, or a search.');
+      return;
+    }
+
+    setNotice(null);
+    setCurrentUrl(nextUrl);
+    setDraftUrl(nextUrl);
+    await persistTabs(tabs.map((tab) => (
+      tab.id === activeTab.id
+        ? { ...tab, title: draftTitle.trim() || activeTab.title, url: nextUrl }
+        : tab
+    )));
+
+    try {
+      await webviewRef.current?.loadURL?.(nextUrl);
+    } catch {
+      setNotice('Could not navigate this webview.');
+    }
+  };
+
   const saveActiveTab = async () => {
     const title = draftTitle.trim() || activeTab.title;
-    const url = draftUrl.trim();
-    if (!isSafeBrowserUrl(url)) {
-      setNotice('Blocked URL. Use http, https, or about:blank.');
+    const url = normalizeBrowserUrl(draftUrl);
+    if (!url || !isSafeBrowserUrl(url)) {
+      setNotice('Blocked URL. Use http, https, about:blank, or a search.');
       return;
     }
 
@@ -114,14 +254,19 @@ export function DeskBrowserPanel({ workspace, updateWorkspace }: DeskBrowserPane
         ? { ...tab, title, url }
         : tab
     )));
+    try {
+      await webviewRef.current?.loadURL?.(url);
+    } catch {
+      // Persisting the tab is enough; Electron will also receive the src update.
+    }
     setNotice('Tab saved.');
   };
 
   const addTab = async () => {
-    const title = draftTitle.trim() || 'New Tab';
-    const url = draftUrl.trim() || 'about:blank';
-    if (!isSafeBrowserUrl(url)) {
-      setNotice('Blocked URL. Use http, https, or about:blank.');
+    const title = compact ? 'New Tab' : draftTitle.trim() || 'New Tab';
+    const url = compact ? 'about:blank' : normalizeBrowserUrl(draftUrl);
+    if (!url || !isSafeBrowserUrl(url)) {
+      setNotice('Blocked URL. Use http, https, about:blank, or a search.');
       return;
     }
 
@@ -151,82 +296,167 @@ export function DeskBrowserPanel({ workspace, updateWorkspace }: DeskBrowserPane
     }
   };
 
+  const goBack = () => {
+    try {
+      webviewRef.current?.goBack?.();
+    } catch {
+      setNotice('Could not go back.');
+    }
+  };
+
+  const goForward = () => {
+    try {
+      webviewRef.current?.goForward?.();
+    } catch {
+      setNotice('Could not go forward.');
+    }
+  };
+
   const externalUrl = useMemo(() => (
-    safeUrl === 'about:blank' ? null : safeUrl
-  ), [safeUrl]);
+    currentUrl === 'about:blank' ? null : currentUrl
+  ), [currentUrl]);
+
+  const renderTabs = () => (
+    <div style={{ ...tabListStyle, ...(compact ? compactTabListStyle : {}) }}>
+      {tabs.map((tab) => {
+        const selected = tab.id === activeTab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setDeskState(workspace.id, { activeBrowserTabId: tab.id })}
+            style={{
+              ...tabButtonStyle,
+              background: selected ? 'var(--app-accent-soft)' : 'var(--app-panel-muted)',
+              borderColor: selected ? 'var(--app-border-strong)' : 'var(--app-border)',
+              color: selected ? 'var(--app-accent)' : 'var(--app-muted)',
+              maxWidth: compact ? '122px' : tabButtonStyle.maxWidth
+            }}
+          >
+            {tab.title}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
-    <section style={panelStyle}>
-      <div style={toolbarStyle}>
-        <div style={tabListStyle}>
-          {tabs.map((tab) => {
-            const selected = tab.id === activeTab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setDeskState(workspace.id, { activeBrowserTabId: tab.id })}
-                style={{
-                  ...tabButtonStyle,
-                  background: selected ? 'rgba(56, 189, 248, 0.14)' : 'rgba(15, 23, 42, 0.56)',
-                  borderColor: selected ? 'rgba(56, 189, 248, 0.32)' : 'rgba(148, 163, 184, 0.12)',
-                  color: selected ? '#bae6fd' : '#cbd5e1'
-                }}
-              >
-                {tab.title}
+    <section style={{ ...panelStyle, ...(compact ? compactPanelStyle : {}) }}>
+      {compact ? (
+        <>
+          <form
+            style={compactAddressBarStyle}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void navigateToDraftUrl();
+            }}
+          >
+            <button type="button" onClick={goBack} disabled={!canGoBack} title="Back" aria-label="Back" style={{ ...iconButtonStyle, opacity: canGoBack ? 1 : 0.42 }}>
+              <ArrowLeft size={14} />
+            </button>
+            <button type="button" onClick={goForward} disabled={!canGoForward} title="Forward" aria-label="Forward" style={{ ...iconButtonStyle, opacity: canGoForward ? 1 : 0.42 }}>
+              <ArrowRight size={14} />
+            </button>
+            <button type="button" onClick={reload} title="Reload" aria-label="Reload" style={iconButtonStyle}>
+              <RefreshCw size={14} />
+            </button>
+            <input
+              value={draftUrl}
+              onChange={(event) => setDraftUrl(event.target.value)}
+              placeholder="Search or enter URL"
+              style={{ ...inputStyle, ...addressInputStyle }}
+            />
+            {externalUrl ? (
+              <a href={externalUrl} title="Open URL" aria-label="Open URL" style={iconButtonStyle}>
+                <ExternalLink size={14} />
+              </a>
+            ) : null}
+          </form>
+
+          <div style={compactTabsRowStyle}>
+            {renderTabs()}
+            <div style={actionRowStyle}>
+              <button type="button" onClick={() => void addTab()} title="New tab" aria-label="New tab" style={iconButtonStyle}>
+                <Plus size={14} />
               </button>
-            );
-          })}
-        </div>
+              <button type="button" onClick={() => void removeActiveTab()} title="Close tab" aria-label="Close tab" style={dangerIconButtonStyle}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={toolbarStyle}>
+            {renderTabs()}
 
-        <div style={actionRowStyle}>
-          <button type="button" onClick={reload} title="Reload" aria-label="Reload" style={iconButtonStyle}>
-            <RefreshCw size={14} />
-          </button>
-          {externalUrl ? (
-            <a href={externalUrl} title="Open URL" aria-label="Open URL" style={iconButtonStyle}>
-              <ExternalLink size={14} />
-            </a>
-          ) : null}
-        </div>
-      </div>
+            <div style={actionRowStyle}>
+              <button type="button" onClick={goBack} disabled={!canGoBack} title="Back" aria-label="Back" style={{ ...iconButtonStyle, opacity: canGoBack ? 1 : 0.42 }}>
+                <ArrowLeft size={14} />
+              </button>
+              <button type="button" onClick={goForward} disabled={!canGoForward} title="Forward" aria-label="Forward" style={{ ...iconButtonStyle, opacity: canGoForward ? 1 : 0.42 }}>
+                <ArrowRight size={14} />
+              </button>
+              <button type="button" onClick={reload} title="Reload" aria-label="Reload" style={iconButtonStyle}>
+                <RefreshCw size={14} />
+              </button>
+              {externalUrl ? (
+                <a href={externalUrl} title="Open URL" aria-label="Open URL" style={iconButtonStyle}>
+                  <ExternalLink size={14} />
+                </a>
+              ) : null}
+            </div>
+          </div>
 
-      <div style={editorStyle}>
-        <input
-          value={draftTitle}
-          onChange={(event) => setDraftTitle(event.target.value)}
-          placeholder="Tab title"
-          style={inputStyle}
-        />
-        <input
-          value={draftUrl}
-          onChange={(event) => setDraftUrl(event.target.value)}
-          placeholder="https://..."
-          style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}
-        />
-        <button type="button" onClick={() => void saveActiveTab()} title="Save tab" aria-label="Save tab" style={iconButtonStyle}>
-          <Save size={14} />
-        </button>
-        <button type="button" onClick={() => void addTab()} title="Add tab" aria-label="Add tab" style={iconButtonStyle}>
-          <Plus size={14} />
-        </button>
-        <button type="button" onClick={() => void removeActiveTab()} title="Remove tab" aria-label="Remove tab" style={dangerIconButtonStyle}>
-          <Trash2 size={14} />
-        </button>
-      </div>
+          <div style={editorStyle}>
+            <input
+              value={draftTitle}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              placeholder="Tab title"
+              style={inputStyle}
+            />
+            <input
+              value={draftUrl}
+              onChange={(event) => setDraftUrl(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void navigateToDraftUrl();
+                }
+              }}
+              placeholder="https://..."
+              style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}
+            />
+            <button type="button" onClick={() => void saveActiveTab()} title="Save tab" aria-label="Save tab" style={iconButtonStyle}>
+              <Save size={14} />
+            </button>
+            <button type="button" onClick={() => void addTab()} title="Add tab" aria-label="Add tab" style={iconButtonStyle}>
+              <Plus size={14} />
+            </button>
+            <button type="button" onClick={() => void removeActiveTab()} title="Remove tab" aria-label="Remove tab" style={dangerIconButtonStyle}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </>
+      )}
 
       {notice ? <div style={noticeStyle}>{notice}</div> : null}
+      {isLoading ? (
+        <div style={loadingStripStyle}>
+          <span style={loadingDotStyle} />
+        </div>
+      ) : null}
 
-      <div style={webviewHostStyle}>
+      <div style={{ ...webviewHostStyle, ...(compact ? compactWebviewHostStyle : {}) }}>
         <webview
           ref={(node) => {
             webviewRef.current = node;
           }}
-          key={`${workspace.id}:${activeTab.id}:${safeUrl}`}
+          key={`${workspace.id}:${activeTab.id}`}
           src={safeUrl}
           partition={partition}
           allowpopups={false}
-          style={{ width: '100%', height: '100%', background: '#020617' }}
+          style={{ width: '100%', height: '100%', background: 'var(--app-bg)' }}
         />
       </div>
     </section>
@@ -238,19 +468,34 @@ const panelStyle: React.CSSProperties = {
   minHeight: '520px',
   display: 'flex',
   flexDirection: 'column',
-  border: '1px solid rgba(148, 163, 184, 0.12)',
+  border: '1px solid var(--app-border)',
   borderRadius: '8px',
-  background: 'rgba(2, 6, 23, 0.72)',
+  background: 'var(--app-panel)',
   overflow: 'hidden'
+};
+
+const compactPanelStyle: React.CSSProperties = {
+  minHeight: 0,
+  borderRadius: '8px'
 };
 
 const toolbarStyle: React.CSSProperties = {
   minHeight: '48px',
   padding: '8px',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
+  borderBottom: '1px solid var(--app-border)',
   display: 'flex',
   gap: '8px',
   justifyContent: 'space-between',
+  alignItems: 'center'
+};
+
+const compactAddressBarStyle: React.CSSProperties = {
+  minHeight: '44px',
+  padding: '7px',
+  borderBottom: '1px solid var(--app-border)',
+  display: 'grid',
+  gridTemplateColumns: '30px 30px 30px minmax(0, 1fr) 30px',
+  gap: '6px',
   alignItems: 'center'
 };
 
@@ -261,11 +506,25 @@ const tabListStyle: React.CSSProperties = {
   overflowX: 'auto'
 };
 
+const compactTabListStyle: React.CSSProperties = {
+  flex: '1 1 auto'
+};
+
+const compactTabsRowStyle: React.CSSProperties = {
+  minHeight: '42px',
+  padding: '6px 7px',
+  borderBottom: '1px solid var(--app-border)',
+  display: 'flex',
+  gap: '6px',
+  alignItems: 'center',
+  justifyContent: 'space-between'
+};
+
 const tabButtonStyle: React.CSSProperties = {
   height: '30px',
   maxWidth: '180px',
   borderRadius: '6px',
-  border: '1px solid rgba(148, 163, 184, 0.12)',
+  border: '1px solid var(--app-border)',
   padding: '0 10px',
   fontSize: '11px',
   fontWeight: 800,
@@ -284,7 +543,7 @@ const actionRowStyle: React.CSSProperties = {
 
 const editorStyle: React.CSSProperties = {
   padding: '8px',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
+  borderBottom: '1px solid var(--app-border)',
   display: 'grid',
   gridTemplateColumns: 'minmax(120px, 0.4fr) minmax(180px, 1fr) 32px 32px 32px',
   gap: '6px'
@@ -294,21 +553,27 @@ const inputStyle: React.CSSProperties = {
   minWidth: 0,
   height: '32px',
   borderRadius: '6px',
-  border: '1px solid rgba(148, 163, 184, 0.14)',
-  background: 'rgba(15, 23, 42, 0.82)',
-  color: '#e2e8f0',
+  border: '1px solid var(--app-border)',
+  background: 'var(--app-surface)',
+  color: 'var(--app-text)',
   padding: '0 9px',
   fontSize: '12px',
   outline: 'none'
+};
+
+const addressInputStyle: React.CSSProperties = {
+  height: '30px',
+  borderRadius: '7px',
+  fontFamily: "'JetBrains Mono', monospace"
 };
 
 const iconButtonStyle: React.CSSProperties = {
   width: '32px',
   height: '32px',
   borderRadius: '6px',
-  border: '1px solid rgba(148, 163, 184, 0.14)',
-  background: 'rgba(15, 23, 42, 0.82)',
-  color: '#cbd5e1',
+  border: '1px solid var(--app-border)',
+  background: 'var(--app-panel-muted)',
+  color: 'var(--app-muted)',
   cursor: 'pointer',
   display: 'inline-flex',
   alignItems: 'center',
@@ -318,19 +583,37 @@ const iconButtonStyle: React.CSSProperties = {
 
 const dangerIconButtonStyle: React.CSSProperties = {
   ...iconButtonStyle,
-  color: '#fca5a5',
-  border: '1px solid rgba(248, 113, 113, 0.22)'
+  color: 'var(--app-negative)',
+  border: '1px solid var(--app-negative)'
 };
 
 const noticeStyle: React.CSSProperties = {
   padding: '7px 10px',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
-  color: '#94a3b8',
+  borderBottom: '1px solid var(--app-border)',
+  color: 'var(--app-muted)',
   fontSize: '11px'
+};
+
+const loadingStripStyle: React.CSSProperties = {
+  height: '2px',
+  background: 'var(--app-panel-muted)',
+  overflow: 'hidden'
+};
+
+const loadingDotStyle: React.CSSProperties = {
+  display: 'block',
+  width: '34%',
+  height: '100%',
+  background: 'var(--app-accent)',
+  boxShadow: '0 0 12px var(--app-glow)'
 };
 
 const webviewHostStyle: React.CSSProperties = {
   flex: 1,
   minHeight: 0,
-  background: '#020617'
+  background: 'var(--app-bg)'
+};
+
+const compactWebviewHostStyle: React.CSSProperties = {
+  minHeight: '260px'
 };

@@ -36,6 +36,8 @@ from .backtesting.workflow import (
     write_json,
 )
 from .agents import agent_runtime_status, list_agent_runs, run_agent_audit, run_agent_research
+from .strategy_memory import query_strategy_memory, strategy_memory_status, sync_strategy_memory
+from .strategy_scaffold import write_strategy_scaffold
 
 
 DONOR_ROOT = Path(r"C:\Users\leonard\Documents\trading-harvard\Harvard-Algorithmic-Trading-with-AI")
@@ -147,6 +149,23 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("status", help="Summarize research/backtest/validation/paper artifacts.")
     status_parser.set_defaults(func=command_status)
 
+    memory_parser = subparsers.add_parser("memory", help="Strategy evidence memory index helpers.")
+    memory_subparsers = memory_parser.add_subparsers(dest="memory_command", required=True)
+    memory_sync = memory_subparsers.add_parser("sync", help="Ingest repo-owned strategy evidence into the memory index.")
+    memory_sync.add_argument("--dry-run", action="store_true", help="Discover and chunk sources without writing SQLite state.")
+    memory_sync.add_argument("--no-process-jobs", action="store_true", help="Queue follow-up jobs but do not process them immediately.")
+    memory_sync.add_argument("--limit", type=int, default=None, help="Optional source limit for focused smoke tests.")
+    memory_sync.set_defaults(func=command_memory_sync)
+
+    memory_query = memory_subparsers.add_parser("query", help="Search indexed strategy memory snippets.")
+    memory_query.add_argument("question")
+    memory_query.add_argument("--strategy", default=None)
+    memory_query.add_argument("--limit", type=int, default=8)
+    memory_query.set_defaults(func=command_memory_query)
+
+    memory_status = memory_subparsers.add_parser("status", help="Show strategy memory index health.")
+    memory_status.set_defaults(func=command_memory_status)
+
     agent_parser = subparsers.add_parser("agent", help="Agentic Research OS helpers.")
     agent_subparsers = agent_parser.add_subparsers(dest="agent_command", required=True)
 
@@ -257,31 +276,26 @@ def _runtime_db_audit() -> dict[str, Any]:
 def command_strategy_new(args: argparse.Namespace) -> int:
     strategy_id = args.strategy_id.strip().replace("-", "_")
     title = args.title or strategy_id.replace("_", " ").title()
-    docs_id = strategy_id.replace("_", "-")
-
-    strategy_dir = BACKEND_ROOT / "strategies" / strategy_id
-    docs_path = REPO_ROOT / "docs" / "strategies" / f"{docs_id}.md"
-
-    strategy_dir.mkdir(parents=True, exist_ok=True)
-    docs_path.parent.mkdir(parents=True, exist_ok=True)
-
-    files = {
-        strategy_dir / "__init__.py": f'"""Strategy package for {strategy_id}."""\n',
-        strategy_dir / "logic.py": _strategy_template_logic(strategy_id),
-        strategy_dir / "scoring.py": _strategy_template_scoring(strategy_id),
-        strategy_dir / "risk.py": _strategy_template_risk(strategy_id),
-        strategy_dir / "paper.py": _strategy_template_paper(strategy_id),
-        strategy_dir / "spec.md": _strategy_template_spec(title, docs_id),
-        docs_path: _strategy_template_doc(title, strategy_id),
-    }
-
-    written_files: list[str] = []
-    for path, content in files.items():
-        if not path.exists():
-            path.write_text(content, encoding="utf-8")
-            written_files.append(str(path))
-
-    print(json.dumps({"ok": True, "strategy_id": strategy_id, "written_files": written_files}, indent=2))
+    result = write_strategy_scaffold(
+        strategy_id=strategy_id,
+        title=title,
+        strategies_root=BACKEND_ROOT / "strategies",
+        docs_root=REPO_ROOT / "docs" / "strategies",
+    )
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "strategy_id": result["strategyId"],
+                "display_name": result["displayName"],
+                "backend_dir": result["backendDir"],
+                "docs_path": result["docsPath"],
+                "written_files": result["writtenFiles"],
+                "skipped_files": result["skippedFiles"],
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -633,6 +647,31 @@ def run_paper_runtime_loop(
 
 def command_status(_: argparse.Namespace) -> int:
     print(json.dumps(build_status_snapshot(), indent=2))
+    return 0
+
+
+def command_memory_sync(args: argparse.Namespace) -> int:
+    result = sync_strategy_memory(
+        dry_run=bool(args.dry_run),
+        process_jobs=not bool(args.no_process_jobs),
+        limit=args.limit,
+    )
+    print(json.dumps(result, indent=2))
+    return 0 if result.get("ok") else 1
+
+
+def command_memory_query(args: argparse.Namespace) -> int:
+    result = query_strategy_memory(
+        args.question,
+        strategy_id=args.strategy,
+        limit=args.limit,
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+    return 0
+
+
+def command_memory_status(_: argparse.Namespace) -> int:
+    print(json.dumps({"ok": True, "status": strategy_memory_status()}, indent=2))
     return 0
 
 

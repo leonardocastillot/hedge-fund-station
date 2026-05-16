@@ -9,6 +9,9 @@ export interface ProviderMeta {
   glow: string;
 }
 
+export const AGENT_PROVIDERS: AgentProvider[] = ['codex', 'opencode', 'claude', 'gemini'];
+export const OPENCODE_DEFAULT_MODEL = 'opencode/deepseek-v4-flash-free';
+
 const PROVIDER_META: Record<AgentProvider, ProviderMeta> = {
   claude: {
     id: 'claude',
@@ -23,6 +26,13 @@ const PROVIDER_META: Record<AgentProvider, ProviderMeta> = {
     shortLabel: 'CX',
     accent: '#3b82f6',
     glow: 'rgba(59, 130, 246, 0.18)'
+  },
+  opencode: {
+    id: 'opencode',
+    label: 'OpenCode',
+    shortLabel: 'OC',
+    accent: '#f43f5e',
+    glow: 'rgba(244, 63, 94, 0.18)'
   },
   gemini: {
     id: 'gemini',
@@ -42,7 +52,9 @@ const PROVIDER_ALIASES = new Set([
   'codex',
   'codex.cmd',
   'gemini',
-  'gemini.cmd'
+  'gemini.cmd',
+  'opencode',
+  'opencode.cmd'
 ]);
 
 export function getDefaultProviderForRole(role: AgentRole): AgentProvider {
@@ -63,6 +75,10 @@ export function inferRequestedProvider(goal: string): AgentProvider | null {
     return 'gemini';
   }
 
+  if (/\b(open\s*code|opencode|deepseek)\b/.test(normalized)) {
+    return 'opencode';
+  }
+
   if (/\bclaude\b/.test(normalized)) {
     return 'claude';
   }
@@ -71,7 +87,7 @@ export function inferRequestedProvider(goal: string): AgentProvider | null {
 }
 
 export function isAgentProvider(value: unknown): value is AgentProvider {
-  return value === 'claude' || value === 'codex' || value === 'gemini';
+  return value === 'claude' || value === 'codex' || value === 'gemini' || value === 'opencode';
 }
 
 export function getProviderMeta(provider?: AgentProvider | null): ProviderMeta {
@@ -87,6 +103,11 @@ export function resolveAgentRuntimeCommand(provider: AgentProvider, shell?: stri
 
   if (provider === 'gemini') {
     return windowsShell ? 'gemini.cmd' : 'gemini';
+  }
+
+  if (provider === 'opencode') {
+    const command = windowsShell ? 'opencode.cmd' : 'opencode';
+    return `${command} --model ${OPENCODE_DEFAULT_MODEL}`;
   }
 
   return windowsShell ? 'claude.exe' : 'claude';

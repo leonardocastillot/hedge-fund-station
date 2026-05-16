@@ -323,20 +323,20 @@
         "npm run build",
         "npm run gateway:probe when gateway is running"
       ],
-            "status": "done",
-            "owner": "codex",
-            "parallelizable": false,
-            "evidence_paths": [
-                "README.md",
-                "docs/operations/backend-startup-runbook.md",
-                "docs/operations/backend-connectivity-runbook.md",
-                "docs/operations/gcp-backtest-api.md",
-                "src/services/backendConfig.ts",
-                "docker-compose.yml",
-                "progress/impl_confirm_hyperliquid_gateway_port_story.md",
-                "progress/impl_aggressive_cleanup_queue_closeout.md"
-            ],
-            "notes": "Done. Confirmed and documented the canonical ports: alpha engine VM tunnel on 18500, local Hyperliquid gateway on 18001, legacy API on 18000, and Docker host 18001 to container 18400. Runtime behavior and VITE compatibility aliases were not changed."
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "README.md",
+        "docs/operations/backend-startup-runbook.md",
+        "docs/operations/backend-connectivity-runbook.md",
+        "docs/operations/gcp-backtest-api.md",
+        "src/services/backendConfig.ts",
+        "docker-compose.yml",
+        "progress/impl_confirm_hyperliquid_gateway_port_story.md",
+        "progress/impl_aggressive_cleanup_queue_closeout.md"
+      ],
+      "notes": "Done. Confirmed and documented the canonical ports: alpha engine VM tunnel on 18500, local Hyperliquid gateway on 18001, legacy API on 18000, and Docker host 18001 to container 18400. Runtime behavior and VITE compatibility aliases were not changed."
     },
     {
       "id": "backend_startup_runbook",
@@ -356,18 +356,18 @@
         "npm run agent:check",
         "npm run hf:doctor"
       ],
-            "status": "done",
-            "owner": "codex",
-            "parallelizable": false,
-            "evidence_paths": [
-                "docs/operations/backend-startup-runbook.md",
-                "docs/operations/backend-connectivity-runbook.md",
-                "docs/operations/README.md",
-                "README.md",
-                "progress/impl_backend_startup_runbook.md",
-                "progress/impl_aggressive_cleanup_queue_closeout.md"
-            ],
-            "notes": "Done. Added a concise backend startup runbook covering daily local startup, gateway restart, VM runtime data root, health checks, and recovery commands. It is an operations runbook only."
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/operations/backend-startup-runbook.md",
+        "docs/operations/backend-connectivity-runbook.md",
+        "docs/operations/README.md",
+        "README.md",
+        "progress/impl_backend_startup_runbook.md",
+        "progress/impl_aggressive_cleanup_queue_closeout.md"
+      ],
+      "notes": "Done. Added a concise backend startup runbook covering daily local startup, gateway restart, VM runtime data root, health checks, and recovery commands. It is an operations runbook only."
     },
     {
       "id": "strategy_validation_thresholds",
@@ -387,18 +387,18 @@
         "npm run agent:check",
         "python3 -m unittest tests.test_strategy_catalog"
       ],
-            "status": "done",
-            "owner": "codex",
-            "parallelizable": false,
-            "evidence_paths": [
-                "docs/operations/strategy-validation-thresholds.md",
-                "docs/operations/strategy-readiness-matrix.md",
-                "docs/strategies/README.md",
-                "backend/hyperliquid_gateway/backtesting/registry.py",
-                "progress/impl_strategy_validation_thresholds.md",
-                "progress/impl_aggressive_cleanup_queue_closeout.md"
-            ],
-            "notes": "Done. Added a canonical thresholds document mirrored from the backend registry, linked it from strategy docs and readiness matrix, and kept one_bitcoin/research-only boundaries explicit. No strategy was promoted."
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/operations/strategy-validation-thresholds.md",
+        "docs/operations/strategy-readiness-matrix.md",
+        "docs/strategies/README.md",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "progress/impl_strategy_validation_thresholds.md",
+        "progress/impl_aggressive_cleanup_queue_closeout.md"
+      ],
+      "notes": "Done. Added a canonical thresholds document mirrored from the backend registry, linked it from strategy docs and readiness matrix, and kept one_bitcoin/research-only boundaries explicit. No strategy was promoted."
     },
     {
       "id": "data_quality_checklist",
@@ -418,18 +418,18 @@
         "npm run agent:check",
         "npm run build"
       ],
-            "status": "done",
-            "owner": "codex",
-            "parallelizable": false,
-            "evidence_paths": [
-                "docs/operations/data-quality-checklist.md",
-                "backend/hyperliquid_gateway/data/README.md",
-                "src/services/hyperliquidService.ts",
-                "src/services/liquidationsService.ts",
-                "progress/impl_data_quality_checklist.md",
-                "progress/impl_aggressive_cleanup_queue_closeout.md"
-            ],
-            "notes": "Done. Added a data quality checklist covering market snapshots, alerts, liquidations, paper signals, and paper trades, with backend source-of-truth fields and fallback/legacy cautions."
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/operations/data-quality-checklist.md",
+        "backend/hyperliquid_gateway/data/README.md",
+        "src/services/hyperliquidService.ts",
+        "src/services/liquidationsService.ts",
+        "progress/impl_data_quality_checklist.md",
+        "progress/impl_aggressive_cleanup_queue_closeout.md"
+      ],
+      "notes": "Done. Added a data quality checklist covering market snapshots, alerts, liquidations, paper signals, and paper trades, with backend source-of-truth fields and fallback/legacy cautions."
     },
     {
       "id": "paper_trade_review_criteria",
@@ -449,17 +449,17 @@
         "npm run agent:check",
         "npm run hf:status"
       ],
-            "status": "done",
-            "owner": "codex",
-            "parallelizable": false,
-            "evidence_paths": [
-                "docs/operations/paper-trade-review-criteria.md",
-                "docs/operations/btc-paper-runtime-loop.md",
-                "docs/strategies/",
-                "backend/hyperliquid_gateway/strategies/",
-                "progress/impl_paper_trade_review_criteria.md",
-                "progress/impl_aggressive_cleanup_queue_closeout.md"
-            ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/operations/paper-trade-review-criteria.md",
+        "docs/operations/btc-paper-runtime-loop.md",
+        "docs/strategies/",
+        "backend/hyperliquid_gateway/strategies/",
+        "progress/impl_paper_trade_review_criteria.md",
+        "progress/impl_aggressive_cleanup_queue_closeout.md"
+      ],
       "notes": "Done. Added paper-trade review criteria mapped to trigger quality, invalidation, fill quality, drift, regime fit, and lesson capture. Criteria remain paper-only and do not enable order routing."
     },
     {
@@ -1055,6 +1055,89 @@
         "progress/impl_btc_daily_yahoo_history_backtesting.md"
       ],
       "notes": "Done. Added shared backend BTC/USD daily history fetching/caching for long-horizon backtests, using Yahoo Finance BTC-USD first and Binance BTCUSDT daily klines as auto fallback. Added npm run hf:market-data:btc-daily, reused the loader from One Bitcoin, generated an ignored Yahoo cache with 4,257 daily rows from 2014-09-17 through 2026-05-13, and verified One Bitcoin can backtest against it. This is data/backtest infrastructure only; daily BTC history is not a replacement for intraday Hyperliquid snapshots when validating scalps. No paper, live, or production promotion occurred; future production remains outside scope and requires research, backtest, validation, paper evidence, risk review, and operator sign-off."
+    },
+    {
+      "id": "btc_dual_momentum_trend",
+      "title": "Build BTC Dual Momentum Trend to beat the 162.30% vol_atr champion",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "agent_tasks.json",
+        "progress/current.md",
+        "progress/history.md",
+        "progress/impl_btc_dual_momentum_trend.md",
+        "docs/strategies/btc-dual-momentum-trend.md",
+        "docs/operations/strategy-validation-thresholds.md",
+        "docs/operations/strategy-readiness-matrix.md",
+        "backend/hyperliquid_gateway/strategies/btc_dual_momentum_trend/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_btc_dual_momentum_trend.py"
+      ],
+      "acceptance": [
+        "A new backend-first BTC daily strategy is documented and registered as btc_dual_momentum_trend.",
+        "The official 500 USD taker-fee backtest is compared against btc_vol_atr_trend's 162.30% champion benchmark.",
+        "Validation reaches ready-for-paper only if the new strategy returns more than 162.30% and passes the robust gate.",
+        "Paper candidate evidence is generated only after validation is ready-for-paper.",
+        "Any future live or production path remains blocked behind research, backtest, validation, paper evidence, risk review, and operator sign-off.",
+        "Official artifact paths, verification, risks, and next actions are recorded in a handoff."
+      ],
+      "verification": [
+        "rtk npm run agent:check",
+        "rtk python3 -m unittest tests.test_strategy_catalog tests.test_btc_dual_momentum_trend",
+        "rtk npm run hf:backtest -- --strategy btc_vol_atr_trend --dataset backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json --fee-model taker --risk-fraction 0.20 --equity 500",
+        "rtk npm run hf:backtest -- --strategy btc_dual_momentum_trend --dataset backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json --fee-model taker --risk-fraction 0.20 --equity 500",
+        "rtk npm run hf:validate -- --strategy btc_dual_momentum_trend --report <new-report>",
+        "rtk npm run hf:paper -- --strategy btc_dual_momentum_trend --report <new-report> --validation <new-validation> when validation is ready-for-paper",
+        "rtk npm run hf:doubling:stability -- --strategy btc_dual_momentum_trend --report <new-report> --validation <new-validation> when validation is ready-for-paper",
+        "rtk npm run hf:status",
+        "rtk git diff --check"
+      ],
+      "status": "cancelled",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [],
+      "notes": "Superseded by btc_regime_adaptive_confluence (263.78% vs 180.24%)"
+    },
+    {
+      "id": "btc_regime_adaptive_confluence",
+      "title": "BTC Regime-Adaptive Confluence Trend \u2014 new champion (263.78%)",
+      "mission_class": "strategy research",
+      "priority": 0,
+      "scope": [
+        "backend/hyperliquid_gateway/strategies/btc_regime_adaptive_confluence/",
+        "docs/strategies/btc-regime-adaptive-confluence.md",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_btc_regime_adaptive_confluence.py"
+      ],
+      "acceptance": [
+        "Registered backend strategy package with deterministic logic, scoring, risk, paper, backtest, spec, and docs.",
+        "500 USD taker backtest returns more than champion btc_vol_dynamic_trail_trend (180.24%).",
+        "Validation is ready-for-paper and a paper candidate is generated.",
+        "Tests pass and harness check is clean.",
+        "No live trading, credentials, or production promotion."
+      ],
+      "verification": [
+        "rtk python3 -m unittest tests.test_btc_regime_adaptive_confluence tests.test_strategy_catalog",
+        "rtk npm run hf:backtest -- --strategy btc_regime_adaptive_confluence --dataset backend/hyperliquid_gateway/data/market_data/btc_usd_daily_yahoo.json --fee-model taker --risk-fraction 0.20 --equity 500",
+        "rtk npm run hf:validate -- --strategy btc_regime_adaptive_confluence",
+        "rtk npm run hf:paper -- --strategy btc_regime_adaptive_confluence",
+        "rtk npm run agent:check",
+        "rtk git diff --check"
+      ],
+      "status": "done",
+      "owner": "codex",
+      "parallelizable": false,
+      "evidence_paths": [
+        "docs/strategies/btc-regime-adaptive-confluence.md",
+        "backend/hyperliquid_gateway/strategies/btc_regime_adaptive_confluence/",
+        "backend/hyperliquid_gateway/backtesting/registry.py",
+        "tests/test_btc_regime_adaptive_confluence.py",
+        "backend/hyperliquid_gateway/data/backtests/btc_regime_adaptive_confluence-btc_usd_daily_yahoo-20260516T021409Z.json",
+        "backend/hyperliquid_gateway/data/validations/btc_regime_adaptive_confluence-20260516T021414Z.json",
+        "backend/hyperliquid_gateway/data/paper/btc_regime_adaptive_confluence-20260516T021419Z.json",
+        "progress/impl_btc_regime_adaptive_confluence.md"
+      ],
+      "notes": "Done. New champion: 263.78% vs old champion 180.24% (+83.54% excess). Progressive ATR trailing (tight 3.5x first 15d, then 5.5x) is the key innovation. Validation ready-for-paper, paper candidate generated. No live routing or production promotion."
     }
   ]
 }

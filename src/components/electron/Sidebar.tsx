@@ -1,57 +1,154 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  BookOpen,
+  BarChart3,
   Bot,
-  ChevronDown,
-  ChevronRight,
-  GitBranch,
-  Pencil,
+  Briefcase,
+  Cloud,
+  Code2,
+  Copy,
+  Database,
+  Edit3,
+  FolderOpen,
+  Folder,
+  MoreHorizontal,
   Plus,
-  RadioTower,
-  ShieldCheck,
+  Rocket,
+  Server,
   Terminal,
-  Trash2
+  Trash2,
+  type LucideIcon
 } from 'lucide-react';
-import { useDeskHistoryContext } from '../../contexts/DeskHistoryContext';
 import { useWorkspaceContext } from '../../contexts/WorkspaceContext';
-import { useTerminalContext } from '../../contexts/TerminalContext';
 import { useDeskSpaceContext } from '@/features/desks/DeskSpaceContext';
+import { useTerminalContext } from '@/contexts/TerminalContext';
+import type { DeskBrowserTab, Workspace } from '../../types/electron';
+import { navigateCenterPanel } from '../../utils/centerNavigation';
+import { publishWorkspaceDockMode } from '@/features/desks/workspaceDockEvents';
 import { WorkspaceModal } from './WorkspaceModal';
-import type { Workspace, WorkspaceKind } from '../../types/electron';
-import { buildTerminalLabel, getLaunchProfileCommandSummary, launchProfileSequence } from '../../utils/workspaceLaunch';
-import {
-  CENTER_ROUTE_CHANGED_EVENT,
-  navigateCenterPanel,
-  type CenterRouteChangedDetail
-} from '../../utils/centerNavigation';
-import { hyperliquidService, type HyperliquidMarketRow } from '../../services/hyperliquidService';
-import { buildOverviewTrapDecisions, type TrapAction, type TrapDecision, type TrapSide } from '@/features/liquidations/trapDecisions';
-import { useMarketPolling } from '@/hooks/useMarketPolling';
-import { usePerformanceProfile } from '@/hooks/usePerformanceProfile';
-import { TRADING_STATIONS, isStationRoute, type StationDefinition } from '@/features/stations/stationRegistry';
 
-const ICONS: Record<string, string> = {
-  briefcase: 'BK',
-  code: '</>',
-  folder: 'DIR',
-  rocket: 'RUN',
-  chart: 'MKT',
-  terminal: 'CLI',
-  database: 'DB',
-  server: 'SRV',
-  cloud: 'CLD'
+const REPO_PATH = '/Users/optimus/Documents/hedge_fund_stations';
+
+const ICONS: Record<string, LucideIcon> = {
+  briefcase: Briefcase,
+  code: Code2,
+  folder: Folder,
+  rocket: Rocket,
+  chart: BarChart3,
+  terminal: Terminal,
+  database: Database,
+  server: Server,
+  cloud: Cloud
 };
 
-function isPrimaryHedgeFundDesk(workspace: Workspace): boolean {
-  return workspace.kind === 'hedge-fund';
+function slugify(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'strategy-pod';
 }
 
-function sortDesks(workspaces: Workspace[]): Workspace[] {
-  const kindOrder: Record<WorkspaceKind, number> = {
-    'command-hub': 0,
+function normalizeAssetSymbol(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+}
+
+function uniqueAssetPodId(workspaces: Workspace[], assetSymbol: string): string {
+  const baseId = `strategy-pod-${slugify(assetSymbol)}`;
+  const existingIds = new Set(workspaces.map((workspace) => workspace.id));
+  if (!existingIds.has(baseId)) {
+    return baseId;
+  }
+  let suffix = 2;
+  while (existingIds.has(`${baseId}-${suffix}`)) {
+    suffix += 1;
+  }
+  return `${baseId}-${suffix}`;
+}
+
+function findRepoPath(workspaces: Workspace[], activeWorkspace: Workspace | null): string {
+  return workspaces.find((workspace) => workspace.path.endsWith('hedge_fund_stations'))?.path
+    || workspaces.find((workspace) => workspace.kind === 'hedge-fund')?.path
+    || (activeWorkspace?.path.endsWith('hedge_fund_stations') ? activeWorkspace.path : undefined)
+    || REPO_PATH;
+}
+
+function assetBrowserTabs(assetSymbol: string): DeskBrowserTab[] {
+  const symbol = normalizeAssetSymbol(assetSymbol) || 'BTC';
+  return [
+    {
+      id: `tradingview-${symbol.toLowerCase()}`,
+      title: `TradingView ${symbol}`,
+      url: `https://www.tradingview.com/chart/?symbol=BINANCE:${encodeURIComponent(`${symbol}USDT`)}`
+    },
+    {
+      id: 'gateway-health',
+      title: 'Gateway Health',
+      url: 'http://127.0.0.1:18001/health'
+    }
+  ];
+}
+
+function buildAssetPod(params: {
+  id: string;
+  repoPath: string;
+  assetSymbol: string;
+  assetDisplayName?: string;
+  shell: string;
+}): Workspace {
+  const assetSymbol = normalizeAssetSymbol(params.assetSymbol) || 'BTC';
+  const assetDisplayName = params.assetDisplayName?.trim() || assetSymbol;
+  return {
+    id: params.id,
+    name: assetDisplayName,
+    path: params.repoPath,
+    kind: 'strategy-pod',
+    description: `Asset pod for ${assetSymbol} strategy research sessions.`,
+    pinned: true,
+    default_route: '/workbench',
+    icon: 'chart',
+    color: '#22d3ee',
+    default_commands: [
+      'rtk npm run agent:brief',
+      'rtk npm run hf:status',
+      'rtk npm run gateway:probe'
+    ],
+    launch_profiles: [
+      {
+        id: 'strategy-agentic-desk',
+        name: 'Strategy Agentic Desk',
+        steps: [
+          { command: 'rtk npm run agent:brief', delayMs: 0 },
+          { command: 'rtk npm run hf:status', delayMs: 400 }
+        ]
+      },
+      {
+        id: 'strategy-review',
+        name: 'Strategy Review',
+        steps: [
+          { command: 'rtk npm run agent:check', delayMs: 0 },
+          { command: 'rtk npm run hf:status', delayMs: 500 }
+        ]
+      }
+    ],
+    browser_tabs: assetBrowserTabs(assetSymbol),
+    shell: params.shell,
+    obsidian_vault_path: undefined,
+    asset_symbol: assetSymbol,
+    asset_display_name: assetDisplayName,
+    linked_strategy_ids: [],
+    active_strategy_id: undefined,
+    strategy_symbol: assetSymbol,
+    strategy_pod_status: 'draft'
+  };
+}
+
+function sortWorkspaces(workspaces: Workspace[]): Workspace[] {
+  const kindOrder: Record<Workspace['kind'], number> = {
+    'strategy-pod': 0,
     'hedge-fund': 1,
-    ops: 2,
-    project: 3
+    'command-hub': 2,
+    ops: 3,
+    project: 4
   };
 
   return [...workspaces].sort((a, b) => {
@@ -70,1128 +167,628 @@ function sortDesks(workspaces: Workspace[]): Workspace[] {
 }
 
 export const Sidebar: React.FC = () => {
-  const performanceProfile = usePerformanceProfile();
   const {
     workspaces,
     activeWorkspace,
     isLoading,
     setActiveWorkspace,
     createWorkspace,
-    inferWorkspaceFromPath,
     updateWorkspace,
     deleteWorkspace
   } = useWorkspaceContext();
-  const { createTerminal } = useTerminalContext();
   const { setDeskState } = useDeskSpaceContext();
-  const { recordLaunch } = useDeskHistoryContext();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [creatorError, setCreatorError] = useState<string | null>(null);
+  const [assetSymbolInput, setAssetSymbolInput] = useState('BTC');
+  const [assetDisplayInput, setAssetDisplayInput] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
-  const [liquidationMarkets, setLiquidationMarkets] = useState<HyperliquidMarketRow[]>([]);
-  const [liquidationsUpdatedAt, setLiquidationsUpdatedAt] = useState<number | null>(null);
-  const [liquidationsError, setLiquidationsError] = useState<string | null>(null);
-  const [liquidationsStale, setLiquidationsStale] = useState(false);
-  const [hasLiquidationSnapshot, setHasLiquidationSnapshot] = useState(false);
-  const [isLiquidationsCollapsed, setIsLiquidationsCollapsed] = usePersistedBoolean(
-    'hedge-station:sidebar:liquidation-traps-collapsed',
-    performanceProfile !== 'full'
-  );
-  const [areLaunchProfilesCollapsed, setAreLaunchProfilesCollapsed] = usePersistedBoolean(
-    'hedge-station:sidebar:launch-profiles-collapsed',
-    false
-  );
-  const [areSavedCommandsCollapsed, setAreSavedCommandsCollapsed] = usePersistedBoolean(
-    'hedge-station:sidebar:saved-commands-collapsed',
-    false
-  );
-  const [activeCenterPath, setActiveCenterPath] = useState(() => (
-    typeof window === 'undefined' ? '/station/hedge-fund' : window.location.pathname || '/station/hedge-fund'
-  ));
+  const { terminals, createTerminal, setActiveTerminal } = useTerminalContext();
 
-  const sortedWorkspaces = useMemo(
-    () => sortDesks(workspaces),
+  const strategyPodWorkspaces = useMemo(
+    () => sortWorkspaces(workspaces.filter((workspace) => workspace.kind === 'strategy-pod')),
     [workspaces]
   );
-  const commandHubDesks = useMemo(
-    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'command-hub'),
-    [sortedWorkspaces]
-  );
-  const hedgeFundDesks = useMemo(
-    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'hedge-fund'),
-    [sortedWorkspaces]
-  );
-  const opsDesks = useMemo(
-    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'ops'),
-    [sortedWorkspaces]
-  );
-  const projectDesks = useMemo(
-    () => sortedWorkspaces.filter((workspace) => workspace.kind === 'project'),
-    [sortedWorkspaces]
-  );
 
-  const liquidationPoll = useMarketPolling(
-    'sidebar:hyperliquid-overview:majors',
-    async () => {
-      const overview = await hyperliquidService.getOverview(24);
-      return {
-        markets: overview.markets.filter((market) => isMajorMarket(market.symbol)),
-        updatedAt: overview.updatedAt
-      };
-    },
-    { intervalMs: 30_000, staleAfterMs: 90_000, enabled: !isLiquidationsCollapsed }
-  );
-
-  useEffect(() => {
-    const handleRouteChanged = (event: Event) => {
-      const detail = event instanceof CustomEvent ? event.detail as CenterRouteChangedDetail | undefined : undefined;
-      if (detail?.path) {
-        setActiveCenterPath(detail.path);
-      }
-    };
-    const handlePopState = () => setActiveCenterPath(window.location.pathname || '/station/hedge-fund');
-
-    window.addEventListener(CENTER_ROUTE_CHANGED_EVENT, handleRouteChanged);
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener(CENTER_ROUTE_CHANGED_EVENT, handleRouteChanged);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (liquidationPoll.data) {
-      setLiquidationMarkets(liquidationPoll.data.markets);
-      setLiquidationsUpdatedAt(liquidationPoll.data.updatedAt);
-      setLiquidationsError(null);
-      setLiquidationsStale(liquidationPoll.status === 'stale');
-      setHasLiquidationSnapshot(true);
-      return;
-    }
-
-    if (liquidationPoll.error) {
-      setLiquidationsError(liquidationPoll.error);
-      setLiquidationsStale(hasLiquidationSnapshot);
-    }
-  }, [hasLiquidationSnapshot, liquidationPoll.data, liquidationPoll.error, liquidationPoll.status]);
-
-  const liquidationTraps = useMemo(() => buildOverviewTrapDecisions(liquidationMarkets, 5), [liquidationMarkets]);
-
-  const handleStationClick = React.useCallback((station: StationDefinition) => {
-    setActiveCenterPath(station.route);
-    navigateCenterPanel(station.route);
-  }, []);
-
-  const runWorkspaceCommand = React.useCallback((workspace: Workspace, command?: string, switchWorkspace = true) => {
-    if (switchWorkspace) {
-      void setActiveWorkspace(workspace.id);
-    }
-
-    createTerminal(
-      workspace.path,
-      workspace.shell,
-      buildTerminalLabel(workspace, command),
-      command,
-      { workspaceId: workspace.id }
-    );
-    setDeskState(workspace.id, { activeView: 'terminals' });
-    navigateCenterPanel('/workbench');
-  }, [createTerminal, setActiveWorkspace, setDeskState]);
-
-  const runWorkspaceProfile = React.useCallback((workspace: Workspace, profileId: string) => {
-    const profile = workspace.launch_profiles.find((item) => item.id === profileId);
-    if (!profile) {
-      return;
-    }
-
-    void setActiveWorkspace(workspace.id);
-    launchProfileSequence(workspace, profile, createTerminal, undefined, recordLaunch);
-    setDeskState(workspace.id, { activeView: 'terminals' });
-    navigateCenterPanel('/workbench');
-  }, [createTerminal, recordLaunch, setActiveWorkspace, setDeskState]);
-
-  const handleWorkspaceClick = async (workspaceId: string) => {
+  const activateWorkspace = async (workspaceId: string, dockMode: 'inspector' | 'code' | 'browser' | 'runs' = 'inspector') => {
     await setActiveWorkspace(workspaceId);
     setDeskState(workspaceId, { activeView: 'overview' });
     navigateCenterPanel('/workbench');
+    publishWorkspaceDockMode(dockMode, workspaceId);
   };
 
-  const handleEditWorkspace = (workspace: Workspace) => {
-    setEditingWorkspace(workspace);
-    setIsModalOpen(true);
+  const handleCreateAssetPod = async () => {
+    const assetSymbol = normalizeAssetSymbol(assetSymbolInput);
+    if (!assetSymbol) {
+      setCreatorError('Enter a ticker symbol.');
+      return;
+    }
+    if (strategyPodWorkspaces.some((workspace) => (workspace.asset_symbol || workspace.strategy_symbol || '').toUpperCase() === assetSymbol)) {
+      setCreatorError(`Strategy Pod for ${assetSymbol} already exists.`);
+      return;
+    }
+    const repoPath = findRepoPath(workspaces, activeWorkspace);
+    const workspace = buildAssetPod({
+      id: uniqueAssetPodId(workspaces, assetSymbol),
+      repoPath,
+      assetSymbol,
+      assetDisplayName: assetDisplayInput,
+      shell: activeWorkspace?.shell || '/bin/zsh'
+    });
+    await createWorkspace(workspace);
+    setCreatorOpen(false);
+    setCreatorError(null);
+    setAssetSymbolInput('BTC');
+    setAssetDisplayInput('');
+    await activateWorkspace(workspace.id, 'inspector');
   };
 
-  const handleDeleteWorkspace = async (workspace: Workspace) => {
-    const confirmed = window.confirm(`Delete desk "${workspace.name}"?\n\nThis removes it from the app but does not delete the folder on disk.`);
+  const handleDuplicate = async (workspace: Workspace) => {
+    const sourceSymbol = workspace.asset_symbol || workspace.strategy_symbol || workspace.name;
+    const copySymbol = normalizeAssetSymbol(`${sourceSymbol}2`);
+    const copyName = `${workspace.name} Copy`;
+    const copy: Workspace = {
+      ...workspace,
+      id: uniqueAssetPodId(workspaces, copySymbol),
+      name: copyName,
+      asset_symbol: copySymbol,
+      asset_display_name: copyName,
+      pinned: workspace.kind === 'strategy-pod' ? workspace.pinned : false
+    };
+    await createWorkspace(copy);
+    await activateWorkspace(copy.id, workspace.kind === 'strategy-pod' ? 'inspector' : 'code');
+  };
+
+  const handleDeletePod = async (workspace: Workspace) => {
+    const confirmed = window.confirm(
+      workspace.kind === 'strategy-pod'
+        ? `Delete local pod "${workspace.name}"? This will not delete strategy files or backend artifacts.`
+        : `Delete local workspace "${workspace.name}"? This will not delete files on disk.`
+    );
     if (!confirmed) {
       return;
     }
-
-    try {
-      await deleteWorkspace(workspace.id);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete desk';
-      window.alert(message);
-    }
+    await deleteWorkspace(workspace.id);
   };
 
-  const handleOpenWorkspaceVault = async (workspace: Workspace) => {
-    try {
-      const status = await window.electronAPI.obsidian.getStatus(workspace.path, workspace.obsidian_vault_path);
-      const readyStatus = status.vaultPath
-        ? status
-        : await window.electronAPI.obsidian.ensureVault(workspace.path, workspace.obsidian_vault_path);
-
-      if (readyStatus.vaultPath && readyStatus.vaultPath !== workspace.obsidian_vault_path) {
-        await updateWorkspace(workspace.id, { obsidian_vault_path: readyStatus.vaultPath });
+  const handleOpenStrategyShell = async (workspace: Workspace) => {
+    await setActiveWorkspace(workspace.id);
+    setDeskState(workspace.id, { activeView: 'overview' });
+    navigateCenterPanel('/workbench');
+    const cwd = workspace.strategy_backend_dir || workspace.path;
+    const terminalId = createTerminal(
+      cwd,
+      workspace.shell,
+      `${workspace.asset_symbol || workspace.name} Shell`,
+      undefined,
+      {
+        workspaceId: workspace.id,
+        terminalPurpose: 'strategy-shell',
+        assetSymbol: workspace.asset_symbol || workspace.strategy_symbol,
+        strategySessionId: `manual-${Date.now()}`,
+        strategySessionTitle: `${workspace.asset_symbol || workspace.name} manual shell`,
+        strategySessionStatus: 'draft'
       }
-
-      if (readyStatus.vaultPath) {
-        await window.electronAPI.obsidian.openVault(readyStatus.vaultPath);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open desk vault';
-      window.alert(message);
-    }
-  };
-
-  const handleCreateWorkspace = async () => {
-    try {
-      const selectedPath = await window.electronAPI.workspace.pickDirectory();
-      if (!selectedPath) {
-        return;
-      }
-
-      const workspace = await inferWorkspaceFromPath(selectedPath);
-      await createWorkspace(workspace);
-      await setActiveWorkspace(workspace.id);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create desk';
-      window.alert(message);
-    }
+    );
+    setActiveTerminal(terminalId);
+    publishWorkspaceDockMode('code', workspace.id);
   };
 
   const handleSaveWorkspace = async (workspace: Workspace) => {
-    if (editingWorkspace) {
-      const { id, ...updates } = workspace;
-      await updateWorkspace(editingWorkspace.id, updates);
-    } else {
-      await createWorkspace(workspace);
+    const { id, ...updates } = workspace;
+    await updateWorkspace(id, updates);
+    if (activeWorkspace?.id === id) {
+      publishWorkspaceDockMode(workspace.kind === 'strategy-pod' ? 'inspector' : 'code', id);
     }
-
-    setEditingWorkspace(null);
-    setIsModalOpen(false);
-  };
-
-  const handleCloseModal = () => {
-    setEditingWorkspace(null);
-    setIsModalOpen(false);
   };
 
   if (isLoading) {
     return (
-      <div style={{
-        width: '100%',
-        height: '100%',
-        background: 'var(--app-surface)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--app-muted)'
-      }}>
+      <div style={loadingStyle}>
         Loading...
       </div>
     );
   }
 
   return (
-    <div style={{
-      width: '100%',
-      height: '100%',
-      background: 'rgba(4, 8, 16, 0.35)',
-      backdropFilter: 'blur(28px) saturate(1.2)',
-      WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
-      display: 'flex',
-      flexDirection: 'column',
-      borderRight: '1px solid rgba(255, 255, 255, 0.03)',
-      boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.02)'
-    }}>
-      <div style={{
-        padding: '10px 12px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-        display: 'grid',
-        gap: '8px'
-      }}>
-        <div>
-          <div style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            color: 'var(--app-accent)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em'
-          }}>
-            Trading Stations
-          </div>
-          <div style={{ color: 'var(--app-subtle)', fontSize: '10px', marginTop: '3px' }}>
-            Fixed hedge fund research and live monitor surfaces
-          </div>
-        </div>
-        <div style={stationListStyle}>
-          {TRADING_STATIONS.map((station) => (
-            <StationListItem
-              key={station.id}
-              station={station}
-              isActive={isStationRoute(activeCenterPath, station) || (activeCenterPath === '/' && station.id === 'hedge-fund-station')}
-              onSelect={() => handleStationClick(station)}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div style={{
-        padding: '10px 12px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: '8px'
-      }}>
-        <div>
-          <div style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            color: 'var(--app-accent)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em'
-          }}>
-            Desks
-          </div>
-          <div style={{ color: 'var(--app-subtle)', fontSize: '10px', marginTop: '3px' }}>
-            Local folders, commands, terminals, agents, and vaults
+    <aside style={sidebarStyle} aria-label="Strategy pod switcher">
+      <header style={headerStyle}>
+        <div style={{ minWidth: 0 }}>
+          <div style={eyebrowStyle}>Strategy Pods</div>
+          <div style={subtleTextStyle}>
+            {strategyPodWorkspaces.length} pods
           </div>
         </div>
         <button
           type="button"
-          title="Add desk"
-          aria-label="Add desk"
-          onClick={handleCreateWorkspace}
-          style={{
-            width: '28px',
-            height: '28px',
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            borderRadius: '6px',
-            color: 'var(--app-accent)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 0
-          }}
+          title="Create strategy pod"
+          aria-label="Create strategy pod"
+          onClick={() => setCreatorOpen(true)}
+          style={addButtonStyle}
         >
           <Plus size={15} />
         </button>
+      </header>
+
+      <div style={workspaceListStyle}>
+        {strategyPodWorkspaces.length === 0 ? (
+          <div style={emptyStateStyle}>No strategy pods yet.</div>
+        ) : (
+          strategyPodWorkspaces.map((workspace) => {
+            const sessionCount = terminals.filter((terminal) => terminal.workspaceId === workspace.id).length;
+            const linkedCount = workspace.linked_strategy_ids?.length || (workspace.strategy_id ? 1 : 0);
+            return (
+              <WorkspaceListItem
+                key={workspace.id}
+                workspace={workspace}
+                linkedCount={linkedCount}
+                sessionCount={sessionCount}
+                isActive={activeWorkspace?.id === workspace.id}
+                menuOpen={openMenuId === workspace.id}
+                onSelect={() => void activateWorkspace(workspace.id, 'inspector')}
+                onToggleMenu={() => setOpenMenuId((current) => current === workspace.id ? null : workspace.id)}
+                onOpenAgentView={() => {
+                  setOpenMenuId(null);
+                  void activateWorkspace(workspace.id, 'inspector');
+                }}
+                onEdit={() => {
+                  setOpenMenuId(null);
+                  setEditingWorkspace(workspace);
+                }}
+                onDuplicate={() => {
+                  setOpenMenuId(null);
+                  void handleDuplicate(workspace).catch((error) => window.alert(error instanceof Error ? error.message : 'Duplicate failed.'));
+                }}
+                onDelete={() => {
+                  setOpenMenuId(null);
+                  void handleDeletePod(workspace).catch((error) => window.alert(error instanceof Error ? error.message : 'Delete failed.'));
+                }}
+                onOpenCli={() => {
+                  setOpenMenuId(null);
+                  void activateWorkspace(workspace.id, 'code');
+                }}
+                onOpenInspector={() => {
+                  setOpenMenuId(null);
+                  void activateWorkspace(workspace.id, 'inspector');
+                }}
+                onOpenStrategyShell={() => {
+                  setOpenMenuId(null);
+                  void handleOpenStrategyShell(workspace).catch((error) => window.alert(error instanceof Error ? error.message : 'Could not open strategy shell.'));
+                }}
+              />
+            );
+          })
+        )}
       </div>
 
-      <div style={{
-        flex: 1,
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden'
-      }}>
-        <div style={workspaceListStyle}>
-          <WorkspaceGroup
-            title="Command Hub"
-            subtitle="Global terminal desk"
-            workspaces={commandHubDesks}
-            activeWorkspaceId={activeWorkspace?.id}
-            onSelect={handleWorkspaceClick}
-          />
-          <WorkspaceGroup
-            title="Hedge Fund Desk"
-            subtitle="Research, validation, paper review"
-            workspaces={hedgeFundDesks}
-            activeWorkspaceId={activeWorkspace?.id}
-            onSelect={handleWorkspaceClick}
-          />
-          <WorkspaceGroup
-            title="Ops"
-            subtitle="Services, tunnels, runtime health"
-            workspaces={opsDesks}
-            activeWorkspaceId={activeWorkspace?.id}
-            onSelect={handleWorkspaceClick}
-          />
-          <WorkspaceGroup
-            title="Projects"
-            subtitle="Code, agents, notes"
-            workspaces={projectDesks}
-            activeWorkspaceId={activeWorkspace?.id}
-            onSelect={handleWorkspaceClick}
-          />
-        </div>
-
-        <ActiveWorkspaceDetails
-          workspace={activeWorkspace}
-          launchProfilesCollapsed={areLaunchProfilesCollapsed}
-          savedCommandsCollapsed={areSavedCommandsCollapsed}
-          onToggleLaunchProfiles={() => setAreLaunchProfilesCollapsed((value) => !value)}
-          onToggleSavedCommands={() => setAreSavedCommandsCollapsed((value) => !value)}
-          onRunCommand={runWorkspaceCommand}
-          onRunProfile={runWorkspaceProfile}
-          onEdit={handleEditWorkspace}
-          onDelete={(workspace) => void handleDeleteWorkspace(workspace)}
-          onOpenVault={(workspace) => void handleOpenWorkspaceVault(workspace)}
-        />
-      </div>
-
-      <div style={{
-        padding: isLiquidationsCollapsed ? '6px 8px 8px' : '8px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.03)',
-        background: 'rgba(4, 8, 16, 0.3)'
-      }}>
-        <LiquidationTrapsCard
-          decisions={liquidationTraps}
-          updatedAt={liquidationsUpdatedAt}
-          error={liquidationsError}
-          stale={liquidationsStale}
-          collapsed={isLiquidationsCollapsed}
-          onToggleCollapsed={() => setIsLiquidationsCollapsed((value) => !value)}
-        />
-      </div>
+      <PodCreatorModal
+        open={creatorOpen}
+        error={creatorError}
+        assetSymbol={assetSymbolInput}
+        assetDisplayName={assetDisplayInput}
+        onAssetSymbol={setAssetSymbolInput}
+        onAssetDisplayName={setAssetDisplayInput}
+        onClose={() => {
+          setCreatorOpen(false);
+          setCreatorError(null);
+        }}
+        onCreate={() => void handleCreateAssetPod().catch((error) => setCreatorError(error instanceof Error ? error.message : 'Could not create asset pod.'))}
+      />
 
       <WorkspaceModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSaveWorkspace}
+        isOpen={Boolean(editingWorkspace)}
         existingWorkspace={editingWorkspace}
+        onClose={() => setEditingWorkspace(null)}
+        onSave={handleSaveWorkspace}
       />
-    </div>
+    </aside>
   );
 };
 
 function WorkspaceListItem({
   workspace,
+  linkedCount,
+  sessionCount,
   isActive,
-  onSelect
+  menuOpen,
+  onSelect,
+  onToggleMenu,
+  onOpenAgentView,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onOpenCli,
+  onOpenInspector,
+  onOpenStrategyShell
 }: {
   workspace: Workspace;
+  linkedCount: number;
+  sessionCount: number;
   isActive: boolean;
+  menuOpen: boolean;
   onSelect: () => void;
+  onToggleMenu: () => void;
+  onOpenAgentView: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onOpenCli: () => void;
+  onOpenInspector: () => void;
+  onOpenStrategyShell: () => void;
+}) {
+  const Icon = ICONS[workspace.icon] || Folder;
+  const assetSymbol = workspace.asset_symbol || workspace.strategy_symbol || workspace.name;
+  const activeStrategy = workspace.active_strategy_id || workspace.strategy_id || 'draft strategy';
+  const meta = `${assetSymbol} / ${linkedCount} strategies / ${sessionCount} sessions / ${activeStrategy}`;
+
+  return (
+    <div
+      style={{
+        ...workspaceItemShellStyle,
+        border: isActive ? '1px solid var(--app-border-strong)' : workspaceItemShellStyle.border,
+        background: isActive ? 'rgba(255, 255, 255, 0.042)' : workspaceItemShellStyle.background,
+        boxShadow: isActive ? '0 0 12px var(--app-glow)' : 'none'
+      }}
+      title={`${assetSymbol}\nrepo: ${workspace.path}\nactive strategy: ${activeStrategy}\nbackend: ${workspace.strategy_backend_dir || 'not linked'}\ndocs: ${workspace.strategy_docs_path || 'not linked'}`}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={isActive ? 'page' : undefined}
+        style={workspaceSelectButtonStyle}
+      >
+        <span style={{
+          ...workspaceIconStyle,
+          background: isActive ? 'var(--app-focus)' : workspaceIconStyle.background,
+          border: isActive ? '1px solid var(--app-border-strong)' : workspaceIconStyle.border
+        }}>
+          <Icon size={15} />
+        </span>
+        <span style={workspaceTextBlockStyle}>
+          <span style={workspaceTopLineStyle}>
+            <span style={workspaceNameStyle}>{workspace.name}</span>
+            {isActive ? <span style={activeDotStyle} aria-label="Active workspace" /> : null}
+          </span>
+          <span style={workspaceMetaStyle}>{meta}</span>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleMenu();
+        }}
+        title="Pod actions"
+        aria-label="Pod actions"
+        style={workspaceMenuButtonStyle}
+      >
+        <MoreHorizontal size={14} />
+      </button>
+
+      {menuOpen ? (
+        <div style={workspaceMenuStyle}>
+          <MenuItem icon={<Bot size={13} />} label="Agent View" onClick={onOpenAgentView} />
+          <MenuItem icon={<BarChart3 size={13} />} label="Open Inspector" onClick={onOpenInspector} />
+          <MenuItem icon={<Terminal size={13} />} label="Open Agent CLI" onClick={onOpenCli} />
+          <MenuItem icon={<FolderOpen size={13} />} label="Open Strategy Shell" onClick={onOpenStrategyShell} />
+          <MenuItem icon={<Edit3 size={13} />} label="Edit" onClick={onEdit} />
+          <MenuItem icon={<Copy size={13} />} label="Duplicate" onClick={onDuplicate} />
+          <MenuItem icon={<Trash2 size={13} />} label="Delete Pod" onClick={onDelete} danger />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  danger = false
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={onClick}
       style={{
-        width: '100%',
-        minHeight: '48px',
-        padding: '7px 8px',
-        borderRadius: '8px',
-        border: isActive ? '1px solid var(--app-border-strong)' : '1px solid rgba(255, 255, 255, 0.025)',
-        background: isActive ? 'rgba(255, 255, 255, 0.035)' : 'rgba(255, 255, 255, 0.01)',
-        boxShadow: isActive ? '0 0 12px var(--app-glow)' : 'none',
-        color: 'var(--app-text)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        display: 'grid',
-        gridTemplateColumns: '30px minmax(0, 1fr)',
-        gap: '8px',
-        alignItems: 'center',
-        transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease'
+        ...menuItemStyle,
+        color: danger ? '#fca5a5' : menuItemStyle.color
       }}
     >
-      <span style={{
-        width: '30px',
-        height: '30px',
-        borderRadius: '8px',
-        background: isActive ? 'var(--app-focus)' : 'var(--app-panel-muted)',
-        border: isActive ? '1px solid var(--app-border-strong)' : '1px solid var(--app-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--app-text)',
-        fontSize: '10px',
-        fontWeight: 800,
-        flexShrink: 0
-      }}>
-        {ICONS[workspace.icon] || 'WS'}
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{
-          display: 'block',
-          fontSize: '12px',
-          fontWeight: 800,
-          lineHeight: 1.15,
-          color: 'var(--app-text)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}>
-          {workspace.name}
-        </span>
-        <span style={{
-          display: 'block',
-          fontSize: '10px',
-          color: isActive ? 'var(--app-accent)' : 'var(--app-subtle)',
-          marginTop: '4px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}>
-            {isActive
-            ? isPrimaryHedgeFundDesk(workspace) ? 'Active hedge fund desk' : 'Active desk'
-            : workspace.description || `Desk - ${compactPath(workspace.path)}`}
-        </span>
-      </span>
+      {icon}
+      <span>{label}</span>
     </button>
   );
 }
 
-function WorkspaceGroup({
-  title,
-  subtitle,
-  workspaces,
-  activeWorkspaceId,
-  onSelect
+function PodCreatorModal({
+  open,
+  error,
+  assetSymbol,
+  assetDisplayName,
+  onAssetSymbol,
+  onAssetDisplayName,
+  onClose,
+  onCreate
 }: {
-  title: string;
-  subtitle: string;
-  workspaces: Workspace[];
-  activeWorkspaceId?: string;
-  onSelect: (workspaceId: string) => void | Promise<void>;
+  open: boolean;
+  error: string | null;
+  assetSymbol: string;
+  assetDisplayName: string;
+  onAssetSymbol: (value: string) => void;
+  onAssetDisplayName: (value: string) => void;
+  onClose: () => void;
+  onCreate: () => void;
 }) {
-  if (workspaces.length === 0) {
+  if (!open) {
     return null;
   }
 
   return (
-    <section style={deskGroupStyle} aria-label={title}>
-      <div style={deskGroupHeaderStyle}>
-        <span>{title}</span>
-        <span style={countPillStyle}>{workspaces.length}</span>
-      </div>
-      <div style={deskGroupSubtitleStyle}>{subtitle}</div>
-      <div style={deskGroupListStyle}>
-        {workspaces.map((workspace) => (
-          <WorkspaceListItem
-            key={workspace.id}
-            workspace={workspace}
-            isActive={activeWorkspaceId === workspace.id}
-            onSelect={() => void onSelect(workspace.id)}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function StationListItem({
-  station,
-  isActive,
-  onSelect
-}: {
-  station: StationDefinition;
-  isActive: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      style={{
-        width: '100%',
-        minHeight: '54px',
-        padding: '8px',
-        borderRadius: '8px',
-        border: isActive ? '1px solid var(--app-border-strong)' : '1px solid rgba(255, 255, 255, 0.035)',
-        background: isActive ? 'rgba(255, 255, 255, 0.045)' : 'rgba(255, 255, 255, 0.014)',
-        boxShadow: isActive ? '0 0 14px var(--app-glow)' : 'none',
-        color: 'var(--app-text)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        display: 'grid',
-        gridTemplateColumns: '32px minmax(0, 1fr)',
-        gap: '9px',
-        alignItems: 'center',
-        transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease'
-      }}
-    >
-      <span style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
-        background: isActive ? 'var(--app-focus)' : 'var(--app-panel-muted)',
-        border: isActive ? '1px solid var(--app-border-strong)' : '1px solid var(--app-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: isActive ? 'var(--app-text)' : 'var(--app-muted)'
-      }}>
-        {station.icon === 'live' ? <RadioTower size={16} /> : <ShieldCheck size={16} />}
-      </span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{
-          display: 'block',
-          fontSize: '12px',
-          fontWeight: 850,
-          lineHeight: 1.15,
-          color: 'var(--app-text)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}>
-          {station.label}
-        </span>
-        <span style={{
-          display: 'block',
-          fontSize: '10px',
-          color: isActive ? 'var(--app-accent)' : 'var(--app-subtle)',
-          marginTop: '4px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}>
-          {station.description}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-function ActiveWorkspaceDetails({
-  workspace,
-  launchProfilesCollapsed,
-  savedCommandsCollapsed,
-  onToggleLaunchProfiles,
-  onToggleSavedCommands,
-  onRunCommand,
-  onRunProfile,
-  onEdit,
-  onDelete,
-  onOpenVault
-}: {
-  workspace: Workspace | null;
-  launchProfilesCollapsed: boolean;
-  savedCommandsCollapsed: boolean;
-  onToggleLaunchProfiles: () => void;
-  onToggleSavedCommands: () => void;
-  onRunCommand: (workspace: Workspace, command?: string, switchWorkspace?: boolean) => void;
-  onRunProfile: (workspace: Workspace, profileId: string) => void;
-  onEdit: (workspace: Workspace) => void;
-  onDelete: (workspace: Workspace) => void;
-  onOpenVault: (workspace: Workspace) => void;
-}) {
-  if (!workspace) {
-    return (
-      <div style={activeDetailStyle}>
-        <div style={emptyDetailStyle}>Select Command Hub, the hedge fund desk, or a project desk to prepare commands.</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={activeDetailStyle}>
-      <div style={activeDetailHeaderStyle}>
-        <div style={{ minWidth: 0 }}>
-          <div style={sectionTitleStyle}>Active Desk</div>
-          <div style={{
-            fontSize: '13px',
-            fontWeight: 800,
-            color: 'var(--app-text)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}>
-            {workspace.name}
+    <div style={modalBackdropStyle}>
+      <section style={podModalStyle}>
+        <div style={modalHeaderStyle}>
+          <div>
+            <div style={eyebrowStyle}>New Asset Pod</div>
+            <h2 style={modalTitleStyle}>Create a ticker workspace</h2>
+            <p style={modalCopyStyle}>Asset pods group terminals, agent sessions, browser tabs, and linked strategies for one ticker. Strategy files are created later from the inspector or Strategy Factory.</p>
           </div>
-          <div style={deskKindTextStyle}>{workspace.kind.replace('-', ' ')}</div>
-          <div style={pathTextStyle} title={workspace.path}>{workspace.path}</div>
+          <button type="button" onClick={onClose} style={modalCloseButtonStyle}>X</button>
         </div>
-      </div>
 
-      <div style={quickActionGridStyle}>
-        <IconActionButton label="Shell" title="Open shell" icon={<Terminal size={13} />} onClick={() => onRunCommand(workspace)} />
-        <IconActionButton label="Codex" title="Run Codex" icon={<Bot size={13} />} onClick={() => onRunCommand(workspace, 'codex')} />
-        <IconActionButton label="Claude" title="Run Claude" icon={<Bot size={13} />} onClick={() => onRunCommand(workspace, 'claude')} />
-        <IconActionButton label="Git" title="Run git status" icon={<GitBranch size={13} />} onClick={() => onRunCommand(workspace, 'git status')} />
-        <IconActionButton label="Edit" title="Edit desk" icon={<Pencil size={13} />} onClick={() => onEdit(workspace)} />
-        <IconActionButton label="Vault" title="Open desk vault" icon={<BookOpen size={13} />} onClick={() => onOpenVault(workspace)} />
-        {workspace.kind !== 'command-hub' ? (
-          <IconActionButton
-            label="Delete"
-            title="Delete desk"
-            icon={<Trash2 size={13} />}
-            danger
-            onClick={() => onDelete(workspace)}
-          />
-        ) : null}
-      </div>
+        <div style={podChoiceGridStyle}>
+          <section style={podChoiceCardStyle}>
+            <div style={choiceTitleStyle}>Ticker</div>
+            <div style={choiceCopyStyle}>Use the exchange symbol. Example: BTC, ETH, SOL, HYPE.</div>
+            <input
+              type="text"
+              value={assetSymbol}
+              onChange={(event) => onAssetSymbol(event.target.value.toUpperCase())}
+              placeholder="BTC"
+              style={creatorInputStyle}
+            />
+          </section>
 
-      <CollapsibleSectionHeader
-        title="Launch Profiles"
-        count={workspace.launch_profiles.length}
-        collapsed={launchProfilesCollapsed}
-        onToggle={onToggleLaunchProfiles}
-      />
-      {!launchProfilesCollapsed && (
-        <div style={commandListStyle}>
-          {workspace.launch_profiles.length === 0 ? (
-            <div style={emptyInlineStyle}>No launch profiles saved.</div>
-          ) : (
-            workspace.launch_profiles.map((profile) => (
-              <button
-                key={profile.id}
-                type="button"
-                onClick={() => onRunProfile(workspace, profile.id)}
-                style={commandButtonStyle}
-              >
-                <div style={commandTitleStyle}>{profile.name}</div>
-                <div style={commandTextStyle}>{getLaunchProfileCommandSummary(profile)}</div>
-                <div style={commandMetaTextStyle}>
-                  {profile.steps.map((step) => `${step.delayMs}ms>${step.command}`).join(' | ')}
-                </div>
-              </button>
-            ))
-          )}
+          <section style={podChoiceCardStyle}>
+            <div style={choiceTitleStyle}>Display</div>
+            <div style={choiceCopyStyle}>Optional label for the left rail. Leave empty to use the ticker.</div>
+            <input
+              type="text"
+              value={assetDisplayName}
+              onChange={(event) => onAssetDisplayName(event.target.value)}
+              placeholder="Bitcoin"
+              style={creatorInputStyle}
+            />
+          </section>
         </div>
-      )}
 
-      <CollapsibleSectionHeader
-        title="Saved Commands"
-        count={workspace.default_commands.length}
-        collapsed={savedCommandsCollapsed}
-        onToggle={onToggleSavedCommands}
-      />
-      {!savedCommandsCollapsed && (
-        <div style={commandListStyle}>
-          {workspace.default_commands.length === 0 ? (
-            <div style={emptyInlineStyle}>No saved commands yet.</div>
-          ) : (
-            workspace.default_commands.map((command) => (
-              <button
-                key={command}
-                type="button"
-                onClick={() => onRunCommand(workspace, command)}
-                style={commandButtonStyle}
-                title={command}
-              >
-                <div style={commandTextStyle}>{command}</div>
-              </button>
-            ))
-          )}
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onCreate} style={creatorPrimaryButtonStyle}>
+            Create Asset Pod
+          </button>
         </div>
-      )}
+
+        {error ? <div style={creatorErrorStyle}>{error}</div> : null}
+      </section>
     </div>
   );
 }
 
-function IconActionButton({
-  label,
-  title,
-  icon,
-  danger,
-  onClick
-}: {
-  label: string;
-  title: string;
-  icon: React.ReactNode;
-  danger?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      style={{
-        ...miniActionButton,
-        color: danger ? 'var(--app-negative)' : miniActionButton.color,
-        border: danger ? '1px solid var(--app-border-strong)' : miniActionButton.border
-      }}
-    >
-      <span style={{ display: 'flex' }}>{icon}</span>
-      <span style={{
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis'
-      }}>
-        {label}
-      </span>
-    </button>
-  );
-}
-
-function CollapsibleSectionHeader({
-  title,
-  count,
-  collapsed,
-  onToggle
-}: {
-  title: string;
-  count: number;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      style={sectionToggleStyle}
-    >
-      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-        {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-        <span style={{ ...sectionTitleStyle, marginBottom: 0 }}>{title}</span>
-      </span>
-      <span style={countPillStyle}>{count}</span>
-    </button>
-  );
-}
-
-function LiquidationTrapsCard({
-  decisions,
-  updatedAt,
-  error,
-  stale,
-  collapsed,
-  onToggleCollapsed
-}: {
-  decisions?: TrapDecision[];
-  updatedAt: number | null;
-  error: string | null;
-  stale: boolean;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-}) {
-  const safeDecisions = decisions ?? [];
-
-  return (
-    <div style={{
-      borderRadius: '10px',
-      border: '1px solid rgba(255, 255, 255, 0.03)',
-      background: 'rgba(255, 255, 255, 0.015)',
-      overflow: 'hidden',
-      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
-    }}>
-      <button
-        type="button"
-        onClick={onToggleCollapsed}
-        style={{
-        padding: '10px 12px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px',
-        width: '100%',
-        background: 'transparent',
-        cursor: 'pointer',
-        textAlign: 'left'
-      }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontSize: '10px',
-            fontWeight: 700,
-            color: 'var(--app-accent)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.12em'
-          }}>
-            Liquidation Traps
-          </div>
-          <div style={{ color: 'var(--app-subtle)', fontSize: '10px', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            Decision queue from crowding pressure
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          <div style={{
-            padding: '4px 7px',
-            borderRadius: '999px',
-            background: stale ? 'var(--app-warning-soft)' : 'var(--app-panel-muted)',
-            border: stale ? '1px solid var(--app-warning)' : '1px solid var(--app-border)',
-            color: stale ? 'var(--app-warning)' : 'var(--app-muted)',
-            fontSize: '10px',
-            fontWeight: 700
-          }}>
-            {stale ? 'Stale' : updatedAt ? new Date(updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Loading'}
-          </div>
-          <span style={{ display: 'flex', color: 'var(--app-muted)' }}>
-            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-          </span>
-        </div>
-      </button>
-
-      {collapsed ? null : error && !stale ? (
-        <div style={{
-          margin: '10px',
-          padding: '10px',
-          borderRadius: '8px',
-          border: '1px solid var(--app-negative)',
-          background: 'var(--app-negative-soft)',
-          color: 'var(--app-negative)',
-          fontSize: '11px',
-          lineHeight: 1.45
-        }}>
-          {error}
-        </div>
-      ) : (
-        <div style={{ padding: '10px', display: 'grid', gap: '8px' }}>
-          {error ? (
-            <div style={{
-              borderRadius: '8px',
-              border: '1px solid var(--app-warning)',
-              background: 'var(--app-warning-soft)',
-              color: 'var(--app-warning)',
-              fontSize: '10px',
-              lineHeight: 1.45,
-              padding: '8px 10px'
-            }}>
-              Gateway slow. Showing last good snapshot.
-            </div>
-          ) : null}
-          {safeDecisions.length === 0 ? (
-            <div style={{
-              borderRadius: '8px',
-              border: '1px dashed var(--app-border)',
-              background: 'var(--app-panel-muted)',
-              color: 'var(--app-muted)',
-              fontSize: '11px',
-              lineHeight: 1.45,
-              padding: '10px'
-            }}>
-              No clear BTC, ETH or SOL trap yet. Wait for pressure to concentrate.
-            </div>
-          ) : (
-            safeDecisions.map((decision) => (
-              <TrapDecisionRow key={`${decision.symbol}-${decision.sideAtRisk}`} decision={decision} />
-            ))
-          )}
-          <div style={{
-            paddingTop: '2px',
-            fontSize: '10px',
-            lineHeight: 1.45,
-            color: 'var(--app-subtle)'
-          }}>
-            Confirm before acting: this queue ranks review urgency, not a standalone trade signal.
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TrapDecisionRow({ decision }: { decision: TrapDecision }) {
-  return (
-    <div style={{
-      borderRadius: '10px',
-      border: '1px solid var(--app-border)',
-      background: 'var(--app-panel-muted)',
-      padding: '9px'
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--app-text)' }}>{decision.symbol}</div>
-            <ActionPill action={decision.action} />
-          </div>
-          <div style={{ color: sideColor(decision.sideAtRisk), fontSize: '10px', fontWeight: 800, marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            {sideCopy(decision.sideAtRisk)}
-          </div>
-        </div>
-        <div style={{
-          flexShrink: 0,
-          padding: '3px 6px',
-          borderRadius: '999px',
-          background: 'var(--app-surface)',
-          border: '1px solid var(--app-border)',
-          color: 'var(--app-text)',
-          fontSize: '10px',
-          fontWeight: 800
-        }}>
-          {formatCompact(decision.pressureUsd)}
-        </div>
-      </div>
-      <div style={{ marginTop: '7px', color: 'var(--app-muted)', fontSize: '11px', lineHeight: 1.4 }}>
-        {decision.setupReason}
-      </div>
-      <TrapMiniLine label="Confirm" value={decision.confirmation} />
-      <TrapMiniLine label="Risk" value={decision.risk} />
-    </div>
-  );
-}
-
-function TrapMiniLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ marginTop: '6px', display: 'grid', gridTemplateColumns: '46px minmax(0, 1fr)', gap: '7px', fontSize: '10px', lineHeight: 1.35 }}>
-      <span style={{ color: 'var(--app-subtle)', fontWeight: 800, textTransform: 'uppercase' }}>{label}</span>
-      <span style={{ color: 'var(--app-muted)' }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function ActionPill({ action }: { action: TrapAction }) {
-  return (
-    <span style={{
-      borderRadius: '999px',
-      border: `1px solid ${actionColor(action)}`,
-      background: actionBackground(action),
-      color: actionColor(action),
-      padding: '2px 6px',
-      fontSize: '9px',
-      fontWeight: 900,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em'
-    }}>
-      {action}
-    </span>
-  );
-}
-
-function actionColor(action: TrapAction) {
-  if (action === 'Confirm') return 'var(--app-positive)';
-  if (action === 'Watch') return 'var(--app-warning)';
-  return 'var(--app-subtle)';
-}
-
-function actionBackground(action: TrapAction) {
-  if (action === 'Confirm') return 'var(--app-positive-soft)';
-  if (action === 'Watch') return 'var(--app-warning-soft)';
-  return 'var(--app-panel-muted)';
-}
-
-function sideColor(side: TrapSide) {
-  if (side === 'longs') return 'var(--app-negative)';
-  if (side === 'shorts') return 'var(--app-positive)';
-  return 'var(--app-muted)';
-}
-
-function sideCopy(side: TrapSide) {
-  if (side === 'longs') return 'Longs at risk';
-  if (side === 'shorts') return 'Shorts at risk';
-  return 'Balanced';
-}
-
-function isMajorMarket(symbol: string) {
-  const normalized = symbol.trim().toUpperCase();
-  return normalized === 'BTC' || normalized === 'ETH' || normalized === 'SOL';
-}
-
-function formatCompact(value: number | null, digits = 2) {
-  if (value === null || Number.isNaN(value)) {
-    return 'N/A';
-  }
-  if (Math.abs(value) >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(digits)}B`;
-  }
-  if (Math.abs(value) >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(digits)}M`;
-  }
-  if (Math.abs(value) >= 1_000) {
-    return `${(value / 1_000).toFixed(digits)}K`;
-  }
-  return value.toFixed(digits);
-}
-
-function compactPath(path: string) {
-  const parts = path.split('/').filter(Boolean);
-  if (parts.length <= 2) {
-    return path;
-  }
-  return `.../${parts.slice(-2).join('/')}`;
-}
-
-function usePersistedBoolean(key: string, defaultValue: boolean): [boolean, React.Dispatch<React.SetStateAction<boolean>>] {
-  const [value, setValue] = useState(() => {
-    if (typeof window === 'undefined') {
-      return defaultValue;
-    }
-
-    const stored = window.localStorage.getItem(key);
-    if (stored === null) {
-      return defaultValue;
-    }
-    return stored === 'true';
-  });
-
-  useEffect(() => {
-    window.localStorage.setItem(key, String(value));
-  }, [key, value]);
-
-  return [value, setValue];
-}
-
-const workspaceListStyle: React.CSSProperties = {
-  flex: '1 1 auto',
-  minHeight: '132px',
-  overflowY: 'auto',
-  display: 'grid',
-  alignContent: 'start',
-  gap: '6px',
-  padding: '8px'
-};
-
-const deskGroupStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: '6px',
-  paddingBottom: '4px'
-};
-
-const deskGroupHeaderStyle: React.CSSProperties = {
+const loadingStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  background: 'var(--app-surface)',
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--app-muted)'
+};
+
+const sidebarStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+  background: 'rgba(4, 8, 16, 0.35)',
+  backdropFilter: 'blur(28px) saturate(1.2)',
+  WebkitBackdropFilter: 'blur(28px) saturate(1.2)',
+  display: 'flex',
+  flexDirection: 'column',
+  borderRight: '1px solid rgba(255, 255, 255, 0.03)',
+  boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.02)'
+};
+
+const headerStyle: React.CSSProperties = {
+  padding: '12px',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
+  display: 'flex',
   justifyContent: 'space-between',
-  gap: '8px',
-  padding: '4px 2px 0',
-  color: 'var(--app-accent)',
+  alignItems: 'center',
+  gap: '8px'
+};
+
+const eyebrowStyle: React.CSSProperties = {
   fontSize: '10px',
   fontWeight: 800,
+  color: 'var(--app-accent)',
   textTransform: 'uppercase',
   letterSpacing: '0.12em'
 };
 
-const deskGroupSubtitleStyle: React.CSSProperties = {
-  marginTop: '-2px',
-  padding: '0 2px',
+const subtleTextStyle: React.CSSProperties = {
   color: 'var(--app-subtle)',
   fontSize: '10px',
-  lineHeight: 1.35,
+  marginTop: '3px',
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis'
 };
 
-const deskGroupListStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: '6px'
+const addButtonStyle: React.CSSProperties = {
+  width: '28px',
+  height: '28px',
+  background: 'rgba(255, 255, 255, 0.02)',
+  border: '1px solid rgba(255, 255, 255, 0.06)',
+  borderRadius: '6px',
+  color: 'var(--app-accent)',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
+  flex: '0 0 auto'
 };
 
-const stationListStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: '6px'
-};
-
-const activeDetailStyle: React.CSSProperties = {
-  flex: '0 0 auto',
-  maxHeight: '44%',
-  minHeight: '128px',
+const workspaceListStyle: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
   overflowY: 'auto',
-  borderTop: '1px solid rgba(255, 255, 255, 0.03)',
-  background: 'rgba(4, 8, 16, 0.22)',
-  padding: '9px 8px 10px',
   display: 'grid',
   alignContent: 'start',
-  gap: '8px'
+  gap: '5px',
+  padding: '8px'
 };
 
-const activeDetailHeaderStyle: React.CSSProperties = {
+const workspaceItemShellStyle: React.CSSProperties = {
+  position: 'relative',
+  width: '100%',
+  minHeight: '48px',
   borderRadius: '8px',
-  border: '1px solid rgba(255, 255, 255, 0.035)',
-  background: 'rgba(255, 255, 255, 0.014)',
-  padding: '9px 10px'
+  border: '1px solid rgba(255, 255, 255, 0.025)',
+  background: 'rgba(255, 255, 255, 0.01)',
+  color: 'var(--app-text)',
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) 24px',
+  alignItems: 'center',
+  transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease'
 };
 
-const emptyDetailStyle: React.CSSProperties = {
+const workspaceSelectButtonStyle: React.CSSProperties = {
+  minWidth: 0,
+  minHeight: '48px',
+  padding: '7px 4px 7px 8px',
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  cursor: 'pointer',
+  textAlign: 'left',
+  display: 'grid',
+  gridTemplateColumns: '30px minmax(0, 1fr)',
+  gap: '8px',
+  alignItems: 'center'
+};
+
+const workspaceMenuButtonStyle: React.CSSProperties = {
+  width: '24px',
+  height: '30px',
+  border: 0,
+  borderLeft: '1px solid rgba(255,255,255,0.04)',
+  background: 'transparent',
+  color: 'var(--app-subtle)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0
+};
+
+const workspaceIconStyle: React.CSSProperties = {
+  width: '30px',
+  height: '30px',
+  borderRadius: '8px',
+  background: 'var(--app-panel-muted)',
+  border: '1px solid var(--app-border)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--app-text)',
+  fontSize: '10px',
+  fontWeight: 800,
+  flexShrink: 0
+};
+
+const workspaceTextBlockStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: 'grid',
+  gap: '3px'
+};
+
+const workspaceTopLineStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px'
+};
+
+const workspaceNameStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: 'block',
+  fontSize: '12px',
+  fontWeight: 800,
+  lineHeight: 1.15,
+  color: 'var(--app-text)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis'
+};
+
+const workspaceMetaStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: 'block',
+  color: 'var(--app-subtle)',
+  fontSize: '10px',
+  lineHeight: 1.2,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis'
+};
+
+const activeDotStyle: React.CSSProperties = {
+  width: '7px',
+  height: '7px',
+  borderRadius: '999px',
+  background: 'var(--app-accent)',
+  boxShadow: '0 0 10px var(--app-glow)',
+  flex: '0 0 auto'
+};
+
+const workspaceMenuStyle: React.CSSProperties = {
+  position: 'absolute',
+  right: '4px',
+  top: '42px',
+  zIndex: 20,
+  width: '170px',
+  borderRadius: '8px',
+  border: '1px solid var(--app-border)',
+  background: 'rgba(8, 13, 24, 0.98)',
+  boxShadow: '0 16px 48px rgba(0,0,0,0.42)',
+  padding: '5px',
+  display: 'grid',
+  gap: '2px'
+};
+
+const menuItemStyle: React.CSSProperties = {
+  height: '30px',
+  border: 0,
+  borderRadius: '6px',
+  background: 'transparent',
+  color: 'var(--app-text)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '0 8px',
+  fontSize: '11px',
+  fontWeight: 700,
+  textAlign: 'left'
+};
+
+const emptyStateStyle: React.CSSProperties = {
   borderRadius: '8px',
   border: '1px dashed var(--app-border)',
   background: 'var(--app-panel-muted)',
@@ -1201,133 +798,128 @@ const emptyDetailStyle: React.CSSProperties = {
   padding: '10px'
 };
 
-const pathTextStyle: React.CSSProperties = {
-  marginTop: '5px',
-  color: 'var(--app-subtle)',
-  fontFamily: 'Consolas, monospace',
-  fontSize: '10px',
-  lineHeight: 1.35,
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis'
-};
-
-const deskKindTextStyle: React.CSSProperties = {
-  marginTop: '5px',
-  color: 'var(--app-accent)',
-  fontSize: '10px',
-  fontWeight: 800,
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em'
-};
-
-const quickActionGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-  gap: '6px'
-};
-
-const sectionToggleStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '7px 2px 3px',
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--app-muted)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '8px',
-  textAlign: 'left'
-};
-
-const countPillStyle: React.CSSProperties = {
-  minWidth: '20px',
-  padding: '2px 6px',
-  borderRadius: '999px',
-  background: 'var(--app-panel-muted)',
-  border: '1px solid var(--app-border)',
-  color: 'var(--app-subtle)',
-  fontSize: '10px',
-  fontWeight: 800,
-  textAlign: 'center'
-};
-
-const commandListStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: '6px'
-};
-
-const emptyInlineStyle: React.CSSProperties = {
-  borderRadius: '8px',
-  border: '1px dashed rgba(255, 255, 255, 0.04)',
-  background: 'rgba(255, 255, 255, 0.01)',
-  color: 'var(--app-subtle)',
-  fontSize: '10px',
-  lineHeight: 1.4,
-  padding: '8px 10px'
-};
-
-const miniActionButton: React.CSSProperties = {
-  padding: '4px 7px',
-  background: 'rgba(255, 255, 255, 0.02)',
-  border: '1px solid rgba(255, 255, 255, 0.04)',
-  borderRadius: '6px',
-  color: 'var(--app-muted)',
-  cursor: 'pointer',
-  fontSize: '10px',
-  fontWeight: 500,
-  transition: 'all 0.2s ease',
-  minWidth: 0,
-  height: '28px',
+const modalBackdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 9998,
+  background: 'rgba(2, 6, 23, 0.72)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '5px'
+  padding: '24px'
 };
 
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: '10px',
-  color: 'var(--app-subtle)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
-  fontWeight: 700,
-  marginBottom: '6px'
+const podModalStyle: React.CSSProperties = {
+  width: 'min(780px, 100%)',
+  maxHeight: '88vh',
+  borderRadius: '12px',
+  border: '1px solid rgba(34, 211, 238, 0.22)',
+  background: 'linear-gradient(180deg, rgba(10, 14, 24, 0.98) 0%, rgba(5, 7, 11, 0.98) 100%)',
+  boxShadow: '0 30px 120px rgba(0, 0, 0, 0.45)',
+  overflow: 'auto'
 };
 
-const commandButtonStyle: React.CSSProperties = {
-  padding: '7px 10px',
-  background: 'rgba(255, 255, 255, 0.015)',
-  border: '1px solid rgba(255, 255, 255, 0.03)',
+const modalHeaderStyle: React.CSSProperties = {
+  padding: '16px 18px',
+  borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '12px'
+};
+
+const modalTitleStyle: React.CSSProperties = {
+  margin: '6px 0 4px 0',
+  color: '#f9fafb',
+  fontSize: '18px',
+  fontWeight: 800
+};
+
+const modalCopyStyle: React.CSSProperties = {
+  margin: 0,
+  color: '#9ca3af',
+  fontSize: '12px',
+  lineHeight: 1.5,
+  maxWidth: '520px'
+};
+
+const modalCloseButtonStyle: React.CSSProperties = {
+  width: '34px',
+  height: '34px',
   borderRadius: '8px',
-  color: 'var(--app-text)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  background: 'rgba(255, 255, 255, 0.03)',
+  color: '#9ca3af',
   cursor: 'pointer',
-  textAlign: 'left',
-  transition: 'all 0.2s ease',
-  minWidth: 0
+  fontSize: '15px',
+  fontWeight: 700
 };
 
-const commandTitleStyle: React.CSSProperties = {
+const podChoiceGridStyle: React.CSSProperties = {
+  padding: '16px 18px',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: '12px'
+};
+
+const podChoiceCardStyle: React.CSSProperties = {
+  borderRadius: '8px',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  background: 'rgba(255, 255, 255, 0.025)',
+  padding: '12px',
+  display: 'grid',
+  gap: '10px'
+};
+
+const choiceTitleStyle: React.CSSProperties = {
+  color: '#f9fafb',
+  fontSize: '13px',
+  fontWeight: 800
+};
+
+const choiceCopyStyle: React.CSSProperties = {
+  color: '#9ca3af',
   fontSize: '11px',
-  fontWeight: 800,
-  color: 'var(--app-text)',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis'
+  lineHeight: 1.45
 };
 
-const commandTextStyle: React.CSSProperties = {
-  fontSize: '11px',
-  color: 'var(--app-muted)',
-  fontFamily: 'Consolas, monospace',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  marginTop: '4px'
+const creatorInputStyle: React.CSSProperties = {
+  width: '100%',
+  height: '36px',
+  borderRadius: '8px',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
+  background: '#0b0f19',
+  color: '#f9fafb',
+  padding: '0 10px',
+  fontSize: '12px',
+  outline: 'none'
 };
 
-const commandMetaTextStyle: React.CSSProperties = {
-  ...commandTextStyle,
-  color: 'var(--app-subtle)',
-  fontSize: '10px'
+const creatorPrimaryButtonStyle: React.CSSProperties = {
+  height: '36px',
+  borderRadius: '8px',
+  border: '1px solid rgba(34, 211, 238, 0.3)',
+  background: 'rgba(34, 211, 238, 0.14)',
+  color: '#cffafe',
+  cursor: 'pointer',
+  fontSize: '12px',
+  fontWeight: 800
+};
+
+const modalFooterStyle: React.CSSProperties = {
+  display: 'grid',
+  padding: '0 18px 16px',
+  justifyContent: 'end'
+};
+
+const creatorErrorStyle: React.CSSProperties = {
+  margin: '0 18px 16px',
+  borderRadius: '8px',
+  border: '1px solid rgba(248, 113, 113, 0.28)',
+  background: 'rgba(239, 68, 68, 0.12)',
+  color: '#fecaca',
+  padding: '10px 12px',
+  fontSize: '12px',
+  lineHeight: 1.45
 };

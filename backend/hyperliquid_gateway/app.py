@@ -21,6 +21,7 @@ try:
     from .backtesting.doubling import build_doubling_estimate, build_paper_readiness
     from .backtesting.btc_daily_history import load_btc_daily_history
     from .backtesting.engine import BacktestConfig, normalize_symbols
+    from .backtesting.io import canonicalize_ohlcv_csv
     from .backtesting.registry import available_strategies, get_strategy_definition
     from .backtesting.workflow import (
         build_paper_workflow,
@@ -42,6 +43,16 @@ try:
         run_agent_research,
     )
     from .pine_lab import build_preview, generate_pine_indicator
+    from .strategy_memory import (
+        query_strategy_memory,
+        strategy_memory_status,
+        sync_strategy_memory,
+    )
+    from .strategy_scaffold import (
+        StrategyScaffoldError,
+        preview_strategy_scaffold,
+        write_strategy_scaffold,
+    )
     from .strategies.btc_failed_impulse_reversal.paper import (
         SETUP_TAGS as BTC_FAILED_IMPULSE_SETUP_TAGS,
         build_paper_runtime_plan as build_btc_failed_impulse_paper_runtime_plan,
@@ -58,6 +69,7 @@ except ImportError:
     from backtesting.doubling import build_doubling_estimate, build_paper_readiness
     from backtesting.btc_daily_history import load_btc_daily_history
     from backtesting.engine import BacktestConfig, normalize_symbols
+    from backtesting.io import canonicalize_ohlcv_csv
     from backtesting.registry import available_strategies, get_strategy_definition
     from backtesting.workflow import (
         build_paper_workflow,
@@ -79,6 +91,16 @@ except ImportError:
         run_agent_research,
     )
     from pine_lab import build_preview, generate_pine_indicator
+    from strategy_memory import (
+        query_strategy_memory,
+        strategy_memory_status,
+        sync_strategy_memory,
+    )
+    from strategy_scaffold import (
+        StrategyScaffoldError,
+        preview_strategy_scaffold,
+        write_strategy_scaffold,
+    )
     from strategies.btc_failed_impulse_reversal.paper import (
         SETUP_TAGS as BTC_FAILED_IMPULSE_SETUP_TAGS,
         build_paper_runtime_plan as build_btc_failed_impulse_paper_runtime_plan,
@@ -141,6 +163,7 @@ STRATEGY_MEMORY_ROOT = DATA_ROOT / "strategy_memory"
 GRAPHIFY_OUT_ROOT = REPO_ROOT / "graphify-out"
 DOCS_STRATEGIES_ROOT = REPO_ROOT / "docs" / "strategies"
 STRATEGIES_ROOT = BACKEND_ROOT / "strategies"
+MAX_STRATEGY_LAB_CANDLES = 8000
 PAPER_LOOP_LOG_DIR = REPO_ROOT / ".tmp"
 PAPER_LOOP_PID_FILE = PAPER_LOOP_LOG_DIR / "btc-paper-runtime-loop.pid"
 PAPER_LOOP_LOG_FILE = PAPER_LOOP_LOG_DIR / "btc-paper-runtime-loop.log"
@@ -235,6 +258,16 @@ class PaperCandidateCreate(BaseModel):
     validation_path: Optional[str] = None
 
 
+class StrategyScaffoldPreviewCreate(BaseModel):
+    title: str = Field(min_length=2, max_length=180)
+    strategy_id: Optional[str] = Field(default=None, max_length=160)
+
+
+class StrategyScaffoldCreate(BaseModel):
+    title: str = Field(min_length=2, max_length=180)
+    strategy_id: Optional[str] = Field(default=None, max_length=160)
+
+
 class StrategyLearningEventCreate(BaseModel):
     strategy_id: str = Field(min_length=2, max_length=160)
     kind: Literal["hypothesis", "decision", "lesson", "postmortem", "rule_change"] = "lesson"
@@ -261,7 +294,7 @@ class PineIndicatorGenerate(BaseModel):
     request: str = Field(min_length=8, max_length=2000)
     symbol: str = "BTC"
     interval: str = "1h"
-    lookback_hours: int = Field(default=72, ge=4, le=240)
+    lookback_hours: int = Field(default=72, ge=4, le=4320)
     indicator_type: Optional[str] = None
 
 
@@ -4353,6 +4386,268 @@ def strategy_catalog_payload(evidence: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def resolve_existing_data_path(path_value: str | None) -> Path | None:
+    if not path_value:
+        return None
+    path = Path(path_value).expanduser()
+    candidates = [path] if path.is_absolute() else [path, REPO_ROOT / path, BACKEND_ROOT / path]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def lab_chart_unavailable(reason: str, *, dataset: dict[str, Any] | None = None, interval: str = "1d") -> dict[str, Any]:
+    return {
+        "available": False,
+        "reason": reason,
+        "interval": interval,
+        "source": (dataset or {}).get("source") or (dataset or {}).get("type"),
+        "datasetPath": (dataset or {}).get("path"),
+        "candles": [],
+        "markers": [],
+    }
+
+
+def bounded_lab_candles(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(candles) <= MAX_STRATEGY_LAB_CANDLES:
+        return candles
+    return candles[-MAX_STRATEGY_LAB_CANDLES:]
+
+
+def normalize_lab_candle(
+    *,
+    timestamp: Any,
+    open_value: Any,
+    high_value: Any,
+    low_value: Any,
+    close_value: Any,
+    volume_value: Any = None,
+) -> dict[str, Any] | None:
+    time_ms = parse_time_ms(timestamp)
+    open_price = to_float(open_value)
+    high_price = to_float(high_value)
+    low_price = to_float(low_value)
+    close_price = to_float(close_value)
+    if time_ms is None or open_price is None or high_price is None or low_price is None or close_price is None:
+        return None
+    return {
+        "time": time_ms,
+        "open": open_price,
+        "high": high_price,
+        "low": low_price,
+        "close": close_price,
+        "volume": to_float(volume_value),
+    }
+
+
+def lab_candles_from_btc_daily(path: Path) -> list[dict[str, Any]]:
+    rows, _metadata = load_btc_daily_history(path, BacktestConfig())
+    candles: list[dict[str, Any]] = []
+    for row in rows:
+        close = row.get("close")
+        candle = normalize_lab_candle(
+            timestamp=row.get("date") or row.get("timestamp") or row.get("time"),
+            open_value=row.get("open", close),
+            high_value=row.get("high", close),
+            low_value=row.get("low", close),
+            close_value=close,
+            volume_value=row.get("volume"),
+        )
+        if candle:
+            candles.append(candle)
+    return candles
+
+
+def lab_candles_from_csv(path: Path) -> list[dict[str, Any]]:
+    return [
+        {
+            "time": candle.epoch_ms,
+            "open": candle.open,
+            "high": candle.high,
+            "low": candle.low,
+            "close": candle.close,
+            "volume": candle.volume,
+        }
+        for candle in canonicalize_ohlcv_csv(path)
+    ]
+
+
+def build_strategy_lab_chart(report_payload: dict[str, Any] | None, *, interval: str) -> dict[str, Any]:
+    if not report_payload:
+        return lab_chart_unavailable("No backtest artifact is available for chart review.", interval=interval)
+
+    dataset = report_payload.get("dataset") if isinstance(report_payload.get("dataset"), dict) else {}
+    dataset_path_value = str(dataset.get("path") or "").strip()
+    if not dataset_path_value:
+        return lab_chart_unavailable("Backtest artifact does not include a dataset path.", dataset=dataset, interval=interval)
+
+    dataset_path = resolve_existing_data_path(dataset_path_value)
+    if dataset_path is None:
+        return lab_chart_unavailable(f"Dataset file not found: {dataset_path_value}", dataset=dataset, interval=interval)
+
+    try:
+        if dataset_path.suffix.lower() == ".csv":
+            candles = lab_candles_from_csv(dataset_path)
+            chart_interval = str(dataset.get("interval") or interval)
+        elif dataset_path.suffix.lower() == ".json" and (
+            dataset.get("type") == "btc_usd_daily" or dataset.get("source_symbol") in {"BTC-USD", "BTCUSDT"}
+        ):
+            candles = lab_candles_from_btc_daily(dataset_path)
+            chart_interval = "1d"
+        else:
+            return lab_chart_unavailable(
+                f"Unsupported strategy lab dataset format: {dataset_path.suffix or dataset.get('type') or 'unknown'}",
+                dataset=dataset,
+                interval=interval,
+            )
+    except Exception as exc:
+        return lab_chart_unavailable(f"Could not load chart candles: {exc}", dataset=dataset, interval=interval)
+
+    if not candles:
+        return lab_chart_unavailable("Dataset loaded but produced no chart candles.", dataset=dataset, interval=interval)
+
+    return {
+        "available": True,
+        "reason": None,
+        "interval": chart_interval,
+        "source": dataset.get("source") or dataset.get("type") or dataset_path.suffix.lower().lstrip("."),
+        "datasetPath": str(dataset_path),
+        "candles": bounded_lab_candles(candles),
+        "markers": [],
+    }
+
+
+def build_strategy_lab_trade_markers(trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    markers: list[dict[str, Any]] = []
+    for index, trade in enumerate(trades):
+        side = str(trade.get("side") or "").lower()
+        is_short = side == "short"
+        entry_time = parse_time_ms(trade.get("entry_timestamp") or trade.get("entry_time"))
+        exit_time = parse_time_ms(trade.get("exit_timestamp") or trade.get("exit_time"))
+        entry_price = to_float(trade.get("entry_price"))
+        exit_price = to_float(trade.get("exit_price"))
+        pnl = to_float(trade.get("net_pnl") or trade.get("realizedPnlUsd") or trade.get("netPnlUsd"))
+        trade_id = str(trade.get("id") or f"trade-{index + 1}")
+        if entry_time is not None:
+            markers.append(
+                {
+                    "id": f"{trade_id}:entry",
+                    "tradeId": trade_id,
+                    "kind": "entry",
+                    "time": entry_time,
+                    "price": entry_price,
+                    "side": side or "n/a",
+                    "pnlUsd": pnl,
+                    "text": f"{'Short' if is_short else 'Long'} entry",
+                    "color": "#f97316" if is_short else "#22c55e",
+                    "shape": "arrowDown" if is_short else "arrowUp",
+                    "position": "aboveBar" if is_short else "belowBar",
+                }
+            )
+        if exit_time is not None:
+            markers.append(
+                {
+                    "id": f"{trade_id}:exit",
+                    "tradeId": trade_id,
+                    "kind": "exit",
+                    "time": exit_time,
+                    "price": exit_price,
+                    "side": side or "n/a",
+                    "pnlUsd": pnl,
+                    "text": f"Exit {trade.get('exit_reason') or ''}".strip(),
+                    "color": "#22c55e" if (pnl or 0.0) >= 0 else "#ef4444",
+                    "shape": "circle",
+                    "position": "aboveBar" if (pnl or 0.0) >= 0 else "belowBar",
+                }
+            )
+    markers.sort(key=lambda item: int(item.get("time") or 0))
+    return markers
+
+
+def selected_lab_backtest_payload(normalized_strategy_id: str, artifact_id: str) -> dict[str, Any] | None:
+    requested = artifact_id.strip() or "latest"
+    if requested != "latest":
+        return backtest_artifact_payload(normalized_strategy_id, requested)
+    try:
+        return latest_backtest_payload(normalized_strategy_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return None
+        raise
+
+
+async def strategy_lab_payload(
+    strategy_id: str,
+    *,
+    artifact_id: str = "latest",
+    interval: str = "1d",
+) -> dict[str, Any]:
+    normalized = normalize_strategy_id(strategy_id)
+    evidence = await build_strategy_evidence(
+        limit=500,
+        runtime_limit=0,
+        include_database=False,
+        mark_paper_trades=False,
+    )
+    row = next(
+        (
+            item for item in evidence.get("strategies") or []
+            if normalize_strategy_id(str(item.get("strategyId") or "")) == normalized
+        ),
+        None,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Strategy {normalized} was not found.")
+
+    selected_artifact = selected_lab_backtest_payload(normalized, artifact_id)
+    report = selected_artifact.get("report") if selected_artifact else None
+    report_payload = report if isinstance(report, dict) else None
+    backtest_trades = report_payload.get("trades") if report_payload else []
+    if not isinstance(backtest_trades, list):
+        backtest_trades = []
+    chart = build_strategy_lab_chart(report_payload, interval=interval)
+    chart["markers"] = build_strategy_lab_trade_markers(backtest_trades) if chart.get("available") else []
+    learning = list_strategy_learning_events(strategy_id=normalized, limit=30)
+    learning_events = learning.get("events") if isinstance(learning, dict) else learning
+    if not isinstance(learning_events, list):
+        learning_events = []
+    agent_runs = list_agent_runs(strategy_id=normalized, limit=12)
+    artifacts = backtest_artifact_summaries(normalized, limit=20)
+
+    return {
+        "updatedAt": int(time.time() * 1000),
+        "strategyId": normalized,
+        "catalogRow": strategy_catalog_card(row),
+        "nextAction": row.get("nextAction") or {},
+        "latestArtifactPaths": row.get("latestArtifactPaths") or {},
+        "artifact": {
+            "requestedArtifactId": artifact_id,
+            "selectedArtifactId": (report_payload or {}).get("artifact_id"),
+            "reportPath": selected_artifact.get("reportPath") if selected_artifact else None,
+            "validationPath": selected_artifact.get("validationPath") if selected_artifact else None,
+            "paperPath": selected_artifact.get("paperPath") if selected_artifact else None,
+        },
+        "artifacts": artifacts,
+        "summary": (report_payload or {}).get("summary") or row.get("latestBacktestSummary") or {},
+        "dataset": (report_payload or {}).get("dataset") or {},
+        "config": (report_payload or {}).get("config") or {},
+        "robustAssessment": (report_payload or {}).get("robust_assessment") or row.get("robustAssessment"),
+        "validation": selected_artifact.get("validation") if selected_artifact else None,
+        "paper": selected_artifact.get("paper") if selected_artifact else None,
+        "equityCurve": (report_payload or {}).get("equity_curve") or [],
+        "trades": {
+            "backtest": backtest_trades,
+            "paper": row.get("trades") or [],
+        },
+        "chart": chart,
+        "timeline": row.get("timeline") or [],
+        "learning": learning_events,
+        "agentRuns": agent_runs,
+        "errors": [] if selected_artifact else ["No backtest artifact is available yet."],
+    }
+
+
 def setup_direction(setup_name: str, row: dict[str, Any]) -> str:
     if setup_name in {"breakout-continuation", "short-squeeze"}:
         return "long"
@@ -6161,6 +6456,43 @@ async def strategies_catalog(
     return strategy_catalog_payload(evidence)
 
 
+@app.post("/api/hyperliquid/strategies/scaffold/preview")
+async def strategy_scaffold_preview(payload: StrategyScaffoldPreviewCreate) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(
+            preview_strategy_scaffold,
+            title=payload.title,
+            strategy_id=payload.strategy_id,
+            strategies_root=STRATEGIES_ROOT,
+            docs_root=DOCS_STRATEGIES_ROOT,
+        )
+    except StrategyScaffoldError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/hyperliquid/strategies/scaffold")
+async def strategy_scaffold(payload: StrategyScaffoldCreate) -> dict[str, Any]:
+    try:
+        return await asyncio.to_thread(
+            write_strategy_scaffold,
+            title=payload.title,
+            strategy_id=payload.strategy_id,
+            strategies_root=STRATEGIES_ROOT,
+            docs_root=DOCS_STRATEGIES_ROOT,
+        )
+    except StrategyScaffoldError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/hyperliquid/strategies/{strategy_id}/lab")
+async def strategy_lab(
+    strategy_id: str,
+    artifact_id: str = "latest",
+    interval: str = "1d",
+) -> dict[str, Any]:
+    return await strategy_lab_payload(strategy_id, artifact_id=artifact_id, interval=interval)
+
+
 @app.get("/api/hyperliquid/strategies/learning")
 async def strategy_learning(
     strategy_id: Optional[str] = None,
@@ -6176,6 +6508,39 @@ async def create_strategy_learning(payload: StrategyLearningEventCreate) -> dict
         "created": True,
         "event": event,
     }
+
+
+@app.get("/api/hyperliquid/memory/strategy/status")
+async def memory_strategy_status() -> dict[str, Any]:
+    return await asyncio.to_thread(strategy_memory_status, STRATEGY_MEMORY_ROOT)
+
+
+@app.post("/api/hyperliquid/memory/strategy/sync")
+async def memory_strategy_sync(
+    dry_run: bool = False,
+    process_jobs: bool = True,
+) -> dict[str, Any]:
+    return await asyncio.to_thread(
+        sync_strategy_memory,
+        memory_root=STRATEGY_MEMORY_ROOT,
+        dry_run=dry_run,
+        process_jobs=process_jobs,
+    )
+
+
+@app.get("/api/hyperliquid/memory/strategy/query")
+async def memory_strategy_query(
+    query: str = Query(..., min_length=1),
+    strategy_id: Optional[str] = None,
+    limit: int = Query(default=8, ge=1, le=40),
+) -> dict[str, Any]:
+    return await asyncio.to_thread(
+        query_strategy_memory,
+        query,
+        strategy_id=strategy_id,
+        limit=limit,
+        memory_root=STRATEGY_MEMORY_ROOT,
+    )
 
 
 @app.get("/api/hyperliquid/memory/graphify-status")

@@ -11,7 +11,7 @@ export interface LaunchProfile {
   steps: LaunchProfileStep[];
 }
 
-export type WorkspaceKind = 'hedge-fund' | 'command-hub' | 'project' | 'ops';
+export type WorkspaceKind = 'strategy-pod' | 'hedge-fund' | 'command-hub' | 'project' | 'ops';
 
 export interface DeskBrowserTab {
   id: string;
@@ -34,6 +34,16 @@ export interface Workspace {
   browser_tabs: DeskBrowserTab[];
   shell: string;
   obsidian_vault_path?: string;
+  asset_symbol?: string;
+  asset_display_name?: string;
+  linked_strategy_ids?: string[];
+  active_strategy_id?: string;
+  strategy_id?: string;
+  strategy_display_name?: string;
+  strategy_symbol?: string;
+  strategy_pod_status?: 'catalog' | 'draft';
+  strategy_backend_dir?: string;
+  strategy_docs_path?: string;
 }
 
 export interface ObsidianVaultStatus {
@@ -207,8 +217,11 @@ export interface DiagnosticsPerformanceSnapshotResult {
 export interface DevServiceStatus {
   ok: boolean;
   url: string;
+  checkedUrls?: string[];
   statusCode?: number;
   latencyMs?: number;
+  stale?: boolean;
+  detail?: string;
   error?: string;
 }
 
@@ -269,7 +282,7 @@ export interface AgentLoopRunSnapshot {
   error?: string;
 }
 
-export type MissionConsoleProvider = 'codex' | 'claude' | 'gemini';
+export type MissionConsoleProvider = 'codex' | 'claude' | 'gemini' | 'opencode';
 export type MissionConsoleRunStatus =
   | 'shell'
   | 'launching'

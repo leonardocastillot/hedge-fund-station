@@ -4,6 +4,7 @@ import type {
   CommanderTask,
   MissionActionRecord,
   MissionChatMessage,
+  MissionConversation,
   MissionDraft,
   MissionReview,
   MissionStageReview,
@@ -17,12 +18,14 @@ const TASKS_STORAGE_KEY = 'hedge-station:commander-tasks';
 const RUNS_STORAGE_KEY = 'hedge-station:commander-runs';
 const CHAT_STORAGE_KEY = 'hedge-station:mission-chat';
 const DRAFTS_STORAGE_KEY = 'hedge-station:mission-drafts';
+const CONVERSATIONS_STORAGE_KEY = 'hedge-station:mission-conversations';
 
 interface CommanderTasksContextValue {
   tasks: CommanderTask[];
   runs: TaskRun[];
   missionMessages: MissionChatMessage[];
   missionDrafts: MissionDraft[];
+  missionConversations: MissionConversation[];
   createTask: (goal: string, workspaceId: string, title?: string, mission?: MissionTaskMetadata) => CommanderTask;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateTask: (taskId: string, updates: Partial<CommanderTask>) => void;
@@ -31,9 +34,14 @@ interface CommanderTasksContextValue {
   updateTaskAction: (taskId: string, actionId: string, updates: Partial<MissionActionRecord>) => void;
   createRun: (params: Omit<TaskRun, 'id' | 'startedAt' | 'updatedAt'> & { startedAt?: number }) => TaskRun;
   updateRun: (runId: string, updates: Partial<TaskRun>) => void;
+  removeRun: (runId: string) => void;
   addMissionMessage: (message: Omit<MissionChatMessage, 'id' | 'createdAt'> & { createdAt?: number }) => MissionChatMessage;
+  createMissionConversation: (params: Pick<MissionConversation, 'workspaceId'> & Partial<Pick<MissionConversation, 'title' | 'status'>>) => MissionConversation;
+  updateMissionConversation: (conversationId: string, updates: Partial<MissionConversation>) => void;
+  archiveMissionConversation: (conversationId: string) => void;
   createMissionDraft: (draft: Omit<MissionDraft, 'id' | 'createdAt' | 'updatedAt'> & { createdAt?: number }) => MissionDraft;
   updateMissionDraft: (draftId: string, updates: Partial<MissionDraft>) => void;
+  removeMissionDraft: (draftId: string) => void;
 }
 
 const CommanderTasksContext = createContext<CommanderTasksContextValue | undefined>(undefined);
@@ -87,6 +95,7 @@ function loadMessages(): MissionChatMessage[] {
     .map((message) => ({
       id: message.id || `msg-${uuidv4()}`,
       workspaceId: message.workspaceId || '',
+      conversationId: typeof message.conversationId === 'string' ? message.conversationId : legacyConversationId(message.workspaceId || ''),
       taskId: typeof message.taskId === 'string' ? message.taskId : undefined,
       draftId: typeof message.draftId === 'string' ? message.draftId : undefined,
       role: message.role === 'user' || message.role === 'system' ? message.role : 'assistant',
@@ -101,6 +110,7 @@ function loadDrafts(): MissionDraft[] {
     .map((draft) => ({
       id: draft.id || `draft-${uuidv4()}`,
       workspaceId: draft.workspaceId || '',
+      conversationId: typeof draft.conversationId === 'string' ? draft.conversationId : legacyConversationId(draft.workspaceId || ''),
       taskId: typeof draft.taskId === 'string' ? draft.taskId : undefined,
       title: draft.title || (draft.goal || 'Mission draft').slice(0, 72),
       goal: draft.goal || '',
@@ -118,6 +128,41 @@ function loadDrafts(): MissionDraft[] {
       terminalIds: Array.isArray(draft.terminalIds) ? draft.terminalIds : undefined,
       error: typeof draft.error === 'string' ? draft.error : undefined
     }));
+}
+
+function legacyConversationId(workspaceId: string): string {
+  return `legacy:${workspaceId || 'workspace'}`;
+}
+
+function loadConversations(messages: MissionChatMessage[], drafts: MissionDraft[]): MissionConversation[] {
+  const storedConversations = loadArray<Partial<MissionConversation>>(CONVERSATIONS_STORAGE_KEY)
+    .filter((conversation) => typeof conversation.workspaceId === 'string' && typeof conversation.title === 'string')
+    .map((conversation) => ({
+      id: conversation.id || `conversation-${uuidv4()}`,
+      workspaceId: conversation.workspaceId || '',
+      title: conversation.title || 'Workspace history',
+      status: conversation.status === 'archived' ? 'archived' as const : 'active' as const,
+      createdAt: typeof conversation.createdAt === 'number' ? conversation.createdAt : Date.now(),
+      updatedAt: typeof conversation.updatedAt === 'number' ? conversation.updatedAt : Date.now()
+    }));
+
+  const byId = new Map(storedConversations.map((conversation) => [conversation.id, conversation]));
+  [...messages, ...drafts].forEach((item) => {
+    if (!item.workspaceId || !item.conversationId || byId.has(item.conversationId)) {
+      return;
+    }
+
+    byId.set(item.conversationId, {
+      id: item.conversationId,
+      workspaceId: item.workspaceId,
+      title: item.conversationId === legacyConversationId(item.workspaceId) ? 'Workspace history' : 'Conversation',
+      status: 'active',
+      createdAt: item.createdAt,
+      updatedAt: 'updatedAt' in item && typeof item.updatedAt === 'number' ? item.updatedAt : item.createdAt
+    });
+  });
+
+  return Array.from(byId.values()).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 function buildInitialStageReviews(mission?: MissionTaskMetadata): MissionStageReview[] | undefined {
@@ -217,6 +262,8 @@ function buildInitialActions(mission?: MissionTaskMetadata): MissionActionRecord
 }
 
 export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const initialMessages = React.useMemo(() => loadMessages(), []);
+  const initialDrafts = React.useMemo(() => loadDrafts(), []);
   const [tasks, setTasks] = useState<CommanderTask[]>(() => loadArray<Partial<CommanderTask>>(TASKS_STORAGE_KEY).map((task) => ({
     id: task.id || `task-${uuidv4()}`,
     title: task.title || (task.goal || 'Recovered task').slice(0, 72),
@@ -230,8 +277,9 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
     actions: Array.isArray(task.actions) ? task.actions : buildInitialActions(normalizeMissionMetadata(task.mission))
   })));
   const [runs, setRuns] = useState<TaskRun[]>(() => loadRuns());
-  const [missionMessages, setMissionMessages] = useState<MissionChatMessage[]>(() => loadMessages());
-  const [missionDrafts, setMissionDrafts] = useState<MissionDraft[]>(() => loadDrafts());
+  const [missionMessages, setMissionMessages] = useState<MissionChatMessage[]>(() => initialMessages);
+  const [missionDrafts, setMissionDrafts] = useState<MissionDraft[]>(() => initialDrafts);
+  const [missionConversations, setMissionConversations] = useState<MissionConversation[]>(() => loadConversations(initialMessages, initialDrafts));
 
   useEffect(() => {
     localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
@@ -249,11 +297,16 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
     localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(missionDrafts.slice(0, 80)));
   }, [missionDrafts]);
 
+  useEffect(() => {
+    localStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(missionConversations.slice(0, 120)));
+  }, [missionConversations]);
+
   const value = useMemo<CommanderTasksContextValue>(() => ({
     tasks,
     runs,
     missionMessages,
     missionDrafts,
+    missionConversations,
     createTask: (goal, workspaceId, title, mission) => {
       const task: CommanderTask = {
         id: `task-${uuidv4()}`,
@@ -363,14 +416,69 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
           : run
       )));
     },
+    removeRun: (runId) => {
+      setRuns((prev) => prev.filter((run) => run.id !== runId));
+      setMissionDrafts((prev) => prev.map((draft) => (
+        draft.runId === runId
+          ? {
+              ...draft,
+              runId: undefined,
+              terminalIds: undefined,
+              approvalStatus: draft.approvalStatus === 'running' ? 'cancelled' : draft.approvalStatus,
+              updatedAt: Date.now()
+            }
+          : draft
+      )));
+    },
     addMissionMessage: (message) => {
       const nextMessage: MissionChatMessage = {
         id: `msg-${uuidv4()}`,
         createdAt: message.createdAt || Date.now(),
-        ...message
+        ...message,
+        conversationId: message.conversationId || legacyConversationId(message.workspaceId)
       };
       setMissionMessages((prev) => [nextMessage, ...prev].slice(0, 240));
+      setMissionConversations((prev) => prev.map((conversation) => (
+        conversation.id === nextMessage.conversationId
+          ? { ...conversation, updatedAt: nextMessage.createdAt }
+          : conversation
+      )));
       return nextMessage;
+    },
+    createMissionConversation: (params) => {
+      const timestamp = Date.now();
+      const conversation: MissionConversation = {
+        id: `conversation-${uuidv4()}`,
+        workspaceId: params.workspaceId,
+        title: params.title || 'New chat',
+        status: params.status || 'active',
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      setMissionConversations((prev) => [conversation, ...prev].slice(0, 120));
+      return conversation;
+    },
+    updateMissionConversation: (conversationId, updates) => {
+      setMissionConversations((prev) => prev.map((conversation) => (
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              ...updates,
+              updatedAt: Date.now()
+            }
+          : conversation
+      )));
+    },
+    archiveMissionConversation: (conversationId) => {
+      setMissionConversations((prev) => prev.map((conversation) => (
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              status: 'archived',
+              updatedAt: Date.now()
+            }
+          : conversation
+      )));
     },
     createMissionDraft: (draft) => {
       const timestamp = draft.createdAt || Date.now();
@@ -378,9 +486,15 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
         id: `draft-${uuidv4()}`,
         createdAt: timestamp,
         updatedAt: timestamp,
-        ...draft
+        ...draft,
+        conversationId: draft.conversationId || legacyConversationId(draft.workspaceId)
       };
       setMissionDrafts((prev) => [nextDraft, ...prev].slice(0, 80));
+      setMissionConversations((prev) => prev.map((conversation) => (
+        conversation.id === nextDraft.conversationId
+          ? { ...conversation, updatedAt: timestamp }
+          : conversation
+      )));
       return nextDraft;
     },
     updateMissionDraft: (draftId, updates) => {
@@ -393,8 +507,11 @@ export const CommanderTasksProvider: React.FC<{ children: React.ReactNode }> = (
             }
           : draft
       )));
+    },
+    removeMissionDraft: (draftId) => {
+      setMissionDrafts((prev) => prev.filter((draft) => draft.id !== draftId));
     }
-  }), [missionDrafts, missionMessages, runs, tasks]);
+  }), [missionConversations, missionDrafts, missionMessages, runs, tasks]);
 
   return (
     <CommanderTasksContext.Provider value={value}>

@@ -1,14 +1,16 @@
 import React, { Suspense } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, CircleDot, Clock3, Globe2, History, Plus, Terminal } from 'lucide-react';
+import { Activity, AlertTriangle, CandlestickChart, CheckCircle2, CircleDot, Clock3, Globe2, History, Plus, Terminal } from 'lucide-react';
 import { useCommanderTasksContext } from '@/contexts/CommanderTasksContext';
 import { useTerminalContext, type TerminalSession } from '@/contexts/TerminalContext';
 import { useWorkspaceContext } from '@/contexts/WorkspaceContext';
+import { useDeskSpaceContext } from '../DeskSpaceContext';
 import type { AgentProvider } from '@/types/agents';
 import type { MissionDraft, TaskRun } from '@/types/tasks';
 import { loadAppSettings } from '@/utils/appSettings';
 import { resolveAgentRuntimeCommand } from '@/utils/agentRuntime';
 import { resolveTerminalShell } from '@/utils/terminalShell';
 import { DeskBrowserPanel } from './DeskBrowserPanel';
+import { StrategyInspectorPanel } from './StrategyInspectorPanel';
 import {
   isWorkspaceDockMode,
   WORKSPACE_DOCK_MODE_EVENT,
@@ -20,7 +22,7 @@ const TerminalGrid = React.lazy(() => import('@/components/electron/TerminalGrid
 
 const STORAGE_KEY = 'hedge-station:workspace-dock-mode:v2';
 const LEGACY_STORAGE_KEY = 'hedge-station:workspace-dock-mode:v1';
-const defaultDockMode: WorkspaceDockMode = 'code';
+const defaultDockMode: WorkspaceDockMode = 'inspector';
 const MAX_DOCK_TERMINALS = 12;
 
 type WorkStatus = 'waiting' | 'launching' | 'running' | 'attention' | 'completed' | 'failed';
@@ -64,6 +66,10 @@ function loadModeMap(): Record<string, WorkspaceDockMode> {
   }
 }
 
+function getDefaultDockMode(kind?: string): WorkspaceDockMode {
+  return kind === 'strategy-pod' || kind === 'hedge-fund' ? 'inspector' : 'code';
+}
+
 function findRunTerminal(run: TaskRun, terminals: TerminalSession[]): TerminalSession | null {
   return terminals.find((terminal) => run.terminalIds.includes(terminal.id))
     || terminals.find((terminal) => terminal.runId === run.id)
@@ -80,7 +86,7 @@ function deriveRunStatus(run: TaskRun, terminal?: TerminalSession | null): WorkS
     return 'failed';
   }
 
-  if (run.launchState === 'attention' || terminal?.runtimeState === 'stalled' || terminal?.runtimeState === 'awaiting-approval') {
+  if (terminal?.runtimeState === 'awaiting-approval' || (!terminal && run.launchState === 'attention')) {
     return 'attention';
   }
 
@@ -243,14 +249,32 @@ function buildDockLauncherItems(shell?: string): DockLauncherItem[] {
   ];
 }
 
+function buildStrategySessionMetadata(workspace?: { asset_symbol?: string; strategy_symbol?: string } | null) {
+  const assetSymbol = (workspace?.asset_symbol || workspace?.strategy_symbol || '').toUpperCase();
+  if (!assetSymbol) {
+    return {};
+  }
+
+  return {
+    assetSymbol,
+    strategySessionId: `strategy-session-${assetSymbol.toLowerCase()}-${Date.now()}`,
+    strategySessionTitle: `${assetSymbol} draft strategy session`,
+    strategySessionStatus: 'draft' as const
+  };
+}
+
 export function WorkspaceDock() {
   const { activeWorkspace, updateWorkspace } = useWorkspaceContext();
+  const { getDeskState, setDeskState } = useDeskSpaceContext();
   const { runs, missionDrafts } = useCommanderTasksContext();
   const { terminals, createTerminal } = useTerminalContext();
   const [modeByWorkspace, setModeByWorkspace] = React.useState<Record<string, WorkspaceDockMode>>(() => loadModeMap());
   const [launcherOpen, setLauncherOpen] = React.useState(false);
   const workspaceId = activeWorkspace?.id;
-  const activeMode = workspaceId ? modeByWorkspace[workspaceId] || defaultDockMode : defaultDockMode;
+  const deskState = React.useMemo(() => getDeskState(workspaceId), [getDeskState, workspaceId]);
+  const activeMode = workspaceId
+    ? deskState.rightDockMode || modeByWorkspace[workspaceId] || getDefaultDockMode(activeWorkspace?.kind)
+    : defaultDockMode;
   const settings = React.useMemo(() => loadAppSettings(), []);
   const activeShell = React.useMemo(
     () => resolveTerminalShell(activeWorkspace?.shell, settings.defaultShell).shell,
@@ -268,7 +292,8 @@ export function WorkspaceDock() {
       ...current,
       [targetWorkspaceId]: mode
     }));
-  }, [workspaceId]);
+    setDeskState(targetWorkspaceId, { rightDockMode: mode });
+  }, [setDeskState, workspaceId]);
 
   React.useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(modeByWorkspace));
@@ -360,6 +385,7 @@ export function WorkspaceDock() {
       autoCommand,
       {
         workspaceId: activeWorkspace.id,
+        ...buildStrategySessionMetadata(activeWorkspace),
         terminalPurpose,
         ...(runtimeProvider ? { runtimeProvider, agentName: `${label} Agent` } : {})
       }
@@ -369,9 +395,10 @@ export function WorkspaceDock() {
   }, [activeShell, activeWorkspace, createTerminal, setMode, terminalLimitReached]);
 
   const tabs: Array<{ id: WorkspaceDockMode; label: string; icon: React.ReactNode }> = [
-    { id: 'code', label: 'Code', icon: <Terminal size={14} /> },
-    { id: 'browser', label: 'Browser', icon: <Globe2 size={14} /> },
-    { id: 'runs', label: 'History', icon: <History size={14} /> }
+    { id: 'inspector', label: 'Strategy Inspector', icon: <CandlestickChart size={14} /> },
+    { id: 'code', label: 'Agent CLI', icon: <Terminal size={14} /> },
+    { id: 'browser', label: 'TradingView/Web', icon: <Globe2 size={14} /> },
+    { id: 'runs', label: 'Runs/Evidence', icon: <History size={14} /> }
   ];
   const queueItems = React.useMemo(
     () => workspaceId ? buildWorkQueueItems(workspaceId, runs, missionDrafts, terminals) : [],
@@ -382,7 +409,7 @@ export function WorkspaceDock() {
 
   return (
     <aside style={dockStyle}>
-      <div style={dockToolbarStyle} aria-label="Workspace dock">
+      <div style={dockToolbarStyle} aria-label="Asset strategy lab tools dock">
         <div
           style={workspaceNameStyle}
           title={activeWorkspace ? `${activeWorkspace.name}\n${activeWorkspace.path}` : 'No workspace'}
@@ -400,7 +427,7 @@ export function WorkspaceDock() {
               borderColor: queueSummary.attention > 0 ? 'rgba(248, 113, 113, 0.28)' : 'var(--app-border)'
             }}
             title={`${queueSummary.active} active / ${queueSummary.waiting} waiting / ${queueSummary.attention} attention`}
-            aria-label="Open work history"
+            aria-label="Open evidence history"
           >
             <span>{queueSummary.active + queueSummary.waiting + queueSummary.attention}</span>
             {queueSummary.attention > 0 ? <span style={queueAlertDotStyle}>{queueSummary.attention}</span> : null}
@@ -420,8 +447,8 @@ export function WorkspaceDock() {
               opacity: !activeWorkspace || terminalLimitReached ? 0.52 : 1,
               cursor: !activeWorkspace || terminalLimitReached ? 'not-allowed' : 'pointer'
             }}
-            title={terminalLimitReached ? `Terminal limit ${MAX_DOCK_TERMINALS} reached` : 'Launch agent or shell'}
-            aria-label="Launch agent or shell"
+            title={terminalLimitReached ? `Terminal limit ${MAX_DOCK_TERMINALS} reached` : 'Launch asset strategy agent or shell'}
+            aria-label="Launch asset strategy agent or shell"
           >
             <Plus size={14} />
           </button>
@@ -451,7 +478,7 @@ export function WorkspaceDock() {
           ) : null}
         </div>
 
-        <div style={dockModeGroupStyle} aria-label="Workspace tools">
+        <div style={dockModeGroupStyle} aria-label="Strategy lab support tools">
           {tabs.map((tab) => {
             const selected = activeMode === tab.id;
             return (
@@ -477,7 +504,9 @@ export function WorkspaceDock() {
 
       <div style={activeMode === 'code' ? codeContentStyle : contentStyle}>
         {!activeWorkspace ? (
-          <div style={emptyStyle}>Select a workspace.</div>
+          <div style={emptyStyle}>Select an asset pod.</div>
+        ) : activeMode === 'inspector' ? (
+          <StrategyInspectorPanel />
         ) : activeMode === 'code' ? (
           <CodeWorkspacePanel
             queueItems={queueItems}
@@ -535,8 +564,8 @@ function WorkQueueStrip({
       type="button"
       onClick={onOpenHistory}
       style={workQueueStripStyle}
-      title="Open History"
-      aria-label="Open work queue history"
+      title="Open Runs/Evidence"
+      aria-label="Open runs and evidence history"
     >
       <span style={workQueueTitleStyle}>Attention</span>
       <span style={workQueueMetaStyle}>{activeCount} active</span>
@@ -598,7 +627,7 @@ function WorkspaceRunsPanel({
         <SummaryPill label="Attention" value={`${attentionRuns}`} />
       </div>
 
-      <DockSection title="Draft History">
+      <DockSection title="Agent Drafts">
         {scopedDrafts.slice(0, 6).map((draft) => {
           const run = draft.runId ? runById.get(draft.runId) : undefined;
           const terminal = findDraftTerminal(draft, run, scopedTerminals);
@@ -631,7 +660,7 @@ function WorkspaceRunsPanel({
         {scopedDrafts.length === 0 ? <div style={dockEmptyTextStyle}>No drafts yet.</div> : null}
       </DockSection>
 
-      <DockSection title="Run History">
+      <DockSection title="Runs / Evidence">
         {scopedRuns.slice(0, 8).map((run) => {
           const draft = draftByRunId.get(run.id);
           const terminal = findRunTerminal(run, scopedTerminals);

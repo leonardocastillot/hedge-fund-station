@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, session, shell } from 'electron';
 import { ElectronBlocker } from '@ghostery/adblocker-electron';
-import { join } from 'path';
+import { join, relative, resolve } from 'path';
 import { spawn, spawnSync, ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync, readdirSync, statSync } from 'fs';
 import { request as httpRequest } from 'http';
@@ -39,8 +39,11 @@ const nativeDevBaselineMtime = Date.now();
 type DevServiceStatus = {
   ok: boolean;
   url: string;
+  checkedUrls?: string[];
   statusCode?: number;
   latencyMs?: number;
+  stale?: boolean;
+  detail?: string;
   error?: string;
 };
 
@@ -188,13 +191,100 @@ function checkHttpStatus(url: string, timeoutMs = 1200): Promise<DevServiceStatu
   });
 }
 
+async function checkHttpStatusAny(urls: string[], timeoutMs = 1200): Promise<DevServiceStatus> {
+  const results = await Promise.all(urls.map((url) => checkHttpStatus(url, timeoutMs)));
+  const okResult = results.find((result) => result.ok);
+  const selected = okResult || results[0] || {
+    ok: false,
+    url: urls[0] || 'unknown',
+    error: 'No URLs configured'
+  };
+
+  return {
+    ...selected,
+    checkedUrls: urls
+  };
+}
+
+function runDiagnosticCommand(command: string, args: string[], timeout = 1200): string {
+  const result = spawnSync(command, args, {
+    encoding: 'utf-8',
+    timeout
+  });
+
+  return `${result.stdout || ''}${result.stderr || ''}`;
+}
+
+function pathIsInside(childPath: string, parentPath: string): boolean {
+  const relativePath = relative(resolve(parentPath), resolve(childPath));
+  return relativePath === '' || (!relativePath.startsWith('..') && !relativePath.startsWith('/'));
+}
+
+function gatewayStaleStatus(): Pick<DevServiceStatus, 'stale' | 'detail' | 'error'> | null {
+  if (process.platform === 'win32') {
+    return null;
+  }
+
+  const projectRoot = resolve(getProjectRoot());
+  const expectedGatewayPath = join(projectRoot, 'backend', 'hyperliquid_gateway');
+  const oldFolderName = 'New project 9';
+  const processOutput = runDiagnosticCommand('ps', ['auxww'], 1600);
+  const staleProcessLine = processOutput
+    .split('\n')
+    .find((line) => (
+      /hyperliquid-gateway|run-hyperliquid-gateway|uvicorn app:app/.test(line)
+      && line.includes(oldFolderName)
+    ));
+
+  if (staleProcessLine) {
+    return {
+      stale: true,
+      error: 'Gateway was launched from the old project folder. Run npm run gateway:restart from the current repo.',
+      detail: staleProcessLine.trim().slice(0, 240)
+    };
+  }
+
+  const pidOutput = runDiagnosticCommand('lsof', ['-tiTCP:18001', '-sTCP:LISTEN'], 1200);
+  const pids = pidOutput
+    .split(/\s+/)
+    .map((value) => Number(value))
+    .filter((pid) => Number.isInteger(pid) && pid > 0);
+
+  for (const pid of pids) {
+    const cwdOutput = runDiagnosticCommand('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], 1200);
+    const cwdLine = cwdOutput.split('\n').find((line) => line.startsWith('n'));
+    const cwd = cwdLine?.slice(1);
+    if (
+      cwd
+      && cwd.endsWith(join('backend', 'hyperliquid_gateway'))
+      && !pathIsInside(cwd, expectedGatewayPath)
+    ) {
+      return {
+        stale: true,
+        error: 'Gateway is serving from a different backend checkout. Restart it from this repo.',
+        detail: `pid ${pid} cwd ${cwd}`
+      };
+    }
+  }
+
+  return null;
+}
+
 async function getDevStatus(): Promise<DevStatus> {
   const isDevelopment = process.env.NODE_ENV === 'development';
-  const [vite, gateway, backend] = await Promise.all([
-    checkHttpStatus('http://127.0.0.1:5173'),
+  const [vite, rawGateway, backend] = await Promise.all([
+    checkHttpStatusAny(['http://localhost:5173', 'http://127.0.0.1:5173']),
     checkHttpStatus('http://127.0.0.1:18001/health'),
     checkHttpStatus('http://127.0.0.1:18500/health')
   ]);
+  const staleGateway = gatewayStaleStatus();
+  const gateway = staleGateway
+    ? {
+        ...rawGateway,
+        ok: false,
+        ...staleGateway
+      }
+    : rawGateway;
   const nativeChangedPaths = isDevelopment ? getNativeChangedPaths() : [];
 
   return {
@@ -333,8 +423,20 @@ function initLegacySchema(): void {
   });
 }
 
-function startBackendServer(): void {
+async function startBackendServer(): Promise<void> {
   if (backendProcess) {
+    return;
+  }
+
+  const existingGateway = await checkHttpStatus('http://127.0.0.1:18001/health');
+  const staleGateway = gatewayStaleStatus();
+  if (existingGateway.ok && !staleGateway) {
+    console.log(`Gateway backend already healthy on ${existingGateway.url}; skipping bootstrap.`);
+    return;
+  }
+
+  if (staleGateway) {
+    console.warn(`Gateway backend appears stale: ${staleGateway.error}`);
     return;
   }
 
@@ -850,7 +952,7 @@ async function initializeApp(): Promise<void> {
   if (shouldAutoStartBackend()) {
     backendStartTimer = setTimeout(() => {
       backendStartTimer = null;
-      startBackendServer();
+      void startBackendServer();
       startLegacyBackendServer();
     }, 1000);
   }

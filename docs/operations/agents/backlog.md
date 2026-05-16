@@ -44,6 +44,10 @@ to the product objective.
 - [x] Add a recommended recurring automation schedule once the human chooses
   cadence and notification style.
 - [x] Add a standard PR/change-summary template for agent work.
+- [x] Add a docs-only strategy harness with one leader per `strategy_id` and
+  blocked live-gate package rules.
+- [ ] Add v2 CLI or harness-check enforcement for strategy harness fields
+  without changing the `agent_tasks.json` schema unless explicitly approved.
 
 ## Priority 4: UI Review Speed
 

@@ -9,7 +9,7 @@ import { MissionConsoleLauncher } from '../components/MissionConsoleLauncher';
 import { KnowledgeDock } from '../components/KnowledgeDock';
 import { SystemHealthCard } from '../components/SystemHealthCard';
 import { LaunchSignalStrip } from '../components/LaunchSignalStrip';
-import { getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
+import { AGENT_PROVIDERS, getProviderMeta, resolveAgentRuntimeCommand, resolveAgentRuntimeShell } from '@/utils/agentRuntime';
 import { launchAgentRun } from '@/utils/agentOrchestration';
 import type { AgentProvider } from '@/types/agents';
 import type { TerminalRuntimeState } from '@/contexts/TerminalContext';
@@ -44,10 +44,10 @@ function formatRelativeTime(timestamp?: number): string {
 
 function getRunTone(status: string): { background: string; color: string } {
   const palette: Record<string, { background: string; color: string }> = {
-    queued: { background: 'rgba(100, 116, 139, 0.16)', color: '#cbd5e1' },
+    queued: { background: 'var(--app-panel-muted)', color: 'var(--app-muted)' },
     routing: { background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24' },
     running: { background: 'rgba(16, 185, 129, 0.16)', color: '#34d399' },
-    completed: { background: 'rgba(59, 130, 246, 0.16)', color: '#93c5fd' },
+    completed: { background: 'var(--app-accent-soft)', color: 'var(--app-accent)' },
     failed: { background: 'rgba(239, 68, 68, 0.16)', color: '#fca5a5' }
   };
 
@@ -57,27 +57,27 @@ function getRunTone(status: string): { background: string; color: string } {
 function getRuntimeTone(state?: TerminalRuntimeState): { background: string; color: string; label: string } {
   switch (state) {
     case 'handoff':
-      return { background: 'rgba(56, 189, 248, 0.16)', color: '#7dd3fc', label: 'runtime handoff' };
+      return { background: 'var(--app-accent-soft)', color: 'var(--app-accent)', label: 'runtime handoff' };
     case 'ready':
       return { background: 'rgba(16, 185, 129, 0.16)', color: '#6ee7b7', label: 'runtime ready' };
     case 'waiting-response':
-      return { background: 'rgba(8, 145, 178, 0.16)', color: '#67e8f9', label: 'waiting response' };
+      return { background: 'var(--app-accent-soft)', color: 'var(--app-accent)', label: 'waiting response' };
     case 'awaiting-approval':
       return { background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24', label: 'awaiting approval' };
     case 'running':
-      return { background: 'rgba(14, 165, 233, 0.16)', color: '#7dd3fc', label: 'mission running' };
+      return { background: 'var(--app-accent-soft)', color: 'var(--app-accent)', label: 'mission running' };
     case 'stalled':
       return { background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24', label: 'runtime stalled' };
     case 'completed':
-      return { background: 'rgba(59, 130, 246, 0.16)', color: '#93c5fd', label: 'completed' };
+      return { background: 'var(--app-accent-soft)', color: 'var(--app-accent)', label: 'completed' };
     case 'failed':
       return { background: 'rgba(239, 68, 68, 0.16)', color: '#fca5a5', label: 'boot failed' };
     case 'launching':
       return { background: 'rgba(245, 158, 11, 0.16)', color: '#fbbf24', label: 'launching runtime' };
     case 'shell':
-      return { background: 'rgba(148, 163, 184, 0.16)', color: '#cbd5e1', label: 'shell only' };
+      return { background: 'var(--app-panel-muted)', color: 'var(--app-muted)', label: 'shell only' };
     default:
-      return { background: 'rgba(100, 116, 139, 0.16)', color: '#cbd5e1', label: 'blocked before launch' };
+      return { background: 'var(--app-panel-muted)', color: 'var(--app-muted)', label: 'blocked before launch' };
   }
 }
 
@@ -169,7 +169,7 @@ export const AgentsPanel: React.FC = () => {
   );
 
   const workspaceProviders = React.useMemo(
-    () => Array.from(new Set(scopedAgents.map((agent) => agent.provider))) as AgentProvider[],
+    () => Array.from(new Set([...AGENT_PROVIDERS, ...scopedAgents.map((agent) => agent.provider)])) as AgentProvider[],
     [scopedAgents]
   );
 
@@ -305,8 +305,8 @@ export const AgentsPanel: React.FC = () => {
             Stop All Agents
           </button>
           <div style={summaryGridStyle}>
-            <SummaryCard label="Agents" value={summary.agents} accent="#f8fafc" />
-            <SummaryCard label="Tasks" value={summary.tasks} accent="#ef4444" />
+            <SummaryCard label="Agents" value={summary.agents} accent="var(--app-text)" />
+            <SummaryCard label="Tasks" value={summary.tasks} accent="var(--app-accent)" />
             <SummaryCard label="Running" value={summary.running} accent="#fca5a5" />
             <SummaryCard label="Live" value={summary.live} accent="#b91c1c" />
           </div>
@@ -330,9 +330,9 @@ export const AgentsPanel: React.FC = () => {
                 onClick={() => setActiveView(view.id)}
                 style={{
                   ...viewTabButtonStyle,
-                  border: active ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(148, 163, 184, 0.12)',
-                  background: active ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.45)',
-                  color: active ? '#bae6fd' : '#cbd5e1'
+                  border: active ? '1px solid var(--app-border-strong)' : '1px solid var(--app-border)',
+                  background: active ? 'var(--app-accent-soft)' : 'var(--app-panel-muted)',
+                  color: active ? 'var(--app-accent)' : 'var(--app-muted)'
                 }}
               >
                 {view.label}
@@ -381,9 +381,9 @@ export const AgentsPanel: React.FC = () => {
                       style={{
                         padding: '7px 10px',
                         borderRadius: '999px',
-                        border: active ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid rgba(148, 163, 184, 0.12)',
-                        background: active ? 'rgba(56, 189, 248, 0.14)' : 'rgba(15, 23, 42, 0.5)',
-                        color: active ? '#bae6fd' : '#cbd5e1',
+                        border: active ? '1px solid var(--app-border-strong)' : '1px solid var(--app-border)',
+                        background: active ? 'var(--app-accent-soft)' : 'var(--app-panel-muted)',
+                        color: active ? 'var(--app-accent)' : 'var(--app-muted)',
                         cursor: 'pointer',
                         fontSize: '11px',
                         fontWeight: 700,
@@ -465,7 +465,7 @@ export const AgentsPanel: React.FC = () => {
                         </div>
                       ) : null}
                       {runtimeTerminal && (runtimeTerminal.runtimeAttempts ?? 0) > 1 ? (
-                        <div style={{ color: '#93c5fd', fontSize: '10px', marginTop: '4px', fontWeight: 700 }}>
+                        <div style={{ color: 'var(--app-accent)', fontSize: '10px', marginTop: '4px', fontWeight: 700 }}>
                           auto-retry {runtimeTerminal.runtimeAttempts! - 1}
                         </div>
                       ) : null}
@@ -535,7 +535,7 @@ export const AgentsPanel: React.FC = () => {
                               style={{
                                 padding: '10px 12px',
                                 borderRadius: '14px',
-                                border: activeTerminalId === terminal.id ? `1px solid ${provider.accent}55` : '1px solid rgba(148, 163, 184, 0.12)',
+                                border: activeTerminalId === terminal.id ? '1px solid var(--app-border-strong)' : '1px solid var(--app-border)',
                                 background: activeTerminalId === terminal.id ? provider.glow : 'rgba(2, 6, 23, 0.72)',
                                 color: '#f8fafc',
                                 textAlign: 'left',
@@ -578,13 +578,13 @@ const pageStyle: React.CSSProperties = {
   height: '100%',
   display: 'flex',
   flexDirection: 'column',
-  background: 'radial-gradient(circle at top left, rgba(220, 38, 38, 0.05), transparent 28%), radial-gradient(circle at top right, rgba(255, 255, 255, 0.03), transparent 24%), #020617',
+  background: 'radial-gradient(circle at top left, var(--app-glow), transparent 28%), radial-gradient(circle at top right, rgba(255, 255, 255, 0.03), transparent 24%), var(--app-bg)',
   overflow: 'auto'
 };
 
 const heroStyle: React.CSSProperties = {
   padding: '22px 24px 16px',
-  borderBottom: '1px solid rgba(148, 163, 184, 0.12)',
+  borderBottom: '1px solid var(--app-border)',
   display: 'flex',
   justifyContent: 'space-between',
   gap: '16px',
@@ -593,7 +593,7 @@ const heroStyle: React.CSSProperties = {
 };
 
 const heroEyebrowStyle: React.CSSProperties = {
-  color: '#ef4444',
+  color: 'var(--app-accent)',
   fontSize: '11px',
   fontWeight: 800,
   textTransform: 'uppercase',
@@ -601,14 +601,14 @@ const heroEyebrowStyle: React.CSSProperties = {
 };
 
 const heroTitleStyle: React.CSSProperties = {
-  color: '#f8fafc',
+  color: 'var(--app-text)',
   fontSize: '28px',
   fontWeight: 800,
   margin: '10px 0 4px 0'
 };
 
 const heroCopyStyle: React.CSSProperties = {
-  color: '#94a3b8',
+  color: 'var(--app-muted)',
   fontSize: '13px',
   margin: 0
 };
@@ -641,12 +641,12 @@ const panicButtonStyle: React.CSSProperties = {
 const summaryCardStyle: React.CSSProperties = {
   padding: '14px',
   borderRadius: '18px',
-  background: 'rgba(15, 23, 42, 0.7)',
-  border: '1px solid rgba(148, 163, 184, 0.12)'
+  background: 'var(--app-panel)',
+  border: '1px solid var(--app-border)'
 };
 
 const summaryLabelStyle: React.CSSProperties = {
-  color: '#64748b',
+  color: 'var(--app-subtle)',
   fontSize: '10px',
   fontWeight: 800,
   textTransform: 'uppercase',
@@ -686,14 +686,14 @@ const evidenceShellStyle: React.CSSProperties = {
   minHeight: 'min(720px, calc(100vh - 220px))',
   overflow: 'hidden',
   borderRadius: '8px',
-  border: '1px solid rgba(148, 163, 184, 0.12)'
+  border: '1px solid var(--app-border)'
 };
 
 const sectionStyle: React.CSSProperties = {
   padding: '16px',
   borderRadius: '22px',
-  background: 'rgba(15, 23, 42, 0.58)',
-  border: '1px solid rgba(148, 163, 184, 0.12)'
+  background: 'var(--app-panel)',
+  border: '1px solid var(--app-border)'
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -705,13 +705,13 @@ const sectionHeaderStyle: React.CSSProperties = {
 };
 
 const sectionLabelStyle: React.CSSProperties = {
-  color: '#e2e8f0',
+  color: 'var(--app-text)',
   fontSize: '14px',
   fontWeight: 800
 };
 
 const sectionCopyStyle: React.CSSProperties = {
-  color: '#64748b',
+  color: 'var(--app-subtle)',
   fontSize: '12px',
   marginTop: '4px'
 };
@@ -720,24 +720,24 @@ const rowCardStyle: React.CSSProperties = {
   padding: '12px',
   borderRadius: '16px',
   background: 'rgba(2, 6, 23, 0.75)',
-  border: '1px solid rgba(148, 163, 184, 0.12)'
+  border: '1px solid var(--app-border)'
 };
 
 const emptyStyle: React.CSSProperties = {
   padding: '14px',
   borderRadius: '16px',
-  background: 'rgba(15, 23, 42, 0.45)',
-  border: '1px dashed rgba(148, 163, 184, 0.14)',
-  color: '#64748b',
+  background: 'var(--app-panel-muted)',
+  border: '1px dashed var(--app-border)',
+  color: 'var(--app-subtle)',
   fontSize: '12px'
 };
 
 const actionButtonStyle: React.CSSProperties = {
   padding: '7px 10px',
   borderRadius: '10px',
-  border: '1px solid rgba(56, 189, 248, 0.24)',
-  background: 'rgba(56, 189, 248, 0.12)',
-  color: '#bae6fd',
+  border: '1px solid var(--app-border-strong)',
+  background: 'var(--app-accent-soft)',
+  color: 'var(--app-accent)',
   fontSize: '11px',
   fontWeight: 700,
   cursor: 'pointer'
@@ -746,9 +746,9 @@ const actionButtonStyle: React.CSSProperties = {
 const secondaryActionButtonStyle: React.CSSProperties = {
   padding: '7px 10px',
   borderRadius: '10px',
-  border: '1px solid rgba(148, 163, 184, 0.16)',
-  background: 'rgba(15, 23, 42, 0.72)',
-  color: '#cbd5e1',
+  border: '1px solid var(--app-border)',
+  background: 'var(--app-panel-muted)',
+  color: 'var(--app-muted)',
   fontSize: '11px',
   fontWeight: 700,
   cursor: 'pointer'

@@ -10,6 +10,18 @@ from .io import Candle, canonicalize_ohlcv_csv, dataset_metadata
 
 try:
     from ..strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
+    from ..strategies.btc_regime_adaptive_confluence.backtest import run_backtest as btc_regime_adaptive_confluence_run_backtest
+    from ..strategies.btc_regime_adaptive_confluence.paper import paper_candidate as btc_regime_adaptive_confluence_paper_candidate
+    from ..strategies.btc_vol_atr_trend.backtest import run_backtest as btc_vol_atr_trend_run_backtest
+    from ..strategies.btc_vol_atr_trend.paper import paper_candidate as btc_vol_atr_trend_paper_candidate
+    from ..strategies.btc_dual_momentum_trend.backtest import run_backtest as btc_dual_momentum_trend_run_backtest
+    from ..strategies.btc_dual_momentum_trend.paper import paper_candidate as btc_dual_momentum_trend_paper_candidate
+    from ..strategies.btc_vol_dynamic_trail_trend.backtest import run_backtest as btc_vol_dynamic_trail_trend_run_backtest
+    from ..strategies.btc_vol_dynamic_trail_trend.paper import paper_candidate as btc_vol_dynamic_trail_trend_paper_candidate
+    from ..strategies.btc_vol_tight_trail_trend.backtest import run_backtest as btc_vol_tight_trail_trend_run_backtest
+    from ..strategies.btc_vol_tight_trail_trend.paper import paper_candidate as btc_vol_tight_trail_trend_paper_candidate
+    from ..strategies.btc_zscore_atr_trend.backtest import run_backtest as btc_zscore_atr_trend_run_backtest
+    from ..strategies.btc_zscore_atr_trend.paper import paper_candidate as btc_zscore_atr_trend_paper_candidate
     from ..strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
     from ..strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
     from ..strategies.breakout_oi_confirmation.backtest import run_backtest as breakout_oi_confirmation_run_backtest
@@ -46,6 +58,18 @@ try:
     from ..strategies.short_squeeze_continuation.paper import paper_candidate as short_squeeze_continuation_paper_candidate
 except ImportError:
     from strategies.bb_squeeze_adx.backtest import build_signals as bb_squeeze_adx_build_signals
+    from strategies.btc_regime_adaptive_confluence.backtest import run_backtest as btc_regime_adaptive_confluence_run_backtest
+    from strategies.btc_regime_adaptive_confluence.paper import paper_candidate as btc_regime_adaptive_confluence_paper_candidate
+    from strategies.btc_vol_atr_trend.backtest import run_backtest as btc_vol_atr_trend_run_backtest
+    from strategies.btc_vol_atr_trend.paper import paper_candidate as btc_vol_atr_trend_paper_candidate
+    from strategies.btc_dual_momentum_trend.backtest import run_backtest as btc_dual_momentum_trend_run_backtest
+    from strategies.btc_dual_momentum_trend.paper import paper_candidate as btc_dual_momentum_trend_paper_candidate
+    from strategies.btc_vol_dynamic_trail_trend.backtest import run_backtest as btc_vol_dynamic_trail_trend_run_backtest
+    from strategies.btc_vol_dynamic_trail_trend.paper import paper_candidate as btc_vol_dynamic_trail_trend_paper_candidate
+    from strategies.btc_vol_tight_trail_trend.backtest import run_backtest as btc_vol_tight_trail_trend_run_backtest
+    from strategies.btc_vol_tight_trail_trend.paper import paper_candidate as btc_vol_tight_trail_trend_paper_candidate
+    from strategies.btc_zscore_atr_trend.backtest import run_backtest as btc_zscore_atr_trend_run_backtest
+    from strategies.btc_zscore_atr_trend.paper import paper_candidate as btc_zscore_atr_trend_paper_candidate
     from strategies.bb_squeeze_adx.logic import evaluate_latest_signal as bb_squeeze_adx_latest_signal
     from strategies.bb_squeeze_adx.paper import paper_candidate as bb_squeeze_adx_paper_candidate
     from strategies.breakout_oi_confirmation.backtest import run_backtest as breakout_oi_confirmation_run_backtest
@@ -145,6 +169,34 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
         default_dataset=r"C:\Users\leonard\Documents\trading-harvard\Harvard-Algorithmic-Trading-with-AI\backtest\data\BTC-6h-1000wks-data.csv",
         dataset_label="ohlcv_csv",
     ),
+    "btc_vol_atr_trend": StrategyDefinition(
+        strategy_id="btc_vol_atr_trend",
+        backtest_runner=btc_vol_atr_trend_run_backtest,
+        paper_candidate_builder=btc_vol_atr_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=116.0,
+            min_profit_factor=3.0,
+            min_win_rate_pct=45.0,
+            max_drawdown_pct=18.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_zscore_atr_trend": StrategyDefinition(
+        strategy_id="btc_zscore_atr_trend",
+        backtest_runner=btc_zscore_atr_trend_run_backtest,
+        paper_candidate_builder=btc_zscore_atr_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=163.0,
+            min_profit_factor=4.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=18.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
     "breakout_oi_confirmation": StrategyDefinition(
         strategy_id="breakout_oi_confirmation",
         backtest_runner=breakout_oi_confirmation_run_backtest,
@@ -211,6 +263,62 @@ STRATEGY_REGISTRY: dict[str, StrategyDefinition] = {
             min_profit_factor=2.0,
             min_win_rate_pct=40.0,
             max_drawdown_pct=20.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_dual_momentum_trend": StrategyDefinition(
+        strategy_id="btc_dual_momentum_trend",
+        backtest_runner=btc_dual_momentum_trend_run_backtest,
+        paper_candidate_builder=btc_dual_momentum_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=162.3,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=18.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_regime_adaptive_confluence": StrategyDefinition(
+        strategy_id="btc_regime_adaptive_confluence",
+        backtest_runner=btc_regime_adaptive_confluence_run_backtest,
+        paper_candidate_builder=btc_regime_adaptive_confluence_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=180.25,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=20.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_vol_dynamic_trail_trend": StrategyDefinition(
+        strategy_id="btc_vol_dynamic_trail_trend",
+        backtest_runner=btc_vol_dynamic_trail_trend_run_backtest,
+        paper_candidate_builder=btc_vol_dynamic_trail_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=162.3,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=18.0,
+        ),
+        default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
+        dataset_label="btc_usd_daily",
+    ),
+    "btc_vol_tight_trail_trend": StrategyDefinition(
+        strategy_id="btc_vol_tight_trail_trend",
+        backtest_runner=btc_vol_tight_trail_trend_run_backtest,
+        paper_candidate_builder=btc_vol_tight_trail_trend_paper_candidate,
+        validation_policy=ValidationPolicy(
+            min_trades=8,
+            min_return_pct=162.3,
+            min_profit_factor=2.0,
+            min_win_rate_pct=40.0,
+            max_drawdown_pct=18.0,
         ),
         default_dataset=str(DEFAULT_BTC_DAILY_YAHOO_DATASET),
         dataset_label="btc_usd_daily",

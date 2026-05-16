@@ -80,6 +80,9 @@ backend/hyperliquid_gateway/data/hyperliquid.db-wal
 backend/hyperliquid_gateway/data/*.db
 backend/hyperliquid_gateway/data/*.db-shm
 backend/hyperliquid_gateway/data/*.db-wal
+backend/hyperliquid_gateway/data/strategy_memory/*.db
+backend/hyperliquid_gateway/data/strategy_memory/*.db-shm
+backend/hyperliquid_gateway/data/strategy_memory/*.db-wal
 backend/hyperliquid_gateway/data/agent_runs/
 backend/hyperliquid_gateway/data/tmp-*.json
 backend/hyperliquid_gateway/data/macro_calendar_latest.json

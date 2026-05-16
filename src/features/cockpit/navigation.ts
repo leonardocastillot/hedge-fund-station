@@ -2,7 +2,6 @@ import {
   Activity,
   BarChart3,
   Bitcoin,
-  Bot,
   CalendarDays,
   CandlestickChart,
   Database,
@@ -30,6 +29,7 @@ export type AppNavItem = {
 export const APP_NAV_GROUPS: readonly AppNavGroup[] = ['core', 'research', 'ops', 'system'];
 
 export const APP_NAV_ITEMS: readonly AppNavItem[] = [
+  { path: '/workbench', label: 'Lab', icon: FlaskConical, group: 'core' },
   { path: '/station/hedge-fund', label: 'Hedge Fund', icon: ShieldCheck, group: 'core' },
   { path: '/station/live', label: 'Live', icon: Activity, group: 'core' },
   { path: '/cockpit', label: 'Cockpit', icon: RadioTower, group: 'core' },
@@ -44,8 +44,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   { path: '/liquidations', label: 'Liquidations', icon: Droplets, group: 'ops' },
   { path: '/portfolio', label: 'Portfolio', icon: Wallet, group: 'ops' },
   { path: '/data', label: 'Data', icon: Database, group: 'ops' },
-  { path: '/terminals', label: 'Terminales / CLI', icon: Terminal, group: 'ops' },
-  { path: '/workbench', label: 'Desk Space', icon: Bot, group: 'ops' },
+  { path: '/terminals', label: 'Code / CLI', icon: Terminal, group: 'ops' },
   { path: '/diagnostics', label: 'Diagnostics', icon: Activity, group: 'system' },
   { path: '/settings', label: 'Settings', icon: Settings, group: 'system' }
 ] as const;

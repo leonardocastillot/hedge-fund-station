@@ -4,7 +4,10 @@ import * as path from 'path';
 import type { DeskBrowserTab, LaunchProfile, Workspace, WorkspaceConfig, WorkspaceKind } from '../../types/ipc.types';
 
 const COMMAND_HUB_ID = 'command-hub';
-const VALID_WORKSPACE_KINDS: WorkspaceKind[] = ['hedge-fund', 'command-hub', 'project', 'ops'];
+const DEFAULT_STRATEGY_POD_ID = 'strategy-pod-btc-convex-cycle-trend';
+const DEFAULT_STRATEGY_ID = 'btc_convex_cycle_trend';
+const DEFAULT_STRATEGY_DISPLAY_NAME = 'BTC Convex Cycle Trend';
+const VALID_WORKSPACE_KINDS: WorkspaceKind[] = ['strategy-pod', 'hedge-fund', 'command-hub', 'project', 'ops'];
 const GENERATED_DESK_ROUTES = new Set(['/station/hedge-fund', '/terminals', '/diagnostics', '/workbench']);
 const LEGACY_HEDGE_COMMANDS = [
   'git status',
@@ -75,6 +78,31 @@ function slugify(value: string): string {
   return slug || 'workspace';
 }
 
+function normalizeAssetSymbol(value: unknown, fallback = 'BTC'): string {
+  const normalized = typeof value === 'string'
+    ? value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '')
+    : '';
+  return normalized || fallback;
+}
+
+function uniqueStrategyIds(values: unknown[]): string[] {
+  const ids = values
+    .flatMap((value) => Array.isArray(value) ? value : [value])
+    .map((value) => typeof value === 'string' ? value.trim() : '')
+    .filter(Boolean);
+
+  return Array.from(new Set(ids));
+}
+
+function tradingViewTabForSymbol(symbol: string): DeskBrowserTab {
+  const normalized = normalizeAssetSymbol(symbol);
+  return {
+    id: `tradingview-${normalized.toLowerCase()}`,
+    title: `TradingView ${normalized}`,
+    url: `https://www.tradingview.com/chart/?symbol=BINANCE:${encodeURIComponent(`${normalized}USDT`)}`
+  };
+}
+
 function hasPath(...segments: string[]): boolean {
   return fs.existsSync(path.join(...segments));
 }
@@ -112,6 +140,7 @@ function isWorkspaceKind(value: unknown): value is WorkspaceKind {
 }
 
 function defaultIconForKind(kind: WorkspaceKind): string {
+  if (kind === 'strategy-pod') return 'chart';
   if (kind === 'hedge-fund') return 'chart';
   if (kind === 'command-hub') return 'terminal';
   if (kind === 'ops') return 'server';
@@ -119,6 +148,7 @@ function defaultIconForKind(kind: WorkspaceKind): string {
 }
 
 function defaultColorForKind(kind: WorkspaceKind): string {
+  if (kind === 'strategy-pod') return '#22d3ee';
   if (kind === 'hedge-fund') return '#22d3ee';
   if (kind === 'command-hub') return '#06b6d4';
   if (kind === 'ops') return '#f97316';
@@ -131,6 +161,9 @@ function defaultRouteForKind(kind: WorkspaceKind): string {
 }
 
 function defaultDescriptionForKind(kind: WorkspaceKind): string {
+  if (kind === 'strategy-pod') {
+    return 'Asset pod for one ticker, using the hedge fund repo as the shared technical base.';
+  }
   if (kind === 'hedge-fund') {
     return 'Primary hedge fund research, validation, paper review, and backend command desk.';
   }
@@ -179,6 +212,10 @@ function createDefaultCommands(kind: WorkspaceKind, workspacePath: string): stri
   const scripts = readPackageScripts(workspacePath);
   const isNodeRepo = Object.keys(scripts).length > 0;
 
+  if (kind === 'strategy-pod') {
+    return ['rtk npm run agent:brief', 'rtk npm run hf:status', 'rtk npm run gateway:probe'];
+  }
+
   if (kind === 'command-hub') {
     return ['pwd', 'ls -la', 'git status'];
   }
@@ -206,6 +243,28 @@ function createDefaultCommands(kind: WorkspaceKind, workspacePath: string): stri
 function createDefaultLaunchProfiles(kind: WorkspaceKind, workspacePath: string): LaunchProfile[] {
   const scripts = readPackageScripts(workspacePath);
   const isNodeRepo = Object.keys(scripts).length > 0;
+
+  if (kind === 'strategy-pod') {
+    return [
+      {
+        id: 'strategy-agentic-desk',
+        name: 'Strategy Agentic Desk',
+        steps: [
+          { command: 'agent-runtime', delayMs: 0 },
+          { command: 'git status', delayMs: 300 },
+          { command: 'npm run hf:status', delayMs: 700 }
+        ]
+      },
+      {
+        id: 'strategy-validation',
+        name: 'Strategy Validation',
+        steps: [
+          { command: 'npm run hf:backtest', delayMs: 0 },
+          { command: 'npm run hf:validate', delayMs: 700 }
+        ]
+      }
+    ];
+  }
 
   if (kind === 'command-hub') {
     return [
@@ -312,14 +371,10 @@ function isSafeBrowserUrl(url: string): boolean {
   }
 }
 
-function createDefaultBrowserTabs(kind: WorkspaceKind): DeskBrowserTab[] {
-  if (kind === 'hedge-fund') {
+function createDefaultBrowserTabs(kind: WorkspaceKind, assetSymbol = 'BTC'): DeskBrowserTab[] {
+  if (kind === 'strategy-pod' || kind === 'hedge-fund') {
     return [
-      {
-        id: 'tradingview-btc',
-        title: 'TradingView BTC',
-        url: 'https://www.tradingview.com/chart/?symbol=BINANCE:BTCUSDT'
-      },
+      tradingViewTabForSymbol(assetSymbol),
       {
         id: 'gateway-health',
         title: 'Gateway Health',
@@ -362,9 +417,66 @@ function createDefaultBrowserTabs(kind: WorkspaceKind): DeskBrowserTab[] {
   ];
 }
 
-function normalizeBrowserTabs(tabs: unknown[] | undefined, kind: WorkspaceKind): DeskBrowserTab[] {
+function findHedgeFundRepoPath(workspaces: Workspace[]): string | undefined {
+  const fromWorkspace = workspaces.find((workspace) => hasRealHedgeFundMarkers(workspace.path));
+  if (fromWorkspace) {
+    return fromWorkspace.path;
+  }
+
+  const documentsPath = app.getPath('documents');
+  const candidates = [
+    path.join(documentsPath, 'hedge_fund_stations'),
+    path.join(documentsPath, 'New project 9')
+  ];
+  return candidates.find((candidate) => hasRealHedgeFundMarkers(candidate));
+}
+
+function createDefaultStrategyPodWorkspace(repoPath: string, shell: string): Workspace {
+  return {
+    id: DEFAULT_STRATEGY_POD_ID,
+    name: 'BTC',
+    path: repoPath,
+    kind: 'strategy-pod',
+    description: 'Asset pod for BTC strategy research sessions.',
+    pinned: true,
+    default_route: defaultRouteForKind('strategy-pod'),
+    icon: defaultIconForKind('strategy-pod'),
+    color: defaultColorForKind('strategy-pod'),
+    default_commands: [
+      'rtk npm run agent:brief',
+      `rtk npm run hf:status -- --strategy ${DEFAULT_STRATEGY_ID}`,
+      `rtk npm run hf:backtest -- --strategy ${DEFAULT_STRATEGY_ID}`,
+      `rtk npm run hf:validate -- --strategy ${DEFAULT_STRATEGY_ID}`
+    ],
+    launch_profiles: [
+      {
+        id: 'strategy-agentic-desk',
+        name: 'Strategy Agentic Desk',
+        steps: [
+          { command: 'rtk npm run agent:brief', delayMs: 0 },
+          { command: `rtk npm run hf:status -- --strategy ${DEFAULT_STRATEGY_ID}`, delayMs: 400 }
+        ]
+      }
+    ],
+    browser_tabs: createDefaultBrowserTabs('strategy-pod', 'BTC'),
+    shell,
+    obsidian_vault_path: undefined,
+    asset_symbol: 'BTC',
+    asset_display_name: 'BTC',
+    linked_strategy_ids: [DEFAULT_STRATEGY_ID],
+    active_strategy_id: DEFAULT_STRATEGY_ID,
+    strategy_id: DEFAULT_STRATEGY_ID,
+    strategy_display_name: DEFAULT_STRATEGY_DISPLAY_NAME,
+    strategy_symbol: 'BTC',
+    strategy_pod_status: 'catalog',
+    strategy_backend_dir: path.join(repoPath, 'backend', 'hyperliquid_gateway', 'strategies', DEFAULT_STRATEGY_ID),
+    strategy_docs_path: path.join(repoPath, 'docs', 'strategies', `${DEFAULT_STRATEGY_ID.replace(/_/g, '-')}.md`)
+  };
+}
+
+function normalizeBrowserTabs(tabs: unknown[] | undefined, kind: WorkspaceKind, assetSymbol = 'BTC'): DeskBrowserTab[] {
   if (!Array.isArray(tabs)) {
-    return createDefaultBrowserTabs(kind);
+    return createDefaultBrowserTabs(kind, assetSymbol);
   }
 
   const normalized = tabs
@@ -389,7 +501,7 @@ function normalizeBrowserTabs(tabs: unknown[] | undefined, kind: WorkspaceKind):
     })
     .filter((tab): tab is DeskBrowserTab => tab !== null);
 
-  return normalized.length > 0 ? normalized : createDefaultBrowserTabs(kind);
+  return normalized.length > 0 ? normalized : createDefaultBrowserTabs(kind, assetSymbol);
 }
 
 function normalizeDefaultRoute(route: unknown, kind: WorkspaceKind): string {
@@ -449,6 +561,8 @@ function findObsidianVaultPath(workspacePath: string): string | undefined {
 
 function normalizeObsidianVaultPath(workspacePath: string, vaultPath?: string): string | undefined {
   const curatedVaultPath = path.join(workspacePath, 'hedge-station');
+  const curatedVaultExists = hasPath(curatedVaultPath, '.obsidian')
+    || hasPath(curatedVaultPath, 'Workspace Home.md');
   const trimmedVaultPath = typeof vaultPath === 'string' && vaultPath.trim()
     ? vaultPath.trim()
     : undefined;
@@ -456,10 +570,16 @@ function normalizeObsidianVaultPath(workspacePath: string, vaultPath?: string): 
   if (
     trimmedVaultPath
     && path.resolve(trimmedVaultPath) === path.resolve(workspacePath)
-    && (
-      hasPath(curatedVaultPath, '.obsidian')
-      || hasPath(curatedVaultPath, 'Workspace Home.md')
-    )
+    && curatedVaultExists
+  ) {
+    return curatedVaultPath;
+  }
+
+  if (
+    trimmedVaultPath
+    && !hasPath(trimmedVaultPath, '.obsidian')
+    && !hasPath(trimmedVaultPath, 'Workspace Home.md')
+    && curatedVaultExists
   ) {
     return curatedVaultPath;
   }
@@ -524,7 +644,6 @@ export class WorkspaceManager {
       name: fallbackName,
       path: fallbackPath
     });
-    const defaultCommands = createDefaultCommands(kind, fallbackPath);
     const normalizedCommands = Array.isArray(workspace.default_commands)
       ? workspace.default_commands.filter(Boolean).map((command) => String(command).trim()).filter(Boolean)
       : [];
@@ -534,10 +653,60 @@ export class WorkspaceManager {
         looksLikeLegacyHedgeCommands(normalizedCommands)
         || looksLikeLegacyHedgeProfiles(normalizedProfiles)
       );
+    const legacyStrategyId = typeof workspace.strategy_id === 'string' && workspace.strategy_id.trim()
+      ? workspace.strategy_id.trim()
+      : undefined;
+    const linkedStrategyIds = kind === 'strategy-pod'
+      ? uniqueStrategyIds([
+          workspace.linked_strategy_ids,
+          workspace.active_strategy_id,
+          legacyStrategyId
+        ])
+      : [];
+    const activeStrategyId = kind === 'strategy-pod'
+      ? typeof workspace.active_strategy_id === 'string' && workspace.active_strategy_id.trim()
+        ? workspace.active_strategy_id.trim()
+        : linkedStrategyIds[0]
+      : undefined;
+    const assetSymbol = kind === 'strategy-pod'
+      ? normalizeAssetSymbol(workspace.asset_symbol || workspace.strategy_symbol || fallbackName)
+      : undefined;
+    const assetDisplayName = kind === 'strategy-pod'
+      ? typeof workspace.asset_display_name === 'string' && workspace.asset_display_name.trim()
+        ? workspace.asset_display_name.trim()
+        : assetSymbol
+      : undefined;
+    const defaultCommands = activeStrategyId
+      ? [
+          'rtk npm run agent:brief',
+          `rtk npm run hf:status -- --strategy ${activeStrategyId}`,
+          `rtk npm run hf:backtest -- --strategy ${activeStrategyId}`,
+          `rtk npm run hf:validate -- --strategy ${activeStrategyId}`
+        ]
+      : createDefaultCommands(kind, fallbackPath);
+    const strategyDisplayName = typeof workspace.strategy_display_name === 'string' && workspace.strategy_display_name.trim()
+      ? workspace.strategy_display_name.trim()
+      : undefined;
+    const strategySymbol = typeof workspace.strategy_symbol === 'string' && workspace.strategy_symbol.trim()
+      ? workspace.strategy_symbol.trim().toUpperCase()
+      : assetSymbol;
+    const strategyBackendDir = typeof workspace.strategy_backend_dir === 'string' && workspace.strategy_backend_dir.trim()
+      ? workspace.strategy_backend_dir.trim()
+      : undefined;
+    const strategyDocsPath = typeof workspace.strategy_docs_path === 'string' && workspace.strategy_docs_path.trim()
+      ? workspace.strategy_docs_path.trim()
+      : undefined;
+    const strategyPodStatus = kind === 'strategy-pod'
+      ? workspace.strategy_pod_status === 'draft' || workspace.strategy_pod_status === 'catalog'
+        ? workspace.strategy_pod_status
+        : activeStrategyId
+          ? 'catalog'
+          : 'draft'
+      : undefined;
 
     return {
       id: fallbackId,
-      name: fallbackName,
+      name: kind === 'strategy-pod' && assetDisplayName ? assetDisplayName : fallbackName,
       path: fallbackPath,
       kind,
       description: typeof workspace.description === 'string' && workspace.description.trim()
@@ -545,7 +714,7 @@ export class WorkspaceManager {
         : defaultDescriptionForKind(kind),
       pinned: typeof workspace.pinned === 'boolean'
         ? workspace.pinned
-        : kind === 'command-hub' || kind === 'hedge-fund',
+        : kind === 'command-hub' || kind === 'hedge-fund' || kind === 'strategy-pod',
       default_route: normalizeDefaultRoute(workspace.default_route, kind),
       icon: typeof workspace.icon === 'string' && workspace.icon.trim()
         ? workspace.icon.trim()
@@ -559,11 +728,21 @@ export class WorkspaceManager {
       launch_profiles: replaceLegacyDefaults || normalizedProfiles.length === 0
         ? createDefaultLaunchProfiles(kind, fallbackPath)
         : normalizedProfiles,
-      browser_tabs: normalizeBrowserTabs(workspace.browser_tabs, kind),
+      browser_tabs: normalizeBrowserTabs(workspace.browser_tabs, kind, assetSymbol),
       shell: typeof workspace.shell === 'string' && workspace.shell.trim()
         ? workspace.shell.trim()
         : process.env.SHELL || '/bin/zsh',
-      obsidian_vault_path: normalizeObsidianVaultPath(fallbackPath, workspace.obsidian_vault_path)
+      obsidian_vault_path: normalizeObsidianVaultPath(fallbackPath, workspace.obsidian_vault_path),
+      asset_symbol: kind === 'strategy-pod' ? assetSymbol : undefined,
+      asset_display_name: kind === 'strategy-pod' ? assetDisplayName : undefined,
+      linked_strategy_ids: kind === 'strategy-pod' ? linkedStrategyIds : undefined,
+      active_strategy_id: kind === 'strategy-pod' ? activeStrategyId : undefined,
+      strategy_id: kind === 'strategy-pod' ? activeStrategyId : undefined,
+      strategy_display_name: kind === 'strategy-pod' ? strategyDisplayName : undefined,
+      strategy_symbol: kind === 'strategy-pod' ? strategySymbol : undefined,
+      strategy_pod_status: strategyPodStatus,
+      strategy_backend_dir: kind === 'strategy-pod' ? strategyBackendDir : undefined,
+      strategy_docs_path: kind === 'strategy-pod' ? strategyDocsPath : undefined
     };
   }
 
@@ -591,21 +770,49 @@ export class WorkspaceManager {
     return [this.createCommandHubWorkspace(), ...workspaces];
   }
 
+  private ensureDefaultStrategyPods(workspaces: Workspace[]): Workspace[] {
+    if (workspaces.some((workspace) => workspace.kind === 'strategy-pod')) {
+      return workspaces;
+    }
+
+    const repoPath = findHedgeFundRepoPath(workspaces);
+    if (!repoPath) {
+      return workspaces;
+    }
+
+    const strategyDir = path.join(repoPath, 'backend', 'hyperliquid_gateway', 'strategies', DEFAULT_STRATEGY_ID);
+    const strategyDocs = path.join(repoPath, 'docs', 'strategies', `${DEFAULT_STRATEGY_ID.replace(/_/g, '-')}.md`);
+    if (!fs.existsSync(strategyDir) && !fs.existsSync(strategyDocs)) {
+      return workspaces;
+    }
+
+    return [
+      ...workspaces,
+      this.normalizeWorkspace(createDefaultStrategyPodWorkspace(repoPath, process.env.SHELL || '/bin/zsh'))
+    ];
+  }
+
   private loadConfig(): void {
     if (fs.existsSync(this.configPath)) {
       try {
         const data = fs.readFileSync(this.configPath, 'utf-8');
         const parsed = JSON.parse(data) as WorkspaceConfig;
-        const normalizedWorkspaces = this.ensureCommandHub(
-          (parsed.workspaces || []).map((workspace, index) => this.normalizeWorkspace(workspace, index))
+        const normalizedWorkspaces = this.ensureDefaultStrategyPods(
+          this.ensureCommandHub(
+            (parsed.workspaces || []).map((workspace, index) => this.normalizeWorkspace(workspace, index))
+          )
         );
         const activeWorkspaceExists = normalizedWorkspaces.some((workspace) => workspace.id === parsed.active_workspace_id);
+        const activeStrategyPodExists = normalizedWorkspaces.some(
+          (workspace) => workspace.id === parsed.active_workspace_id && workspace.kind === 'strategy-pod'
+        );
+        const firstStrategyPod = normalizedWorkspaces.find((workspace) => workspace.kind === 'strategy-pod');
         this.config = {
           ...parsed,
           workspaces: normalizedWorkspaces,
-          active_workspace_id: activeWorkspaceExists
+          active_workspace_id: activeStrategyPodExists
             ? parsed.active_workspace_id
-            : normalizedWorkspaces[0]?.id || COMMAND_HUB_ID
+            : firstStrategyPod?.id || (activeWorkspaceExists ? parsed.active_workspace_id : normalizedWorkspaces[0]?.id || COMMAND_HUB_ID)
         };
         this.saveConfig();
       } catch (error) {
@@ -619,8 +826,13 @@ export class WorkspaceManager {
 
   private createDefaultConfig(): void {
     const documentsPath = app.getPath('documents');
+    const repoCandidatePath = path.join(documentsPath, 'hedge_fund_stations');
     const projectPath = path.join(documentsPath, 'New project 9');
-    const tradingPath = fs.existsSync(projectPath) ? projectPath : documentsPath;
+    const tradingPath = hasRealHedgeFundMarkers(repoCandidatePath)
+      ? repoCandidatePath
+      : fs.existsSync(projectPath)
+        ? projectPath
+        : documentsPath;
     const shell = process.env.SHELL || '/bin/zsh';
 
     const hedgeFundWorkspace: Workspace = {
@@ -641,9 +853,13 @@ export class WorkspaceManager {
     };
 
     const commandHub = this.createCommandHubWorkspace();
+    const strategyPod = fs.existsSync(path.join(tradingPath, 'backend', 'hyperliquid_gateway', 'strategies', DEFAULT_STRATEGY_ID))
+      || fs.existsSync(path.join(tradingPath, 'docs', 'strategies', `${DEFAULT_STRATEGY_ID.replace(/_/g, '-')}.md`))
+        ? this.normalizeWorkspace(createDefaultStrategyPodWorkspace(tradingPath, shell))
+        : null;
     this.config = {
-      workspaces: [commandHub, hedgeFundWorkspace],
-      active_workspace_id: hedgeFundWorkspace.id
+      workspaces: strategyPod ? [commandHub, hedgeFundWorkspace, strategyPod] : [commandHub, hedgeFundWorkspace],
+      active_workspace_id: strategyPod?.id || hedgeFundWorkspace.id
     };
 
     this.saveConfig();
@@ -691,6 +907,19 @@ export class WorkspaceManager {
     return `${baseId}-${suffix}`;
   }
 
+  private hasDuplicateAssetPod(workspace: Workspace, ignoreId?: string): boolean {
+    if (!this.config || workspace.kind !== 'strategy-pod' || !workspace.asset_symbol) {
+      return false;
+    }
+
+    const assetSymbol = workspace.asset_symbol.toUpperCase();
+    return this.config.workspaces.some((existing) => (
+      existing.id !== ignoreId
+      && existing.kind === 'strategy-pod'
+      && (existing.asset_symbol || existing.strategy_symbol || '').toUpperCase() === assetSymbol
+    ));
+  }
+
   // Public API
 
   getAll(): Workspace[] {
@@ -732,6 +961,10 @@ export class WorkspaceManager {
     // Check if ID already exists
     if (this.config.workspaces.some(w => w.id === workspace.id)) {
       throw new Error(`Workspace with ID ${workspace.id} already exists`);
+    }
+
+    if (this.hasDuplicateAssetPod(workspace)) {
+      throw new Error(`Strategy Pod for asset ${workspace.asset_symbol} already exists`);
     }
 
     // Validate path exists
@@ -853,6 +1086,10 @@ export class WorkspaceManager {
       ...updates,
       id
     }, index);
+
+    if (this.hasDuplicateAssetPod(merged, id)) {
+      throw new Error(`Strategy Pod for asset ${merged.asset_symbol} already exists`);
+    }
 
     this.config.workspaces[index] = merged;
 

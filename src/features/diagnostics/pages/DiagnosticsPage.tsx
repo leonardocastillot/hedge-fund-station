@@ -558,10 +558,12 @@ function PerformanceSnapshotCard({ snapshot }: { snapshot: DiagnosticsPerformanc
 
 function ServiceMetric({ label, service }: { label: string; service?: DevServiceStatus }) {
   const value = service
-    ? service.ok
+    ? service.stale
+      ? 'stale gateway'
+      : service.ok
       ? `${service.statusCode ?? 'ok'} · ${service.latencyMs ?? 0}ms`
       : service.error || 'offline'
     : 'checking';
 
-  return <Metric label={label} value={value} />;
+  return <Metric label={label} value={service?.detail ? `${value} · ${service.detail}` : value} />;
 }

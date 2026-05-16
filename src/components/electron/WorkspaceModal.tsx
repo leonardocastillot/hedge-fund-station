@@ -33,7 +33,8 @@ const COLORS = [
 ];
 
 const WORKSPACE_KIND_OPTIONS: Array<{ value: WorkspaceKind; label: string; description: string }> = [
-  { value: 'command-hub', label: 'Command Hub', description: 'Global terminal and AI runtime desk.' },
+  { value: 'strategy-pod', label: 'Strategy Pod', description: 'Local strategy parcel using this repo as the shared cwd.' },
+  { value: 'command-hub', label: 'Command Hub', description: 'Global terminal and AI runtime workspace.' },
   { value: 'hedge-fund', label: 'Hedge Fund', description: 'Research, validation, paper review, and backend commands.' },
   { value: 'project', label: 'Project', description: 'Normal code, notes, agents, and terminal work.' },
   { value: 'ops', label: 'Ops', description: 'Services, tunnels, diagnostics, and runtime health.' }
@@ -120,9 +121,20 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
   const [defaultCommands, setDefaultCommands] = useState('');
   const [launchProfiles, setLaunchProfiles] = useState('');
   const [browserTabs, setBrowserTabs] = useState('');
+  const [assetSymbol, setAssetSymbol] = useState('BTC');
+  const [assetDisplayName, setAssetDisplayName] = useState('');
+  const [linkedStrategyIds, setLinkedStrategyIds] = useState('');
+  const [activeStrategyId, setActiveStrategyId] = useState('');
+  const [strategyId, setStrategyId] = useState('');
+  const [strategyDisplayName, setStrategyDisplayName] = useState('');
+  const [strategySymbol, setStrategySymbol] = useState('BTC');
+  const [strategyPodStatus, setStrategyPodStatus] = useState<'catalog' | 'draft'>('draft');
+  const [strategyBackendDir, setStrategyBackendDir] = useState('');
+  const [strategyDocsPath, setStrategyDocsPath] = useState('');
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const isStrategyPod = kind === 'strategy-pod';
 
   useEffect(() => {
     if (existingWorkspace) {
@@ -139,6 +151,16 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setDefaultCommands(existingWorkspace.default_commands.join('\n'));
       setLaunchProfiles(formatLaunchProfiles(existingWorkspace.launch_profiles || []));
       setBrowserTabs(formatBrowserTabs(existingWorkspace.browser_tabs || []));
+      setAssetSymbol(existingWorkspace.asset_symbol || existingWorkspace.strategy_symbol || 'BTC');
+      setAssetDisplayName(existingWorkspace.asset_display_name || existingWorkspace.name || '');
+      setLinkedStrategyIds((existingWorkspace.linked_strategy_ids || (existingWorkspace.strategy_id ? [existingWorkspace.strategy_id] : [])).join('\n'));
+      setActiveStrategyId(existingWorkspace.active_strategy_id || existingWorkspace.strategy_id || '');
+      setStrategyId(existingWorkspace.strategy_id || '');
+      setStrategyDisplayName(existingWorkspace.strategy_display_name || '');
+      setStrategySymbol(existingWorkspace.strategy_symbol || 'BTC');
+      setStrategyPodStatus(existingWorkspace.strategy_pod_status || (existingWorkspace.strategy_id ? 'catalog' : 'draft'));
+      setStrategyBackendDir(existingWorkspace.strategy_backend_dir || '');
+      setStrategyDocsPath(existingWorkspace.strategy_docs_path || '');
     } else {
       setName('');
       setPath('');
@@ -153,6 +175,16 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
       setDefaultCommands('');
       setLaunchProfiles('');
       setBrowserTabs('');
+      setAssetSymbol('BTC');
+      setAssetDisplayName('');
+      setLinkedStrategyIds('');
+      setActiveStrategyId('');
+      setStrategyId('');
+      setStrategyDisplayName('');
+      setStrategySymbol('BTC');
+      setStrategyPodStatus('draft');
+      setStrategyBackendDir('');
+      setStrategyDocsPath('');
     }
     setIsAdvancedOpen(false);
     setError('');
@@ -163,12 +195,12 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
     setError('');
 
     if (!name.trim()) {
-      setError('Desk name is required.');
+      setError('Workspace name is required.');
       return;
     }
 
     if (!path.trim()) {
-      setError('Desk path is required.');
+      setError('Workspace path is required.');
       return;
     }
 
@@ -192,13 +224,25 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
           .map((command) => command.trim())
           .filter(Boolean),
         launch_profiles: parseLaunchProfiles(launchProfiles),
-        browser_tabs: parseBrowserTabs(browserTabs)
+        browser_tabs: parseBrowserTabs(browserTabs),
+        asset_symbol: kind === 'strategy-pod' ? assetSymbol.trim().toUpperCase() || undefined : undefined,
+        asset_display_name: kind === 'strategy-pod' ? assetDisplayName.trim() || name.trim() : undefined,
+        linked_strategy_ids: kind === 'strategy-pod'
+          ? linkedStrategyIds.split('\n').map((item) => item.trim()).filter(Boolean)
+          : undefined,
+        active_strategy_id: kind === 'strategy-pod' ? activeStrategyId.trim() || strategyId.trim() || undefined : undefined,
+        strategy_id: kind === 'strategy-pod' ? activeStrategyId.trim() || strategyId.trim() || undefined : undefined,
+        strategy_display_name: kind === 'strategy-pod' ? strategyDisplayName.trim() || undefined : undefined,
+        strategy_symbol: kind === 'strategy-pod' ? strategySymbol.trim() || undefined : undefined,
+        strategy_pod_status: kind === 'strategy-pod' ? strategyPodStatus : undefined,
+        strategy_backend_dir: kind === 'strategy-pod' ? strategyBackendDir.trim() || undefined : undefined,
+        strategy_docs_path: kind === 'strategy-pod' ? strategyDocsPath.trim() || undefined : undefined
       };
 
       await onSave(workspace);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save desk.');
+      setError(err instanceof Error ? err.message : 'Failed to save workspace.');
     } finally {
       setIsLoading(false);
     }
@@ -259,19 +303,21 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
             <div
               style={{
                 fontSize: '11px',
-                color: '#ef4444',
+                color: isStrategyPod ? '#22d3ee' : '#ef4444',
                 fontWeight: 800,
                 textTransform: 'uppercase',
                 letterSpacing: '0.14em'
               }}
             >
-              Desk Config
+              {isStrategyPod ? 'Strategy Pod Config' : 'Workspace Config'}
             </div>
             <h2 style={{ margin: '8px 0 4px 0', color: '#f9fafb', fontSize: '22px', fontWeight: 800 }}>
-              {existingWorkspace ? 'Edit Desk' : 'Create Desk'}
+              {existingWorkspace ? (isStrategyPod ? 'Edit Strategy Pod' : 'Edit Workspace') : 'Create Workspace'}
             </h2>
             <p style={{ margin: 0, color: '#9ca3af', fontSize: '12px', lineHeight: 1.55, maxWidth: '560px' }}>
-              Edit the desk essentials. Commands, colors and launch profiles are tucked away under Advanced.
+              {isStrategyPod
+                ? 'Edit pod identity, linked strategy, local tabs, commands and launch profiles. The repo path stays as the locked cwd.'
+                : 'Edit the workspace essentials. Commands, colors and launch profiles are tucked away under Advanced.'}
             </p>
           </div>
 
@@ -303,48 +349,112 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
               gap: '14px'
             }}
           >
-            <SectionCard title="Basics" subtitle="Name, kind, path and shell.">
-                <Field label="Desk Name *">
+            <SectionCard title="Basics" subtitle={isStrategyPod ? 'Pod identity, linked strategy and agent defaults.' : 'Name, kind, path and shell.'}>
+                <Field label="Workspace Name *">
                   <Input value={name} onChange={setName} placeholder="Command Hub" />
                 </Field>
 
-                <Field label="Desk Type">
-                  <select
-                    value={kind}
-                    onChange={(event) => {
-                      const nextKind = event.target.value as WorkspaceKind;
-                      setKind(nextKind);
-                      setDescription((current) => (
-                        !current.trim() || WORKSPACE_KIND_OPTIONS.some((option) => option.description === current.trim())
-                          ? defaultDescription(nextKind)
-                          : current
-                      ));
-                      setDefaultRoutePath((current) => (
-                        !current.trim() || ['/station/hedge-fund', '/terminals', '/diagnostics', '/workbench'].includes(current.trim())
-                          ? defaultRouteForKind(nextKind)
-                          : current
-                      ));
-                    }}
-                    style={selectStyle}
-                  >
-                    {WORKSPACE_KIND_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </Field>
+                {isStrategyPod ? (
+                  <Field label="Pod Type">
+                    <Input value="Strategy Pod" onChange={() => undefined} placeholder="Strategy Pod" readOnly />
+                  </Field>
+                ) : (
+                  <Field label="Workspace Type">
+                    <select
+                      value={kind}
+                      onChange={(event) => {
+                        const nextKind = event.target.value as WorkspaceKind;
+                        setKind(nextKind);
+                        setDescription((current) => (
+                          !current.trim() || WORKSPACE_KIND_OPTIONS.some((option) => option.description === current.trim())
+                            ? defaultDescription(nextKind)
+                            : current
+                        ));
+                        setDefaultRoutePath((current) => (
+                          !current.trim() || ['/station/hedge-fund', '/terminals', '/diagnostics', '/workbench'].includes(current.trim())
+                            ? defaultRouteForKind(nextKind)
+                            : current
+                        ));
+                        if (nextKind === 'strategy-pod') {
+                          setIcon('chart');
+                          setColor('#06b6d4');
+                          setStrategyPodStatus((current) => current || 'draft');
+                        }
+                      }}
+                      style={selectStyle}
+                    >
+                      {WORKSPACE_KIND_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
 
                 <Field label="Description">
                   <Input value={description} onChange={setDescription} placeholder={defaultDescription(kind)} />
                 </Field>
 
-                <Field label="Project Path *">
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Input value={path} onChange={setPath} placeholder="/Users/optimus/Documents/project" mono />
-                    <ActionButton type="button" onClick={handleBrowsePath}>
-                      Browse
-                    </ActionButton>
-                  </div>
-                </Field>
+                {isStrategyPod ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
+                      <Field label="Asset Symbol">
+                        <Input value={assetSymbol} onChange={(value) => setAssetSymbol(value.toUpperCase())} placeholder="BTC" mono />
+                      </Field>
+                      <Field label="Asset Display Name">
+                        <Input value={assetDisplayName} onChange={setAssetDisplayName} placeholder="BTC" />
+                      </Field>
+                    </div>
+
+                    <Field label="Linked Strategy IDs">
+                      <Textarea value={linkedStrategyIds} onChange={setLinkedStrategyIds} placeholder="btc_convex_cycle_trend" />
+                    </Field>
+
+                    <Field label="Active Strategy ID">
+                      <Input value={activeStrategyId} onChange={setActiveStrategyId} placeholder="btc_convex_cycle_trend" mono />
+                    </Field>
+
+                    <Field label="Linked Strategy ID">
+                      <Input value={strategyId} onChange={setStrategyId} placeholder="btc_convex_cycle_trend" mono />
+                    </Field>
+
+                    <Field label="Strategy Display Name">
+                      <Input value={strategyDisplayName} onChange={setStrategyDisplayName} placeholder="BTC Convex Cycle Trend" />
+                    </Field>
+
+                    <Field label="Backend Strategy Folder">
+                      <Input value={strategyBackendDir} onChange={setStrategyBackendDir} placeholder="/Users/optimus/Documents/hedge_fund_stations/backend/hyperliquid_gateway/strategies/btc_convex_cycle_trend" mono />
+                    </Field>
+
+                    <Field label="Strategy Docs File">
+                      <Input value={strategyDocsPath} onChange={setStrategyDocsPath} placeholder="/Users/optimus/Documents/hedge_fund_stations/docs/strategies/btc-convex-cycle-trend.md" mono />
+                    </Field>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '12px' }}>
+                      <Field label="Symbol">
+                        <Input value={strategySymbol} onChange={setStrategySymbol} placeholder="BTC" mono />
+                      </Field>
+                      <Field label="Pod Status">
+                        <select
+                          value={strategyPodStatus}
+                          onChange={(event) => setStrategyPodStatus(event.target.value as 'catalog' | 'draft')}
+                          style={selectStyle}
+                        >
+                          <option value="catalog">Catalog</option>
+                          <option value="draft">Draft</option>
+                        </select>
+                      </Field>
+                    </div>
+                  </>
+                ) : (
+                  <Field label="Project Path *">
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <Input value={path} onChange={setPath} placeholder="/Users/optimus/Documents/project" mono />
+                      <ActionButton type="button" onClick={handleBrowsePath}>
+                        Browse
+                      </ActionButton>
+                    </div>
+                  </Field>
+                )}
 
                 <Field label="Default Shell">
                   <Input value={shell} onChange={setShell} placeholder="/bin/zsh" mono />
@@ -360,7 +470,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                     checked={pinned}
                     onChange={(event) => setPinned(event.target.checked)}
                   />
-                  <span>Pin this desk near the top of the sidebar</span>
+                  <span>Pin this workspace near the top of the sidebar</span>
                 </label>
 
                 <Field label="Obsidian Vault Path">
@@ -397,6 +507,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
             {isAdvancedOpen && (
               <>
+              {isStrategyPod ? (
+                <SectionCard title="Locked Repo CWD" subtitle="Strategy pods share the hedge fund repo path; deleting a pod never deletes files.">
+                  <Field label="Repo Path">
+                    <Input value={path} onChange={setPath} placeholder="/Users/optimus/Documents/hedge_fund_stations" mono readOnly />
+                  </Field>
+                </SectionCard>
+              ) : null}
+
               <SectionCard title="Appearance" subtitle="Compact identity for the sidebar.">
                 <Field label="Icon">
                   <div style={iconGridStyle}>
@@ -448,7 +566,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 <textarea
                   value={defaultCommands}
                   onChange={(event) => setDefaultCommands(event.target.value)}
-                  placeholder={'claude\ngit status\nnpm run dev'}
+                  placeholder={'opencode\nclaude\ngit status\nnpm run dev'}
                   rows={5}
                   style={textareaStyle}
                 />
@@ -456,14 +574,14 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
 
               <SectionCard
                 title="Launch Profiles"
-                subtitle="Optional desk launch presets. Use one line per desk."
+                subtitle="Optional workspace launch presets. Use one line per workspace."
               >
                 <textarea
                   value={launchProfiles}
                   onChange={(event) => setLaunchProfiles(event.target.value)}
                   placeholder={
-                    'AI Dev Desk | 0>agent-runtime ::: 300>git status ::: 700>npm run dev\n' +
-                    'AI Trading Desk | 0>agent-runtime ::: 300>docker compose ps ::: 700>git status'
+                    'AI Dev Workspace | 0>agent-runtime ::: 300>git status ::: 700>npm run dev\n' +
+                    'AI Trading Workspace | 0>agent-runtime ::: 300>docker compose ps ::: 700>git status'
                   }
                   rows={7}
                   style={textareaStyle}
@@ -518,7 +636,9 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
             }}
           >
             <div style={{ color: '#6b7280', fontSize: '11px' }}>
-              Desks are stored locally and do not modify folders on disk.
+              {isStrategyPod
+                ? 'Pods are local config. Delete Pod never removes backend folders or docs.'
+                : 'Workspaces are stored locally and do not modify folders on disk.'}
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -526,7 +646,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
                 Cancel
               </ActionButton>
               <ActionButton type="submit" primary disabled={isLoading}>
-                {isLoading ? 'Saving...' : existingWorkspace ? 'Save Changes' : 'Create Desk'}
+                {isLoading ? 'Saving...' : existingWorkspace ? 'Save Changes' : 'Create Workspace'}
               </ActionButton>
             </div>
           </div>
@@ -580,12 +700,14 @@ function Input({
   value,
   onChange,
   placeholder,
-  mono = false
+  mono = false,
+  readOnly = false
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   mono?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <input
@@ -593,9 +715,39 @@ function Input({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      readOnly={readOnly}
       style={{
         ...inputStyle,
-        fontFamily: mono ? 'Consolas, monospace' : 'inherit'
+        fontFamily: mono ? 'Consolas, monospace' : 'inherit',
+        opacity: readOnly ? 0.72 : 1
+      }}
+    />
+  );
+}
+
+function Textarea({
+  value,
+  onChange,
+  placeholder
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <textarea
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      rows={3}
+      style={{
+        ...inputStyle,
+        height: 'auto',
+        minHeight: '76px',
+        paddingTop: '10px',
+        resize: 'vertical',
+        fontFamily: 'Consolas, monospace',
+        lineHeight: 1.5
       }}
     />
   );
